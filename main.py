@@ -1,21 +1,22 @@
 from firestore_services import FirestoreServices
-from core_models import School
+from core_models import School, Task, Variant
 from pydantic import ValidationError
+import json
 
 
 def main():
-    schools = FirestoreServices().get_schools()
-    schools_names = []
-    for school in schools:
+    fs = FirestoreServices()
+    tasks = fs.get_tasks()
+    tasks_list = []
+    for task in tasks:
         try:
-            # Create an instance of your Pydantic model
-            schools_name = School(**school).name
-            schools_names.append(schools_name)
+            variants = fs.get_variants(task_id=task['id'])
+            variants_list = [Variant(**variant) for variant in variants]
+            tasks_list.append(Task(**task, variants=variants_list))
         except ValidationError as e:
             # Print the error
-            print(f"Validation error on school_id-{school.get("id", None)}: {e}")
-    print(schools_names)
-
+            print(f"Validation error on task_id-{task.get("id", None)}: {e}")
+    print(tasks_list)
 
 if __name__ == "__main__":
     main()

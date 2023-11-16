@@ -29,3 +29,27 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_schools: {e}")
         return result
+
+    def get_tasks(self):
+        result = []
+        try:
+            docs = self.db.collection('tasks').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_tasks: {e}")
+        return result
+
+    def get_variants(self, task_id):
+        result = []
+        try:
+            docs = self.db.collection('tasks').document(task_id).collection('variants').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_tasks: {e}")
+        return result
