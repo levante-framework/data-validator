@@ -5,30 +5,31 @@ from datetime import datetime
 
 class Class(BaseModel):
     id: str
-    districtId: str
-    schoolId: str
+    district_id: str
+    school_id: str
     name: str
-    clever: bool
-    sectionNumber: str = Field(default_factory=lambda: 'Unknown')
-    subject: str
-    grade: str
+    section_number: str = None
+    subject: str = None
+    grade: str = None
     created: datetime
-    lastModified: datetime
+    last_modified: datetime
 
 
 class School(BaseModel):
     id: str
-    districtId: str
-    stateId: str = Field(default_factory=lambda: 'Unknown')
-    schoolNumber: str
+    district_id: str
+    state_id: str = None
+    school_number: str
     name: str
-    phone: str = Field(default_factory=lambda: 'Unknown')
-    clever: bool
-    highGrade: str = Field(default_factory=lambda: 'Unknown')
-    lowGrade: str = Field(default_factory=lambda: 'Unknown')
-    location: dict = {}
-    principal: dict = {}
-    classes: List[str] = []
+    phone: str = None
+    high_grade: str = None
+    low_grade: str = None
+    address: str = None
+    city: str = None
+    state: str = None
+    zip: str = None
+    principal_name: str = None
+    principal_email: str = None
     created: datetime
     lastModified: datetime
 
@@ -36,39 +37,85 @@ class School(BaseModel):
 class District(BaseModel):
     id: str
     name: str
-    portalUrl: str
-    districtContact: str
-    sis_Type: str
-    schools: List[str]
-    lastSync: datetime
-    launchDate: datetime
+    portal_url: str
+    district_contact_name: str = None
+    district_contact_email: str = None
+    district_contact_title: str = None
+    last_sync: datetime
+    launch_date: datetime
 
 
 class Variant(BaseModel):
     id: str
+    task_id: str
     name: str = None
-    params: dict
     lastUpdated: datetime = None
+
+
+class VariantParams(BaseModel):
+    id: int
+    variant_id: str
+    params_field: str
+    params_type: str
+    params_value: str
 
 
 class Task(BaseModel):
     id: str
     name: str = None
     registered: bool = None
-    lastUpdated: datetime
     description: str = None
     image: str = None
-    variants: List[Variant]
+    lastUpdated: datetime
 
 
 class Assignment(BaseModel):
     id: str
-    started: bool
-    dateAssigned: datetime
-    dateClosed: datetime
-    dateOpened: datetime
+    name: str
+    is_sequential: bool
+    created_by: str
+    date_created: datetime
+    date_closed: datetime
+    date_opened: datetime
+
+
+class AssignmentTask(BaseModel):
+    id: int
+    assignment_id: str
+    task_id: str
+
+
+class Run(BaseModel):
+    id: str
+    user_id: str
+    task_id: str
+    variant_id: str
+    assigment_id: str
     completed: bool
-    assessments: List[dict]
+    roarScore: str
+    score_composite: str
+    spr_percentile: str
+    spr_standard_score: str
+    standard_score: str
+    timeFinished: datetime
+    timeStarted: datetime
+
+
+class Trial(BaseModel):
+    id: str
+    run_id: str
+    task_id: str
+    subtask_id: str
+    assessment_stage: str
+    internal_node_id: str
+    difficulty: str
+    trial_type: str
+    corpus_id: str
+    correct: bool
+    response: str
+    stimulus: str
+    rt: int
+    server_timestamp: datetime
 
 
 class User(BaseModel):
@@ -83,9 +130,7 @@ class User(BaseModel):
     name: dict
     schools: dict
     sso: str
-    studentData: dict
     userType: str
-    assignments: List[dict] = []
 
     fullName: str = None
     dob: datetime
@@ -101,19 +146,4 @@ class User(BaseModel):
             self.fullName = f"{self.name.get("first", None)} {self.name.get("middle", None)}.{self.name.get("last", None)}"
         else:
             raise ValueError("Incomplete Name.")
-        self.dob = self.studentData.get("dob")
         return self
-
-
-class Run(BaseModel):
-    id: str
-    user_id: str
-    task_id: str
-    variant_id: str
-    scores: dict
-    assignment_id: str
-    userType: str
-    grade: str
-    score: int
-    timeFinished: datetime
-    timeStarted: datetime
