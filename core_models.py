@@ -79,7 +79,6 @@ class Assignment(BaseModel):
 
 
 class AssignmentTask(BaseModel):
-    id: int
     assignment_id: str
     task_id: str
 
@@ -119,30 +118,33 @@ class Trial(BaseModel):
 
 class User(BaseModel):
     id: str
-    assessmentPid: str
-    assessmentUid: str
-    assignmentsAssigned: dict
-    assignmentsStarted: dict
-    classes: dict
-    districts: dict
-    legal: dict
-    name: dict
-    schools: dict
-    sso: str
-    userType: str
+    assessment_pid: str
+    assessment_uid: str
+    user_type: str
+    full_name: Optional[str] = None
+    dob: Optional[datetime] = None
+    gender: Optional[str] = None
+    grade: Optional[str] = None
+    state_id: Optional[str] = None
+    races: Optional[str] = None
+    hispanic_ethnicity: Optional[str] = None
+    # @model_validator(mode='after')
+    # def assign_attributes(self) -> 'User':
+    #     if self.name.get("first", None) and self.name.get("last", None):
+    #         self.fullName = f"{self.name.get("first", None)} {self.name.get("middle", None)}.{self.name.get("last", None)}"
+    #     else:
+    #         raise ValueError("Incomplete Name.")
+    #     return self
 
-    fullName: str = None
-    dob: datetime
-    gender: str
-    grade: str
-    state_id: str
-    raceList: List[str]
-    hispanic_ethnicity: str
 
-    @model_validator(mode='after')
-    def assign_attributes(self) -> 'User':
-        if self.name.get("first", None) and self.name.get("last", None):
-            self.fullName = f"{self.name.get("first", None)} {self.name.get("middle", None)}.{self.name.get("last", None)}"
-        else:
-            raise ValueError("Incomplete Name.")
-        return self
+class UserClass(BaseModel):
+    user_id: str
+    class_id: str
+    is_active: bool
+
+
+class UserAssignment(BaseModel):
+    user_id: str
+    assignment_id: str
+    is_started: bool
+    date_time: datetime
