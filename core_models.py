@@ -8,52 +8,51 @@ class Class(BaseModel):
     district_id: str
     school_id: str
     name: str
-    section_number: str = None
-    subject: str = None
-    grade: str = None
-    created: datetime
-    last_modified: datetime
+    section_number: Optional[str] = None
+    subject: Optional[str] = None
+    grade: Optional[str] = None
+    created: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
 
 
 class School(BaseModel):
     id: str
     district_id: str
-    state_id: str = None
+    state_id: Optional[str] = None
     school_number: str
     name: str
-    phone: str = None
-    high_grade: str = None
-    low_grade: str = None
-    address: str = None
-    city: str = None
-    state: str = None
-    zip: str = None
-    principal_name: str = None
-    principal_email: str = None
-    created: datetime
-    lastModified: datetime
+    phone: Optional[str] = None
+    high_grade: Optional[str] = None
+    low_grade: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    principal_name: Optional[str] = None
+    principal_email: Optional[str] = None
+    created: Optional[datetime] = None
+    lastModified: Optional[datetime] = None
 
 
 class District(BaseModel):
     id: str
     name: str
     portal_url: str
-    district_contact_name: str = None
-    district_contact_email: str = None
-    district_contact_title: str = None
-    last_sync: datetime
-    launch_date: datetime
+    district_contact_name: Optional[str] = None
+    district_contact_email: Optional[str] = None
+    district_contact_title: Optional[str] = None
+    last_sync: Optional[datetime] = None
+    launch_date: Optional[datetime] = None
 
 
 class Variant(BaseModel):
     id: str
     task_id: str
     name: str = None
-    lastUpdated: datetime = None
+    lastUpdated: Optional[datetime] = None
 
 
 class VariantParams(BaseModel):
-    id: int
     variant_id: str
     params_field: str
     params_type: str
@@ -62,11 +61,11 @@ class VariantParams(BaseModel):
 
 class Task(BaseModel):
     id: str
-    name: str = None
+    name: str
     registered: bool = None
     description: str = None
     image: str = None
-    lastUpdated: datetime
+    last_updated: datetime
 
 
 class Assignment(BaseModel):
