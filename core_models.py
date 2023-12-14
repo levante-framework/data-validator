@@ -88,28 +88,26 @@ class Run(BaseModel):
     user_id: str
     task_id: str
     variant_id: str
-    assigment_id: str
-    completed: bool
-    roarScore: str
-    score_composite: str
-    spr_percentile: str
-    spr_standard_score: str
-    standard_score: str
-    timeFinished: datetime
-    timeStarted: datetime
+    assignment_id: str
+    is_completed: bool
+    score_composite: Optional[int] = None
+    time_finished: Optional[datetime] = None
+    time_started: Optional[datetime] = None
 
 
 class Trial(BaseModel):
     id: str
+    user_id: str
     run_id: str
     task_id: str
-    subtask_id: str
-    assessment_stage: str
-    internal_node_id: str
-    difficulty: str
-    trial_type: str
-    corpus_id: str
-    correct: bool
+    subtask_id: Optional[str] = None
+    is_practice: bool
+    internal_node_id: Optional[str] = None
+    difficulty: Optional[str] = None
+    trial_type: Optional[str] = None
+    corpus_id: Optional[str] = None
+    is_correct: bool
+    trial_index: int
     response: str
     stimulus: str
     rt: int
@@ -148,3 +146,19 @@ class UserAssignment(BaseModel):
     assignment_id: str
     is_started: bool
     date_time: datetime
+
+
+class ScoreDetails(BaseModel):
+    id: Optional[int] = None
+    run_id: str
+    is_computed: Optional[bool] = False
+    is_composite: Optional[bool] = False
+    is_practice: Optional[bool] = False
+    subtask_name: Optional[str] = None
+    score_type: Optional[str] = None
+    score: Optional[str]
+    attempted_note: Optional[str] = None
+    correct_note: Optional[str] = None
+    incorrect_note: Optional[str] = None
+    theta_estimate: Optional[float] = None
+    theta_se: Optional[float] = None

@@ -4,7 +4,8 @@ from firebase_admin import firestore
 from pydantic import ValidationError
 import os
 import settings
-from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, Assignment, AssignmentTask
+from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, \
+    Assignment, AssignmentTask, Run, ScoreDetails, Trial
 
 
 class FirestoreServices:
@@ -158,11 +159,46 @@ class FirestoreServices:
             print(f"Error in get_assignments: {e}")
         return result
 
-    def get_runs(self):
-        pass
+    def get_runs(self, user_id: str):
+        result = []
+        try:
+            docs = self.db.collection('users').document(user_id).collection('runs').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['run_id'] = doc.id
+                doc_dict['user_id'] = user_id
+                doc_dict['task_id'] = doc_dict.pop('taskId', None)
+                doc_dict['variant_id'] = doc_dict.pop('variantId', None)
+                doc_dict['assignment_id'] = doc_dict.pop('assignmentId', None)
+                doc_dict['is_completed'] = doc_dict.pop('completed', None)
+                doc_dict['time_finished'] = doc_dict.pop('timeFinished', None)
+                doc_dict['time_started'] = doc_dict.pop('timeStarted', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_runs: {e}")
+        return result
 
-    def get_trails(self, run_id: str):
-        pass
+    def get_trials(self, user_id: str, run_id: str, task_id: str):
+        result = []
+        try:
+            docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
+                'trials').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id
+                doc_dict['user_id'] = user_id
+                doc_dict['run_id'] = run_id
+                doc_dict['task_id'] = task_id
+                doc_dict['subtask_id'] = doc_dict.pop('subtask', None)
+                doc_dict['is_practice'] = True if 'practice' in doc_dict.get('assessment_stage', '') else False
+                doc_dict['corpus_id'] = doc_dict.pop('corpusId', None)
+                doc_dict['is_correct'] = True if doc_dict.get('correct', '') == 1 else False
+                doc_dict['response'] = doc_dict.get('responseValue', None) or doc_dict.get('response', None) or doc_dict.get('keyboard_response', None)
+                doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_trails: {e}")
+        return result
 
 
 fs_assessment = FirestoreServices(app_name='assessment_site', DB_KEY=settings.DB_KEY_LOCATION_ASSESSMENT)
@@ -202,6 +238,15 @@ class EntityController:
         self.valid_assignment_task = []
         self.invalid_assignment_task = []
         self.set_assignments()
+
+        self.valid_runs = []
+        self.invalid_runs = []
+        self.valid_score_details = []
+        self.invalid_score_details = []
+        self.valid_trials = []
+        self.invalid_trials = []
+        self.set_runs()
+        # self.set_trials()
 
     def set_districts(self):
         districts = fs_admin.get_districts()
@@ -339,10 +384,67 @@ class EntityController:
                 self.invalid_assignments.append(f"{assignment_id},{task_id}")
 
     def set_runs(self):
-        pass
+        if self.valid_users:
+            for user in self.valid_users:
+                runs = fs_assessment.get_runs(user.id)
+                for run in runs:
+                    try:
+                        self.valid_runs.append(Run(**run))
+                    except ValidationError as e:
+                        print(f"Validation error for user {user.id}, run {run['id']}: {e}")
+                        self.invalid_runs.append(f"{user.id},{run['id']}")
+        else:
+            print("No valid users.")
 
-    def set_trails(self):
+    def set_score_details(self, run: dict):
         pass
+        # run_id = run.get('id', None)
+        # scores = run.get('scores', {})
+        # computed_scores = scores.get('computed', {})
+        # raw_scores = scores.get('raw', {})
+        # for sub_task, sub_score in computed_scores.items():
+        #     score = None
+        #     if isinstance(sub_score, int) or isinstance(sub_score, str):
+        #         score = sub_score
+        #     elif isinstance(sub_score, dict):
+        #         score = sub_score.get('roarScore', None)
+        #         attempted_note = ''
+        #         correct_note = ''
+        #         incorrect_note = ''
+        #         theta_estimate = ''
+        #         theta_se = ''
+        #         test_result = raw_scores.get(sub_task, {}).get('test', {})
+        #         for key, value in test_result.items():
+        #             if key.contains('Attempt'):
+        #                 attempted_note = value
+        #             if key.contains('Correct'):
+        #                 correct_note = value
+        #             if key.contains('Attempt'):
+        #                 attempted_note = value
+        #             if key.contains('Correct'):
+        #                 correct_note = value
+        #
+        #
+        #     try:
+        #         ScoreDetails(run_id=run_id,
+        #                      is_computed=True,
+        #                      is_composite=True if sub_task == 'composite' else False,
+        #                      is_practice=False,
+        #                      subtask_name=None if sub_task == 'composite' else sub_task,
+        #                      score=score)
+        #     except ValidationError as e:
+        #         print(f"score_detail error for run {run_id}, computed_scores {key}: {e}")
+        #         self.invalid_score_details.append(f"{run_id},{key}")
 
-    def set_score_details(self):
-        pass
+    def set_trials(self):
+        if self.valid_runs:
+            for run in self.valid_runs:
+                trials = fs_assessment.get_trials(user_id=run.user_id, run_id=run.id, task_id=run.task_id)
+                for trial in trials:
+                    try:
+                        self.valid_trials.append(Trial(**trial))
+                    except ValidationError as e:
+                        print(f"Validation error for user {run.user_id}, run {run.id}, trial {trial['id']}: {e}")
+                        self.invalid_trials.append(f"{run.user_id}, {run.id}, {trial['id']}")
+        else:
+            print("No valid runs.")
