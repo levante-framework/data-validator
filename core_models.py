@@ -48,8 +48,13 @@ class District(BaseModel):
 class Variant(BaseModel):
     id: str
     task_id: str
-    name: str = None
-    lastUpdated: Optional[datetime] = None
+    name: Optional[str] = None
+    consent: Optional[bool] = None
+    recruitment: Optional[str] = None
+    skip_instructions: Optional[bool] = None
+    story: Optional[bool] = None
+    user_mode: Optional[str] = None
+    last_updated: Optional[datetime] = None
 
 
 class VariantParams(BaseModel):

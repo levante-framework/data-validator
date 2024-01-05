@@ -4,8 +4,41 @@ from firebase_admin import firestore
 from pydantic import ValidationError
 import os
 import settings
+from google.cloud import storage
+from google.oauth2 import service_account
 from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, ScoreDetails, Trial
+
+
+def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_type):
+    """
+        Uploads a file from memory to Google Cloud Storage.
+
+        Args:
+        - bucket_name (str): Name of the GCS bucket.
+        - data (bytes or str): Data to upload.
+        - destination_blob_name (str): Desired name for the file in the bucket.
+        - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
+        """
+    # Create a client
+    if "local" in settings.DB_SITE:
+        cred = service_account.Credentials.from_service_account_file(filename=settings.SA_KEY_LOCATION_ADMIN)
+        storage_client = storage.Client(credentials=cred)
+    else:
+        storage_client = storage.Client()
+
+    # Get the bucket
+    bucket = storage_client.bucket(bucket_name)
+
+    # Create a blob object
+    blob = bucket.blob(destination_blob_name)
+
+    # Upload the file
+    try:
+        blob.upload_from_string(data, content_type=content_type)
+        print(f"Data uploaded to {destination_blob_name}.")
+    except Exception as e:
+        print(f"Failed to upload to {destination_blob_name}, {e}")
 
 
 class FirestoreServices:
@@ -25,46 +58,31 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in FirestoreService init: {e}")
 
-    def get_districts(self):
+    def get_districts(self, lab_id: str):
         result = []
         try:
-            docs = self.db.collection('districts').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['portal_url'] = doc_dict.pop('portalUrl', None)
+            doc = self.db.collection('districts').document(lab_id).get()
+            doc_dict = doc.to_dict()  # Convert the document to a dictionary
+            doc_dict['portal_url'] = doc_dict.pop('portalUrl', None)
 
-                district_contact = doc_dict.get('districtContact', {})
-                district_contact_name = district_contact.get('name', {})
-                doc_dict[
-                    'district_contact_name'] = f"{district_contact_name.get('first', None)}, {district_contact_name.get('last', None)}"
-                doc_dict['district_contact_email'] = district_contact.get('email', None)
-                doc_dict['district_contact_title'] = district_contact.get('title', None)
-                doc_dict['last_sync'] = doc_dict.pop('lastSync', None)
-                doc_dict['launch_date'] = doc_dict.pop('launchDate', None)
-                result.append(doc_dict)
+            district_contact = doc_dict.get('districtContact', {})
+            district_contact_name = district_contact.get('name', {})
+            doc_dict[
+                'district_contact_name'] = f"{district_contact_name.get('first', '')}, {district_contact_name.get('last', '')}"
+            doc_dict['district_contact_email'] = district_contact.get('email', None)
+            doc_dict['district_contact_title'] = district_contact.get('title', None)
+            doc_dict['last_sync'] = doc_dict.pop('lastSync', None)
+            doc_dict['launch_date'] = doc_dict.pop('launchDate', None)
+            result.append(doc_dict)
+
         except Exception as e:
             print(f"Error in get_districts: {e}")
         return result
 
-    def get_classes(self):
+    def get_schools(self, lab_id: str):
         result = []
         try:
-            docs = self.db.collection('classes').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['school_id'] = doc_dict.pop('schoolId', None)
-                doc_dict['district_id'] = doc_dict.pop('districtId', None)
-                doc_dict['section_number'] = doc_dict.pop('sectionNumber', None)
-                doc_dict['last_modified'] = doc_dict.pop('lastModified', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_classes: {e}")
-        return result
-
-    def get_schools(self):
-        result = []
-        try:
-            docs = self.db.collection('schools').get()
+            docs = self.db.collection('schools').where('districtId', '==', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['district_id'] = doc_dict.pop('districtId', None)
@@ -89,36 +107,25 @@ class FirestoreServices:
             print(f"Error in get_schools: {e}")
         return result
 
-    def get_tasks(self):
+    def get_classes(self, lab_id: str):
         result = []
         try:
-            docs = self.db.collection('tasks').get()
+            docs = self.db.collection('classes').where('districtId', '==', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['last_updated'] = doc_dict.pop('lastUpdated', None)
+                doc_dict['school_id'] = doc_dict.pop('schoolId', None)
+                doc_dict['district_id'] = doc_dict.pop('districtId', None)
+                doc_dict['section_number'] = doc_dict.pop('sectionNumber', None)
+                doc_dict['last_modified'] = doc_dict.pop('lastModified', None)
                 result.append(doc_dict)
         except Exception as e:
-            print(f"Error in get_tasks: {e}")
+            print(f"Error in get_classes: {e}")
         return result
 
-    def get_variants(self, task_id: str):
+    def get_users(self, lab_id: str):
         result = []
         try:
-            docs = self.db.collection('tasks').document(task_id).collection('variants').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['task_id'] = task_id
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_variants: {e}")
-        return result
-
-    def get_users(self):
-        result = []
-        try:
-            docs = self.db.collection('users').get()
+            docs = self.db.collection('users').where('districts.current', 'array_contains', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['id'] = doc.id
@@ -140,23 +147,6 @@ class FirestoreServices:
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_users: {e}")
-        return result
-
-    def get_assignments(self):
-        result = []
-        try:
-            docs = self.db.collection('administrations').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['is_sequential'] = doc_dict.pop('sequential', None)
-                doc_dict['created_by'] = doc_dict.pop('createdBy', None)
-                doc_dict['date_created'] = doc_dict.pop('dateCreated', None)
-                doc_dict['date_closed'] = doc_dict.pop('dateClosed', None)
-                doc_dict['date_opened'] = doc_dict.pop('dateOpened', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_assignments: {e}")
         return result
 
     def get_runs(self, user_id: str):
@@ -193,11 +183,63 @@ class FirestoreServices:
                 doc_dict['is_practice'] = True if 'practice' in doc_dict.get('assessment_stage', '') else False
                 doc_dict['corpus_id'] = doc_dict.pop('corpusId', None)
                 doc_dict['is_correct'] = True if doc_dict.get('correct', '') == 1 else False
-                doc_dict['response'] = doc_dict.get('responseValue', None) or doc_dict.get('response', None) or doc_dict.get('keyboard_response', None)
+                doc_dict['response'] = doc_dict.get('responseValue', None) or doc_dict.get('response',
+                                                                                           None) or doc_dict.get(
+                    'keyboard_response', None)
                 doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_trails: {e}")
+        return result
+
+    def get_tasks(self):
+        result = []
+        try:
+            docs = self.db.collection('tasks').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['last_updated'] = doc_dict.pop('lastUpdated', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_tasks: {e}")
+        return result
+
+    def get_variants(self, task_id: str):
+        result = []
+        try:
+            docs = self.db.collection('tasks').document(task_id).collection('variants').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['task_id'] = task_id
+                params = doc_dict.get('params', {})
+                doc_dict['consent'] = params.get('consent', None)
+                doc_dict['recruitment'] = params.get('recruitment', '')
+                doc_dict['skip_instructions'] = params.get('skipInstructions', None)
+                doc_dict['story'] = params.get('story', None)
+                doc_dict['user_mode'] = params.get('user_mode', None)
+                doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_variants: {e}")
+        return result
+
+    def get_assignments(self):
+        result = []
+        try:
+            docs = self.db.collection('administrations').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['is_sequential'] = doc_dict.pop('sequential', None)
+                doc_dict['created_by'] = doc_dict.pop('createdBy', None)
+                doc_dict['date_created'] = doc_dict.pop('dateCreated', None)
+                doc_dict['date_closed'] = doc_dict.pop('dateClosed', None)
+                doc_dict['date_opened'] = doc_dict.pop('dateOpened', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_assignments: {e}")
         return result
 
 
@@ -206,14 +248,8 @@ fs_admin = FirestoreServices(app_name='admin_site', DB_KEY=settings.DB_KEY_LOCAT
 
 
 class EntityController:
-    def __init__(self):
-        self.valid_tasks = []
-        self.invalid_tasks = []
-        self.valid_variants = []
-        self.invalid_variants = []
-        self.valid_variants_params = []
-        self.invalid_variants_params = []
-        self.set_task()
+    def __init__(self, lab_id):
+        self.lab_id = lab_id
 
         self.valid_districts = []
         self.invalid_districts = []
@@ -224,6 +260,14 @@ class EntityController:
         self.set_districts()
         self.set_schools()
         self.set_classes()
+
+        self.valid_tasks = []
+        self.invalid_tasks = []
+        self.valid_variants = []
+        self.invalid_variants = []
+        self.valid_variants_params = []
+        self.invalid_variants_params = []
+        self.set_task()
 
         self.valid_users = []
         self.invalid_users = []
@@ -241,15 +285,16 @@ class EntityController:
 
         self.valid_runs = []
         self.invalid_runs = []
-        self.valid_score_details = []
-        self.invalid_score_details = []
+        # self.valid_score_details = []
+        # self.invalid_score_details = []
         self.valid_trials = []
         self.invalid_trials = []
         self.set_runs()
+        self.set_trials()
         # self.set_trials()
 
     def set_districts(self):
-        districts = fs_admin.get_districts()
+        districts = fs_admin.get_districts(lab_id=self.lab_id)
         for district in districts:
             try:
                 district = District(**district)
@@ -257,10 +302,10 @@ class EntityController:
 
             except ValidationError as e:
                 print(f"Validation error for district {district['id']}: {e}")
-                self.invalid_districts.append(district)
+                self.invalid_districts.append(f"{district['id']}: {e.errors()}")
 
     def set_schools(self):
-        schools = fs_admin.get_schools()
+        schools = fs_admin.get_schools(lab_id=self.lab_id)
         for school in schools:
             try:
                 school = School(**school)
@@ -268,10 +313,10 @@ class EntityController:
 
             except ValidationError as e:
                 print(f"Validation error for school {school['id']}: {e}")
-                self.invalid_schools.append(school)
+                self.invalid_schools.append(f"{school['id']}: {e.errors()}")
 
     def set_classes(self):
-        classes = fs_admin.get_classes()
+        classes = fs_admin.get_classes(lab_id=self.lab_id)
         for c in classes:
             try:
                 c = Class(**c)
@@ -290,7 +335,7 @@ class EntityController:
                 self.set_variant(task.id)
             except ValidationError as e:
                 print(f"Validation error for task {task['id']}: {e}")
-                self.invalid_tasks.append(task)
+                self.invalid_tasks.append(f"{task['id']}: {e.errors()}")
 
     def set_variant(self, task_id: str):
         variants = fs_assessment.get_variants(task_id=task_id)
@@ -318,7 +363,7 @@ class EntityController:
                 self.invalid_variants_params.append(variant_id)
 
     def set_users(self):
-        users = fs_admin.get_users()
+        users = fs_admin.get_users(lab_id=self.lab_id)
         for user in users:
             try:
                 self.set_user_class(user)
