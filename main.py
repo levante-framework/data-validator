@@ -1,84 +1,47 @@
 import settings
-from firestore_services import EntityController, upload_blob_from_memory
-from datetime import datetime
-from google.cloud import firestore
-import pandas as pd
+from storage_services import StorageServices
+from secret_services import SecretServices
+
+from flask import jsonify
+import functions_framework
 import json
 
 
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return json.JSONEncoder.default(self, obj)
+@functions_framework.http
+def data_validator(request):
+    print(f"running version {settings.version}...")
+    sec = SecretServices()
+    assessment_cred = json.loads(
+        sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id=1))
+    admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id=1)
 
+    api_key = request.headers.get('API-Key')
+    if api_key != admin_api_key:
+        return 'Invalid API Key', 403
 
-def save_data(ec: EntityController, lab_id: str):
-    valid_dict = {'districts': [obj.model_dump() for obj in ec.valid_districts],
-                  'schools': [obj.model_dump() for obj in ec.valid_schools],
-                  'classes': [obj.model_dump() for obj in ec.valid_classes],
-                  'users': [obj.model_dump() for obj in ec.valid_users],
-                  'runs': [obj.model_dump() for obj in ec.valid_runs],
-                  'trials': [obj.model_dump() for obj in ec.valid_trials],
-                  'assignments': [obj.model_dump() for obj in ec.valid_assignments],
-                  'tasks': [obj.model_dump() for obj in ec.valid_tasks],
-                  'variants': [obj.model_dump() for obj in ec.valid_variants],
-                  'variants_params': [obj.model_dump() for obj in ec.valid_variants_params],
-                  'user_classes': [obj.model_dump() for obj in ec.valid_user_class],
-                  'user_assignments': [obj.model_dump() for obj in ec.valid_user_assignment],
-                  'assignment_tasks': [obj.model_dump() for obj in ec.valid_assignment_task]}
-
-    invalid_dict = {'districts': [obj for obj in ec.invalid_districts],
-                    'schools': [obj for obj in ec.invalid_schools],
-                    'classes': [obj for obj in ec.invalid_classes],
-                    'users': [obj for obj in ec.invalid_users],
-                    'runs': [obj for obj in ec.invalid_runs],
-                    'trials': [obj for obj in ec.invalid_trials],
-                    'assignments': [obj for obj in ec.invalid_assignments],
-                    'tasks': [obj for obj in ec.invalid_tasks],
-                    'variants': [obj for obj in ec.invalid_variants],
-                    'variants_params': [obj for obj in ec.invalid_variants_params],
-                    'user_classes': [obj for obj in ec.invalid_user_class],
-                    'user_assignments': [obj for obj in ec.invalid_user_assignment],
-                    'assignment_tasks': [obj for obj in ec.invalid_assignment_task]
-                    }
-    valid_data = json.dumps(valid_dict, cls=CustomJSONEncoder)
-    invalid_data = json.dumps(invalid_dict, cls=CustomJSONEncoder)
-    if settings.SAVE_TO_STORAGE:
-        try:
-            upload_blob_from_memory(bucket_name=settings.BUCKET_NAME, data=valid_data,
-                                    destination_blob_name=f"District_{lab_id}_valid_data_{datetime.now()}.json",
-                                    content_type='application/json')
-        except Exception as e:
-            print(f"Failed to save valid roar data to cloud, {lab_id}, {e}")
-
-        try:
-            upload_blob_from_memory(bucket_name=settings.BUCKET_NAME, data=invalid_data,
-                                    destination_blob_name=f"District_{lab_id}_invalid_data_{datetime.now()}.json",
-                                    content_type='application/json')
-        except Exception as e:
-            print(f"Failed to save invalid roar data to cloud, {lab_id}, {e}")
+    if request.method == 'POST':
+        request_json = request.get_json(silent=True)
+        if request_json:
+            if 'lab_id' in request_json:
+                lab_id = request_json['lab_id']
+            else:
+                return jsonify({"error": "Missing parameter lab_id"}), 400
+            if 'source' in request_json:
+                source = request_json['source']
+            else:
+                return jsonify({"error": "Missing parameter source"}), 400
+            if source == "firestore":
+                try:
+                    storage = StorageServices()
+                    storage.firestore_to_storage(lab_id=lab_id, assessment_cred=assessment_cred)
+                    print("Function executed successfully!")
+                    return 'Function executed successfully!', 200
+                except Exception as e:
+                    print(f"Function failed! {e}.")
+                    return f'Function failed! {e}', 500
     else:
-        with open('valid_data.json', 'w') as file:
-            file.write(valid_data)
-        with open('invalid_data.json', 'w') as file:
-            file.write(invalid_data)
-
-def main():
-    lab_id = '61e8aee84cf0e71b14295d45'
-    ec = EntityController(lab_id=lab_id)
-    save_data(ec, lab_id)
-    # runs_dict = [obj.model_dump() for obj in ec.valid_runs]
-    # runs_df = pd.DataFrame(runs_dict)
-    # runs_df.to_csv('output.csv')
-    # print(len(ec.valid_users))
-    # print(len(ec.invalid_users))
-    # print(len(ec.valid_runs))
-    # print(len(ec.invalid_runs))
-    # print(len(ec.valid_trials))
-    # print(len(ec.invalid_trials))
-    # print(len(ec.invalid_user_class))
+        return 'Function needs to receive POST request', 500
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     data_validator("asf")

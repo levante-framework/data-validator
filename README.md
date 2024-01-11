@@ -10,7 +10,7 @@ Once validated, the data is submitted back to Redivis.
 
 - **Data Extraction**: Extract data efficiently from ROAR Firebase/Redivis.
 - **Data Validation**: Leverage Pydantic along with custom validations to ensure the accuracy and integrity of the data.
-- **Data Submission**: Seamlessly submit the validated data back to Redivis.
+- **Data Storage**: Seamlessly submit the validated data and invalid data_log to Gcloud storage.
 
 ## Getting Started
 
@@ -37,6 +37,27 @@ pip install -r requirements.txt
 ```angular2html
 https://...
 ```
+1. Include api_key in request header.
+2. Include followings in json format. 
+{
+    "lab_id": "61e8aee84cf0e71b14295d45",
+    "source": "firestore" 
+}
+
+### Debug and Deployment
+
+local: 
+```
+functions-framework --target=data_validator 
+```
+Then send request to http://localhost:8080/
+
+deploy to cloud:
+```
+gcloud config set project hs-levante-admin-dev
+gcloud functions deploy data-validator --runtime python312 --trigger-http --allow-unauthenticated --entry-point data_validator
+```
+https://us-central1-hs-levante-admin-dev.cloudfunctions.net/data-validator
 ## Acknowledgments
 
 - ROAR and LEVANTE team
