@@ -15,6 +15,8 @@ DB_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-db.json"
 SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
 # DB_KEY_LOCATION_ASSESSMENT = "../secrets/hs-levante-assessment-dev-db.json"
 
+redivis_api_token = 'AAAChAdeK/oVg/jVDmR6QFxuXvqVrEm4'
+
 
 
 #functions-framework --target=main

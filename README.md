@@ -38,10 +38,12 @@ pip install -r requirements.txt
 https://...
 ```
 1. Include api_key in request header.
+    --header 'Content-Type: application/json' 
+    --header 'API-Key: ..'
 2. Include followings in json format. 
 {
     "lab_id": "61e8aee84cf0e71b14295d45",
-    "source": "firestore" 
+    "source": "firestore",
 }
 
 ### Debug and Deployment

@@ -57,13 +57,13 @@ class EntityController:
             for user in self.valid_users:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user.id))
         else:
-            print("No valid users.")
+            print(f"No valid users in {self.lab_id}.")
 
         if self.valid_runs:
             for run in self.valid_runs:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id, run_id=run.id, task_id=run.task_id))
         else:
-            print("No valid runs.")
+            print(f"No valid runs in {self.lab_id}.")
 
     def set_districts(self, districts: list):
         for district in districts:

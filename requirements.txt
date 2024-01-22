@@ -6,3 +6,4 @@ google-cloud~=0.34.0
 google-auth~=2.26.1
 google-cloud-storage~=2.14.0
 firebase_admin~=6.3.0
+redivis~=0.14.0

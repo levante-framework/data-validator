@@ -1,6 +1,7 @@
 import settings
 from storage_services import StorageServices
 from secret_services import SecretServices
+from redivis_services import RedivisServices
 
 from flask import jsonify
 import functions_framework
@@ -30,15 +31,20 @@ def data_validator(request):
                 source = request_json['source']
             else:
                 return jsonify({"error": "Missing parameter source"}), 400
+            rs = RedivisServices(lab_id)
+            if rs.dataset_version == 'next':
+                return jsonify({"error": "This lab's current dataset has not been released, please release it then get next version."}), 400
             if source == "firestore":
                 try:
                     storage = StorageServices()
-                    storage.firestore_to_storage(lab_id=lab_id, assessment_cred=assessment_cred)
+                    storage.firestore_to_storage(lab_id=lab_id, assessment_cred=assessment_cred, source=source)
                     print("Function executed successfully!")
-                    return 'Function executed successfully!', 200
+                    return f'Function executed successfully!', 200
                 except Exception as e:
                     print(f"Function failed! {e}.")
                     return f'Function failed! {e}', 500
+            elif source == "redivis":
+                pass
     else:
         return 'Function needs to receive POST request', 500
 

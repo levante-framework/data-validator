@@ -17,12 +17,15 @@ class StorageServices:
     def __init__(self):
         pass
 
-    def firestore_to_storage(self, lab_id, assessment_cred):
+    def firestore_to_storage(self, lab_id, assessment_cred, source):
         ec = EntityController(lab_id)
         ec.set_values_from_firestore(assessment_cred)
         for key, value in self.get_valid_data(ec).items():
-            self.save_to_storage(lab_id=lab_id, table_name=key, data=value)
-        self.save_to_storage(lab_id=lab_id, table_name="invalid_log", data=self.get_invalid_data(ec))
+            self.save_to_storage(lab_id=lab_id, table_name=key, data=value, source=source)
+        self.save_to_storage(lab_id=lab_id, table_name="invalid_log", data=self.get_invalid_data(ec), source=source)
+
+    def redivis_to_storage(self, lab_id, table_name):
+        pass
 
     def get_valid_data(self, ec: EntityController):
         valid_dict = {
@@ -31,9 +34,9 @@ class StorageServices:
             # 'classes': [obj.model_dump() for obj in ec.valid_classes],
             'users': [obj.model_dump() for obj in ec.valid_users],
             'runs': [obj.model_dump() for obj in ec.valid_runs],
-            # 'trials': [obj.model_dump() for obj in ec.valid_trials],
-            # 'assignments': [obj.model_dump() for obj in ec.valid_assignments],
-            # 'tasks': [obj.model_dump() for obj in ec.valid_tasks],
+            'trials': [obj.model_dump() for obj in ec.valid_trials],
+            'assignments': [obj.model_dump() for obj in ec.valid_assignments],
+            'tasks': [obj.model_dump() for obj in ec.valid_tasks],
             # 'variants': [obj.model_dump() for obj in ec.valid_variants],
             # 'variants_params': [obj.model_dump() for obj in ec.valid_variants_params],
             # 'user_classes': [obj.model_dump() for obj in ec.valid_user_class],
@@ -60,13 +63,13 @@ class StorageServices:
         }
         return invalid_dict
 
-    def save_to_storage(self, lab_id: str, table_name: str, data):
+    def save_to_storage(self, lab_id: str, table_name: str, data, source):
 
         data_json = json.dumps(data, cls=CustomJSONEncoder)
         if settings.SAVE_TO_STORAGE:
             try:
                 self.upload_blob_from_memory(bucket_name=settings.BUCKET_NAME, data=data_json,
-                                             destination_blob_name=f"lab_{lab_id}_{table_name}_{datetime.now()}.json",
+                                             destination_blob_name=f"lab_{lab_id}_{source}_{table_name}_{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.json",
                                              content_type='application/json')
             except Exception as e:
                 print(f"Failed to save roar data to cloud, {lab_id}, {table_name}, {e}")
