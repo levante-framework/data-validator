@@ -1,19 +1,16 @@
 version = '0.0.1'
 
-DB_SITE = 'remote'  # local-dev, local-prod, remote
-validation_api_url = ''
+DB_SITE = 'local-dev'  # local-dev, local-prod, remote
+
 BUCKET_NAME = "levante-roar-data-bucket-dev"  # levante-roar-raw-data-bucket-prod
-project_id = 'hs-levante-admin-dev'  # hs-levante-admin-prod
-project_id_ASSESSMENT = "hs-levante-assessment-dev"
 
 assessment_service_account_secret_id = 'hs-levante-assessment-dev-service-account'
 admin_firebase_api_key_secret_id = 'firebase-api-key'
 
-SAVE_TO_STORAGE = True  # True, False
+SAVE_TO_STORAGE = False  # True, False
 
 DB_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-db.json"
 SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
-# DB_KEY_LOCATION_ASSESSMENT = "../secrets/hs-levante-assessment-dev-db.json"
 
 redivis_api_token = 'AAAChAdeK/oVg/jVDmR6QFxuXvqVrEm4'
 

@@ -13,8 +13,8 @@ def data_validator(request):
     print(f"running version {settings.version}...")
     sec = SecretServices()
     assessment_cred = json.loads(
-        sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id=1))
-    admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id=1)
+        sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id="latest"))
+    admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id="latest")
 
     api_key = request.headers.get('API-Key')
     if api_key != admin_api_key:
@@ -23,30 +23,42 @@ def data_validator(request):
     if request.method == 'POST':
         request_json = request.get_json(silent=True)
         if request_json:
-            if 'lab_id' in request_json:
-                lab_id = request_json['lab_id']
-            else:
-                return jsonify({"error": "Missing parameter lab_id"}), 400
-            if 'source' in request_json:
-                source = request_json['source']
-            else:
-                return jsonify({"error": "Missing parameter source"}), 400
-            rs = RedivisServices(lab_id)
-            if rs.dataset_version == 'next':
-                return jsonify({"error": "This lab's current dataset has not been released, please release it then get next version."}), 400
-            if source == "firestore":
-                try:
-                    storage = StorageServices()
-                    storage.firestore_to_storage(lab_id=lab_id, assessment_cred=assessment_cred, source=source)
-                    print("Function executed successfully!")
+            lab_id = request_json.get('lab_id', None)
+            source = request_json.get('source', None)
+            is_save_to_storage = request_json.get('is_save_to_storage', False)
+            is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
+            is_release_on_redivis = request_json.get('is_release_to_redivis', False)
+            prefix_name = request_json.get('prefix_name', None)
+            dataset_version = request_json.get('dataset_version', None)
+            if params_check(lab_id, source, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
+                storage = StorageServices(lab_id=lab_id, source=source)
+                if is_save_to_storage:
+                    storage.process(assessment_cred=assessment_cred)
+                else:
+                    storage.storage_prefix = prefix_name
+
+                if is_upload_to_redivis:
+                    rs = RedivisServices(lab_id=lab_id, dataset_version=dataset_version, source=source)
+                    file_names = storage.list_blobs_with_prefix()
+                    for file_name in file_names:
+                        rs.save_to_redivis_table(file_name=file_name)
+                    print(f"Current DS has {rs.count_tables()} tables.")
+                    if is_release_on_redivis:
+                        rs.release_dataset()
                     return f'Function executed successfully!', 200
-                except Exception as e:
-                    print(f"Function failed! {e}.")
-                    return f'Function failed! {e}', 500
-            elif source == "redivis":
-                pass
+                else:
+                    return f'Function executed successfully! Data not ship to redivis', 200
+            else:
+                return 'Missing significant parameter in the request body', 400
+        else:
+            return 'Request body is not received properly', 500
     else:
         return 'Function needs to receive POST request', 500
+
+
+def params_check(lab_id, source, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
+    #return "Parameter 'source' has to be either firestore or redivis.", 400
+    return True
 
 
 # if __name__ == "__main__":

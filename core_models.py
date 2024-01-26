@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class Class(BaseModel):
-    id: str
+    class_id: str
     district_id: str
     school_id: str
     name: str
@@ -16,7 +16,7 @@ class Class(BaseModel):
 
 
 class School(BaseModel):
-    id: str
+    school_id: str
     district_id: str
     state_id: Optional[str] = None
     school_number: str
@@ -35,7 +35,7 @@ class School(BaseModel):
 
 
 class District(BaseModel):
-    id: str
+    district_id: str
     name: str
     portal_url: str
     district_contact_name: Optional[str] = None
@@ -46,7 +46,7 @@ class District(BaseModel):
 
 
 class Variant(BaseModel):
-    id: str
+    variant_id: str
     task_id: str
     name: Optional[str] = None
     consent: Optional[bool] = None
@@ -65,7 +65,7 @@ class VariantParams(BaseModel):
 
 
 class Task(BaseModel):
-    id: str
+    task_id: str
     name: str
     registered: bool = None
     description: str = None
@@ -74,7 +74,7 @@ class Task(BaseModel):
 
 
 class Assignment(BaseModel):
-    id: str
+    assignment_id: str
     name: str
     is_sequential: bool
     created_by: str
@@ -89,7 +89,7 @@ class AssignmentTask(BaseModel):
 
 
 class Run(BaseModel):
-    id: str
+    run_id: str
     user_id: str
     task_id: str
     variant_id: str
@@ -101,7 +101,7 @@ class Run(BaseModel):
 
 
 class Trial(BaseModel):
-    id: str
+    trial_id: str
     user_id: str
     run_id: str
     task_id: str
@@ -120,7 +120,7 @@ class Trial(BaseModel):
 
 
 class User(BaseModel):
-    id: str
+    user_id: str
     assessment_pid: str
     assessment_uid: str
     user_type: str
@@ -153,8 +153,8 @@ class UserAssignment(BaseModel):
     date_time: datetime
 
 
-class ScoreDetails(BaseModel):
-    id: Optional[int] = None
+class Score(BaseModel):
+    score_id: Optional[int] = None
     run_id: str
     is_computed: Optional[bool] = False
     is_composite: Optional[bool] = False

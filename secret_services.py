@@ -1,12 +1,15 @@
 from google.cloud import secretmanager
 import os
 import settings
+import json
 
 
 class SecretServices:
-    project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', settings.project_id)
+    project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', None)
     if 'local' in settings.DB_SITE:
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
+        with open(settings.SA_KEY_LOCATION_ADMIN, 'r') as sa:
+            project_id = json.load(sa).get("project_id", None)
 
     def __init__(self):
         self.client = secretmanager.SecretManagerServiceClient()

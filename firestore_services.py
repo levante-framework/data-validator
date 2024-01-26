@@ -6,7 +6,6 @@ import settings
 
 
 class FirestoreServices:
-    project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', settings.project_id)
     default_app = None
     db = None
 
@@ -27,6 +26,7 @@ class FirestoreServices:
         try:
             doc = self.db.collection('districts').document(lab_id).get()
             doc_dict = doc.to_dict()  # Convert the document to a dictionary
+            doc_dict['district_id'] = doc.id
             doc_dict['portal_url'] = doc_dict.pop('portalUrl', None)
 
             district_contact = doc_dict.get('districtContact', {})
@@ -49,6 +49,7 @@ class FirestoreServices:
             docs = self.db.collection('schools').where('districtId', '==', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['school_id'] = doc.id
                 doc_dict['district_id'] = doc_dict.pop('districtId', None)
                 doc_dict['state_id'] = doc_dict.pop('stateId', None)
                 doc_dict['school_number'] = doc_dict.pop('schoolNumber', None)
@@ -77,6 +78,7 @@ class FirestoreServices:
             docs = self.db.collection('classes').where('districtId', '==', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['class_id'] = doc.id
                 doc_dict['school_id'] = doc_dict.pop('schoolId', None)
                 doc_dict['district_id'] = doc_dict.pop('districtId', None)
                 doc_dict['section_number'] = doc_dict.pop('sectionNumber', None)
@@ -92,7 +94,7 @@ class FirestoreServices:
             docs = self.db.collection('users').where('districts.current', 'array_contains', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id
+                doc_dict['user_id'] = doc.id
                 doc_dict['assessment_pid'] = doc_dict.pop('assessmentPid', None)
                 doc_dict['assessment_uid'] = doc_dict.pop('assessmentUid', None)
                 doc_dict['user_type'] = doc_dict.pop('userType', None)
@@ -139,7 +141,7 @@ class FirestoreServices:
                 'trials').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id
+                doc_dict['trial_id'] = doc.id
                 doc_dict['user_id'] = user_id
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
@@ -162,7 +164,7 @@ class FirestoreServices:
             docs = self.db.collection('tasks').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['task_id'] = doc.id  # Add the document ID under the key 'id'
                 doc_dict['last_updated'] = doc_dict.pop('lastUpdated', None)
                 result.append(doc_dict)
         except Exception as e:
@@ -175,7 +177,7 @@ class FirestoreServices:
             docs = self.db.collection('tasks').document(task_id).collection('variants').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['variant_id'] = doc.id  # Add the document ID under the key 'id'
                 doc_dict['task_id'] = task_id
                 params = doc_dict.get('params', {})
                 doc_dict['consent'] = params.get('consent', None)
@@ -195,7 +197,7 @@ class FirestoreServices:
             docs = self.db.collection('administrations').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['id'] = doc.id  # Add the document ID under the key 'id'
+                doc_dict['assignment_id'] = doc.id  # Add the document ID under the key 'id'
                 doc_dict['is_sequential'] = doc_dict.pop('sequential', None)
                 doc_dict['created_by'] = doc_dict.pop('createdBy', None)
                 doc_dict['date_created'] = doc_dict.pop('dateCreated', None)

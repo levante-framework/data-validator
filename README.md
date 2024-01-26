@@ -44,6 +44,7 @@ https://...
 {
     "lab_id": "61e8aee84cf0e71b14295d45",
     "source": "firestore",
+    "is_release_to_redivis": true,
 }
 
 ### Debug and Deployment
