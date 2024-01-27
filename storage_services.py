@@ -43,9 +43,9 @@ class StorageServices:
         self.timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         self.storage_prefix = f"lab_{self.lab_id}_{source}_{self.timestamp}/"
 
-    def process(self, assessment_cred):
+    def process(self):
         if self.source == 'firestore':
-            self.ec.set_values_from_firestore(assessment_cred)
+            self.ec.set_values_from_firestore()
         else:
             pass
 

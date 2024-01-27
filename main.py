@@ -2,18 +2,16 @@ import settings
 from storage_services import StorageServices
 from secret_services import SecretServices
 from redivis_services import RedivisServices
-
-from flask import jsonify
 import functions_framework
 import json
+import os
 
 
 @functions_framework.http
 def data_validator(request):
     print(f"running version {settings.version}...")
     sec = SecretServices()
-    assessment_cred = json.loads(
-        sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id="latest"))
+    os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id="latest")
     admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id="latest")
 
     api_key = request.headers.get('API-Key')
@@ -33,7 +31,7 @@ def data_validator(request):
             if params_check(lab_id, source, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
                 storage = StorageServices(lab_id=lab_id, source=source)
                 if is_save_to_storage:
-                    storage.process(assessment_cred=assessment_cred)
+                    storage.process()
                 else:
                     storage.storage_prefix = prefix_name
 

@@ -36,6 +36,7 @@ class RedivisServices:
 
         if self.dataset.table(f"{table_name}").exists():
             table = self.dataset.table(f"{table_name}")
+            table.update(upload_merge_strategy="replace")
         else:
             table = (
                 self.dataset

@@ -8,11 +8,13 @@ import settings
 class FirestoreServices:
     default_app = None
     db = None
+    if 'local' in settings.DB_SITE:
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
 
-    def __init__(self, app_name, DB_KEY):
+    def __init__(self, app_name):
         try:
-            if "local" in settings.DB_SITE or app_name == 'assessment_site':
-                cred = credentials.Certificate(DB_KEY)
+            if app_name == 'assessment_site':
+                cred = credentials.Certificate(os.environ['assessment_cred'])
             else:
                 cred = credentials.ApplicationDefault()
 

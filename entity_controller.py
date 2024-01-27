@@ -1,4 +1,3 @@
-import settings
 from pydantic import ValidationError
 from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Score, Trial
@@ -42,9 +41,9 @@ class EntityController:
         self.valid_trials = []
         self.invalid_trials = []
 
-    def set_values_from_firestore(self, assessment_cred):
-        fs_assessment = FirestoreServices(app_name='assessment_site', DB_KEY=assessment_cred)
-        fs_admin = FirestoreServices(app_name='admin_site', DB_KEY=settings.DB_KEY_LOCATION_ADMIN or None)
+    def set_values_from_firestore(self):
+        fs_assessment = FirestoreServices(app_name='assessment_site')
+        fs_admin = FirestoreServices(app_name='admin_site')
         self.set_districts(districts=fs_admin.get_districts(lab_id=self.lab_id))
         self.set_schools(schools=fs_admin.get_schools(lab_id=self.lab_id))
         self.set_classes(classes=fs_admin.get_classes(lab_id=self.lab_id))
