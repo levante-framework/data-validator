@@ -3,7 +3,6 @@ from storage_services import StorageServices
 from secret_services import SecretServices
 from redivis_services import RedivisServices
 import functions_framework
-import json
 import os
 
 
@@ -22,21 +21,22 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_id = request_json.get('lab_id', None)
-            source = request_json.get('source', None)
+            is_from_firestore = request_json.get('is_from_firestore', False)
             is_save_to_storage = request_json.get('is_save_to_storage', False)
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
             dataset_version = request_json.get('dataset_version', None)
-            if params_check(lab_id, source, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
-                storage = StorageServices(lab_id=lab_id, source=source)
+            if params_check(lab_id, is_from_firestore, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
+                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
                 if is_save_to_storage:
-                    storage.process()
+                    storage.process(dataset_version=dataset_version)
                 else:
                     storage.storage_prefix = prefix_name
 
                 if is_upload_to_redivis:
-                    rs = RedivisServices(lab_id=lab_id, dataset_version=dataset_version, source=source)
+                    rs = RedivisServices(lab_id=lab_id, dataset_version=dataset_version, is_from_firestore=is_from_firestore)
+                    rs.create_dateset_version()
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
@@ -54,7 +54,7 @@ def data_validator(request):
         return 'Function needs to receive POST request', 500
 
 
-def params_check(lab_id, source, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
+def params_check(lab_id, is_from_firestore, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
     #return "Parameter 'source' has to be either firestore or redivis.", 400
     return True
 

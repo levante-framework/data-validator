@@ -10,18 +10,15 @@ class RedivisServices:
     is_deleted = None
     version = None
 
-    def __init__(self, lab_id: str, dataset_version, source):
-        self.source = source
+    def __init__(self, lab_id: str, is_from_firestore: bool, dataset_version):
+        self.lab_id = lab_id
+        self.source = "firestore" if is_from_firestore else "redivis"
         self.organization = redivis.organization("LEVANTE")
         if dataset_version:
             self.dataset = self.organization.dataset(name=lab_id, version=dataset_version)
         else:
             self.dataset = self.organization.dataset(name=lab_id)
-        if self.dataset.exists():
-            self.get_properties()
-            self.dataset = self.dataset.create_next_version(if_not_exists=True)
-        else:
-            self.dataset.create(description=f"This is a dataset for {lab_id}", public_access_level="overview")
+        self.get_properties()
 
     def get_properties(self):
         properties = self.dataset.get().properties
@@ -31,12 +28,11 @@ class RedivisServices:
         print(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
 
     def save_to_redivis_table(self, file_name: str):
-
-        table_name = (file_name.split("/")[1]).split(".")[0]
-
+        upload_name = file_name.split("/")[1]
+        table_name = upload_name.split(".")[0]
         if self.dataset.table(f"{table_name}").exists():
             table = self.dataset.table(f"{table_name}")
-            table.update(upload_merge_strategy="replace")
+            table.update(upload_merge_strategy='replace', description=f"This upload is from {file_name}")
         else:
             table = (
                 self.dataset
@@ -45,7 +41,7 @@ class RedivisServices:
                         upload_merge_strategy='replace')
             )
 
-        upload = table.upload(name=file_name)
+        upload = table.upload(name=upload_name)
         try:
             upload.create(
                 transfer_specification={
@@ -59,11 +55,21 @@ class RedivisServices:
         except Exception as e:
             print(f"{file_name} failed to upload to redivis table, {e}")
 
+    def create_dateset_version(self):
+        if self.dataset.exists():
+            self.dataset = self.dataset.create_next_version(if_not_exists=True)
+        else:
+            self.dataset.create(description=f"This is a dataset for {self.lab_id}", public_access_level="overview")
+
     def release_dataset(self):
         self.dataset.release()
         self.get_properties()
 
-
     def count_tables(self):
         return len(self.dataset.list_tables())
 
+    def get_classes(self):
+        table = self.dataset.table("classes")
+        df = table.to_pandas_dataframe()
+        result = df.to_dict(orient='records')
+        return result

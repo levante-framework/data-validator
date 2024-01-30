@@ -3,6 +3,7 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 import os
 import settings
+import json
 
 
 class FirestoreServices:
@@ -14,7 +15,7 @@ class FirestoreServices:
     def __init__(self, app_name):
         try:
             if app_name == 'assessment_site':
-                cred = credentials.Certificate(os.environ['assessment_cred'])
+                cred = credentials.Certificate(json.loads(os.environ['assessment_cred']))
             else:
                 cred = credentials.ApplicationDefault()
 

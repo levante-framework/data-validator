@@ -2,6 +2,7 @@ from pydantic import ValidationError
 from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Score, Trial
 from firestore_services import FirestoreServices
+from redivis_services import RedivisServices
 
 
 class EntityController:
@@ -63,6 +64,10 @@ class EntityController:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id, run_id=run.run_id, task_id=run.task_id))
         else:
             print(f"No valid runs in {self.lab_id}.")
+
+    def set_values_from_redivis(self, dataset_version):
+        rs = RedivisServices(lab_id=self.lab_id, is_from_firestore=False, dataset_version=dataset_version)
+        self.set_classes(classes=rs.get_classes())
 
     def set_districts(self, districts: list):
         for district in districts:

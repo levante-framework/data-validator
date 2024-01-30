@@ -36,19 +36,20 @@ def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_ty
 class StorageServices:
     storage_prefix = None
 
-    def __init__(self, lab_id: str, source: str):
+    def __init__(self, lab_id: str, is_from_firestore: bool):
         self.lab_id = lab_id
-        self.source = source
+        self.source = "firestore" if is_from_firestore else "redivis"
         self.ec = EntityController(lab_id)
         self.timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.storage_prefix = f"lab_{self.lab_id}_{source}_{self.timestamp}/"
+        self.storage_prefix = f"lab_{self.lab_id}_{self.source}_{self.timestamp}/"
 
-    def process(self):
+    def process(self, dataset_version: str = None):
         if self.source == 'firestore':
             self.ec.set_values_from_firestore()
         else:
-            pass
+            self.ec.set_values_from_redivis(dataset_version=dataset_version)
 
+        # print(self.get_valid_data().get("classes"))
         for key, value in self.get_valid_data().items():
             self.save_to_storage(table_name=key, data=value)
         self.save_to_storage(table_name="validation_log", data=self.get_invalid_data())
