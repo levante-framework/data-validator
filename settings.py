@@ -7,8 +7,6 @@ BUCKET_NAME = "levante-roar-data-bucket-dev"  # levante-roar-raw-data-bucket-pro
 assessment_service_account_secret_id = 'hs-levante-assessment-dev-service-account'
 admin_firebase_api_key_secret_id = 'firebase-api-key'
 
-SAVE_TO_STORAGE = False  # True, False
-
 DB_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-db.json"
 SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
 

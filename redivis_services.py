@@ -49,7 +49,8 @@ class RedivisServices:
                     "sourcePath": f"{settings.BUCKET_NAME}/{file_name}",
                     "identity": "ezhang61@stanford.edu",  # The email associated with the data source
                 },
-                replace_on_conflict=True
+                replace_on_conflict=True,
+                remove_on_fail=True
             )
             print(f"{file_name} has been uploaded to redivis table")
         except Exception as e:
@@ -68,8 +69,12 @@ class RedivisServices:
     def count_tables(self):
         return len(self.dataset.list_tables())
 
-    def get_classes(self):
-        table = self.dataset.table("classes")
+    def get_tables(self, table_name: str):
+        table = self.dataset.table(table_name)
         df = table.to_pandas_dataframe()
         result = df.to_dict(orient='records')
         return result
+
+    def get_specified_table(self, table_list: list, spec_key: str, spec_value: str):
+        return [item for item in table_list if item.get(spec_key) == spec_value]
+

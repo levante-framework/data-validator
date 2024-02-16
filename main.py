@@ -27,10 +27,10 @@ def data_validator(request):
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
             dataset_version = request_json.get('dataset_version', None)
-            if params_check(lab_id, is_from_firestore, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
-                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
+            if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name, dataset_version):
+                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore, dataset_version=dataset_version)
                 if is_save_to_storage:
-                    storage.process(dataset_version=dataset_version)
+                    storage.process()
                 else:
                     storage.storage_prefix = prefix_name
 
@@ -54,8 +54,20 @@ def data_validator(request):
         return 'Function needs to receive POST request', 500
 
 
-def params_check(lab_id, is_from_firestore, is_save_to_storage, prefix_name, is_upload_to_redivis, dataset_version, is_release_on_redivis):
-    #return "Parameter 'source' has to be either firestore or redivis.", 400
+def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name, dataset_version):
+    if not lab_id:
+        return "Parameter 'lab_id' needs to be specified.", 400
+    elif not isinstance(lab_id, str):
+        return "Parameter 'lab_id' needs to be a valid string.", 400
+    if not isinstance(is_from_firestore, bool):
+        return "Parameter 'is_from_firestore' has to be a bool value.", 400
+    if not isinstance(is_save_to_storage, bool):
+        return "Parameter 'is_save_to_storage' has to be a bool value.", 400
+    if not isinstance(is_upload_to_redivis, bool):
+        return "Parameter 'is_upload_to_redivis' has to be a bool value.", 400
+    if not isinstance(is_release_on_redivis, bool):
+        return "Parameter 'is_release_on_redivis' has to be a bool value.", 400
+
     return True
 
 

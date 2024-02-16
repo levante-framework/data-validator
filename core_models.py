@@ -18,11 +18,11 @@ class Class(BaseModel):
 class School(BaseModel):
     school_id: str
     district_id: str
-    state_id: Optional[str] = None
+    state_id: Optional[int] = None  # Optional[str] = None
     school_number: str
     name: str
     phone: Optional[str] = None
-    high_grade: Optional[str] = None
+    high_grade: Optional[int] = None
     low_grade: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
@@ -49,11 +49,11 @@ class Variant(BaseModel):
     variant_id: str
     task_id: str
     name: Optional[str] = None
-    consent: Optional[bool] = None
-    recruitment: Optional[str] = None
-    skip_instructions: Optional[bool] = None
-    story: Optional[bool] = None
-    user_mode: Optional[str] = None
+    # consent: Optional[bool] = None
+    # recruitment: Optional[str] = None
+    # skip_instructions: Optional[bool] = None
+    # story: Optional[bool] = None
+    # user_mode: Optional[str] = None
     last_updated: Optional[datetime] = None
 
 
@@ -66,7 +66,7 @@ class VariantParams(BaseModel):
 
 class Task(BaseModel):
     task_id: str
-    name: str
+    name: str = None
     registered: bool = None
     description: str = None
     image: str = None
@@ -108,29 +108,31 @@ class Trial(BaseModel):
     subtask_id: Optional[str] = None
     is_practice: bool
     internal_node_id: Optional[str] = None
-    difficulty: Optional[str] = None
+    difficulty: Optional[float] = None
     trial_type: Optional[str] = None
     corpus_id: Optional[str] = None
     is_correct: bool
     trial_index: int
     response: str
-    stimulus: str
+    stimulus: Optional[str] = None
     rt: int
     server_timestamp: datetime
 
 
 class User(BaseModel):
     user_id: str
-    assessment_pid: str
-    assessment_uid: str
     user_type: str
-    full_name: Optional[str] = None
-    dob: Optional[datetime] = None
     gender: Optional[str] = None
     grade: Optional[str] = None
-    state_id: Optional[str] = None
     races: Optional[str] = None
-    hispanic_ethnicity: Optional[str] = None
+    hispanic_ethnicity: Optional[bool] = None
+    # age: Optional[str] = None
+    # assessment_pid: str
+    # assessment_uid: str
+    # full_name: Optional[str] = None
+    # dob: Optional[datetime] = None
+    # state_id: Optional[str] = None
+
     # @model_validator(mode='after')
     # def assign_attributes(self) -> 'User':
     #     if self.name.get("first", None) and self.name.get("last", None):

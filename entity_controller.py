@@ -7,9 +7,9 @@ from redivis_services import RedivisServices
 
 class EntityController:
 
-    def __init__(self, lab_id):
+    def __init__(self, lab_id, source):
         self.lab_id = lab_id
-
+        self.source = source
         self.valid_districts = []
         self.invalid_districts = []
         self.valid_schools = []
@@ -48,10 +48,15 @@ class EntityController:
         self.set_districts(districts=fs_admin.get_districts(lab_id=self.lab_id))
         self.set_schools(schools=fs_admin.get_schools(lab_id=self.lab_id))
         self.set_classes(classes=fs_admin.get_classes(lab_id=self.lab_id))
-        self.set_task(tasks=fs_assessment.get_tasks(), source=fs_assessment)
-
+        self.set_tasks(tasks=fs_assessment.get_tasks())
         self.set_users(users=fs_admin.get_users(lab_id=self.lab_id))
         self.set_assignments(assignments=fs_admin.get_assignments())
+
+        if self.valid_tasks:
+            for task in self.valid_tasks:
+                self.set_variants(variants=fs_assessment.get_variants(task.task_id))
+        else:
+            print(f"No valid tasks in {self.lab_id}.")
 
         if self.valid_users:
             for user in self.valid_users:
@@ -61,13 +66,38 @@ class EntityController:
 
         if self.valid_runs:
             for run in self.valid_runs:
-                self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id, run_id=run.run_id, task_id=run.task_id))
+                self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id, run_id=run.run_id,
+                                                                         task_id=run.task_id))
         else:
             print(f"No valid runs in {self.lab_id}.")
 
     def set_values_from_redivis(self, dataset_version):
         rs = RedivisServices(lab_id=self.lab_id, is_from_firestore=False, dataset_version=dataset_version)
-        self.set_classes(classes=rs.get_classes())
+
+        self.set_districts(districts=rs.get_tables(table_name="districts"))
+        self.set_schools(schools=rs.get_tables(table_name="schools"))
+        self.set_classes(classes=rs.get_tables(table_name="classes"))
+        self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
+        self.set_variants(variants=rs.get_tables(table_name="variants"))
+        self.set_users(users=rs.get_tables(table_name="users"))
+        self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
+
+        runs_table = rs.get_tables(table_name="runs")
+        # print(runs_table)
+        if self.valid_users:
+            for user in self.valid_users:
+                print(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+                self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+        else:
+            print(f"No valid users in {self.lab_id}.")
+
+        trials_table = rs.get_tables(table_name="trials")
+        if self.valid_runs:
+            for run in self.valid_runs:
+                self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id", spec_value=run.run_id))
+        else:
+            print(f"No valid runs in {self.lab_id}.")
+
 
     def set_districts(self, districts: list):
         for district in districts:
@@ -76,8 +106,8 @@ class EntityController:
                 self.valid_districts.append(district)
 
             except ValidationError as e:
-                print(f"Validation error for district {district['district_id']}: {e}")
-                self.invalid_districts.append(f"{district['district_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_districts.append({**error, 'district_id': district["district_id"]})
 
     def set_schools(self, schools: list):
         for school in schools:
@@ -86,8 +116,8 @@ class EntityController:
                 self.valid_schools.append(school)
 
             except ValidationError as e:
-                print(f"Validation error for school {school['school_id']}: {e}")
-                self.invalid_schools.append(f"{school['school_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_schools.append({**error, 'school_id': school['school_id']})
 
     def set_classes(self, classes: list):
         for c in classes:
@@ -96,29 +126,28 @@ class EntityController:
                 self.valid_classes.append(c)
 
             except ValidationError as e:
-                print(f"Validation error for class {c['class_id']}: {e}")
-                self.invalid_classes.append(f"{c['class_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_classes.append({**error, 'class_id': c['class_id']})
 
-    def set_task(self, tasks: list, source):
+    def set_tasks(self, tasks: list):
         for task in tasks:
             try:
                 task = Task(**task)
                 self.valid_tasks.append(task)
-                self.set_variant(task.task_id, source)
             except ValidationError as e:
-                print(f"Validation error for task {task['task_id']}: {e}")
-                self.invalid_tasks.append(f"{task['task_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_tasks.append({**error, 'task_id': task['task_id']})
 
-    def set_variant(self, task_id: str, source):
-        variants = source.get_variants(task_id=task_id)
+    def set_variants(self, variants: list):
         for variant in variants:
             try:
-                self.set_variant_params(variant)
+                if self.source == "firestore":
+                    self.set_variant_params(variant)
                 variant = Variant(**variant)
                 self.valid_variants.append(variant)
             except ValidationError as e:
-                print(f"Validation error for variant {variant['variant_id']}: {e}")
-                self.invalid_variants.append(f"{variant['variant_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_variants.append({**error, 'variant_id': variant['variant_id']})
 
     def set_variant_params(self, variant: dict):
         variant_id = variant.get('variant_id', None)
@@ -131,20 +160,22 @@ class EntityController:
                     params_type=str(type(value)),
                     params_value=str(value)))
             except ValidationError as e:
-                print(f"Validation error for variant: {variant_id}, variant_params {key}, {value}: {e}")
-                self.invalid_variants_params.append(
-                    f"variant: {variant_id}, variant_params {key}, {value}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_variants_params.append(
+                        {**error, 'variant_id': variant['variant_id'], variant_params: f"{key}, {value}"})
 
     def set_users(self, users: list):
         for user in users:
             try:
-                self.set_user_class(user)
-                self.set_user_assignment(user)
+                if self.source == "firestore":
+                    self.set_user_class(user)
+                    self.set_user_assignment(user)
+
                 user = User(**user)
                 self.valid_users.append(user)
             except ValidationError as e:
-                print(f"Validation error for user {user['user_id']}: {e}")
-                self.invalid_users.append(f"{user['user_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_users.append({**error, 'user_id': user['user_id']})
 
     def set_user_class(self, user: dict):
         user_id = user.get('user_id', None)
@@ -158,8 +189,8 @@ class EntityController:
                     class_id=class_id,
                     is_active=True if class_id in current_classes else False))
             except ValidationError as e:
-                print(f"Validation error for user: {user_id}, class: {class_id}, {e}")
-                self.invalid_user_class.append(f"user: {user_id}, class: {class_id}, {e.errors()}")
+                for error in e.errors():
+                    self.invalid_user_class.append({**error, 'user_id': user['user_id'], 'class': class_id})
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)
@@ -173,18 +204,19 @@ class EntityController:
                     is_started=True if key in assignments_started.keys() else False,
                     date_time=value))
             except ValidationError as e:
-                print(f"Validation error for user: {user_id}, assignment: {key}, {e}")
-                self.invalid_user_assignment.append(f"user: {user_id}, assignment: {key}, {e.errors()}")
+                for error in e.errors():
+                    self.invalid_user_assignment.append({**error, 'user_id': user['user_id'], 'assignment': key})
 
     def set_assignments(self, assignments: list):
         for assignment in assignments:
             try:
-                self.set_assignment_task(assignment)
+                if self.source == "firestore":
+                    self.set_assignment_task(assignment)
                 assignment = Assignment(**assignment)
                 self.valid_assignments.append(assignment)
             except ValidationError as e:
-                print(f"Validation error for task {assignment['assignment_id']}: {e}")
-                self.invalid_assignments.append(f"{assignment['assignment_id']}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_assignments.append({**error, 'user_id': assignment['assignment_id']})
 
     def set_assignment_task(self, assignment: dict):
         assignment_id = assignment.get('assignment_id', None)
@@ -196,16 +228,20 @@ class EntityController:
                     assignment_id=assignment_id,
                     task_id=task_id))
             except ValidationError as e:
-                print(f"Validation error for assignment {assignment_id}, task {task_id}: {e}")
-                self.invalid_assignments.append(f"{assignment_id}, task {task_id}: {e.errors()}")
+                for error in e.errors():
+                    self.invalid_assignment_task.append(
+                        {**error, 'assignment_id': assignment['assignment_id'], task: task_id})
 
     def set_runs(self, user: User, runs: list):
+        if self.source == "redivis":
+            pass
         for run in runs:
             try:
                 self.valid_runs.append(Run(**run))
             except ValidationError as e:
-                print(f"Validation error for user {user.user_id}, run {run['run_id']}: {e}")
-                self.invalid_runs.append(f"user: {user.user_id}, run: {run['run_id']},{e.errors()}")
+                for error in e.errors():
+                    self.invalid_assignments.append({**error, 'run_id': run['run_id'], 'user_id': user.user_id})
+
     def set_score_details(self, run: dict):
         pass
         # run_id = run.get('id', None)
@@ -251,8 +287,6 @@ class EntityController:
             try:
                 self.valid_trials.append(Trial(**trial))
             except ValidationError as e:
-                print(f"Validation error for user {run.user_id}, run {run.run_id}, trial {trial['trial_id']}: {e}")
-                self.invalid_trials.append(
-                    f"user {run.user_id}, run {run.run_id}, trial {trial['trial_id']}: {e.errors()}")
-
-
+                for error in e.errors():
+                    self.invalid_trials.append(
+                        {**error, 'run_id': run.run_id, 'user_id': run.user_id, 'trial_id': trial['trial_id']})

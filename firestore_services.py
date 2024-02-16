@@ -109,7 +109,8 @@ class FirestoreServices:
                 doc_dict['dob'] = student_data.get('dob', None)
                 doc_dict['gender'] = student_data.get('gender', None)
                 doc_dict['grade'] = student_data.get('grade', None)
-                doc_dict['hispanic_ethnicity'] = student_data.get('hispanic_ethnicity', None)
+
+                doc_dict['hispanic_ethnicity'] = True if student_data.get('hispanic_ethnicity', None) == "Y" else False
                 doc_dict['state_id'] = student_data.get('state_id', None)
                 doc_dict['races'] = ', '.join(student_data.get('race', []))
 
@@ -182,12 +183,12 @@ class FirestoreServices:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['variant_id'] = doc.id  # Add the document ID under the key 'id'
                 doc_dict['task_id'] = task_id
-                params = doc_dict.get('params', {})
-                doc_dict['consent'] = params.get('consent', None)
-                doc_dict['recruitment'] = params.get('recruitment', '')
-                doc_dict['skip_instructions'] = params.get('skipInstructions', None)
-                doc_dict['story'] = params.get('story', None)
-                doc_dict['user_mode'] = params.get('user_mode', None)
+                # params = doc_dict.get('params', {})
+                # doc_dict['consent'] = params.get('consent', None)
+                # doc_dict['recruitment'] = params.get('recruitment', '')
+                # doc_dict['skip_instructions'] = params.get('skipInstructions', None)
+                # doc_dict['story'] = params.get('story', None)
+                # doc_dict['user_mode'] = params.get('user_mode', None)
                 doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
                 result.append(doc_dict)
         except Exception as e:
