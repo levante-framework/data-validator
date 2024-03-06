@@ -9,15 +9,17 @@ class RedivisServices:
     is_released = None
     is_deleted = None
     version = None
+    dataset = None
+    lab_id = None
 
-    def __init__(self, lab_id: str, is_from_firestore: bool, dataset_version):
-        self.lab_id = lab_id
+    def __init__(self, is_from_firestore: bool):
         self.source = "firestore" if is_from_firestore else "redivis"
         self.organization = redivis.organization("LEVANTE")
-        if dataset_version:
-            self.dataset = self.organization.dataset(name=lab_id, version=dataset_version)
-        else:
-            self.dataset = self.organization.dataset(name=lab_id)
+        self.upload_to_redivis_log = []
+
+    def set_dataset(self, lab_id: str):
+        self.lab_id = lab_id
+        self.dataset = self.organization.dataset(name=lab_id)
         self.get_properties()
 
     def get_properties(self):
@@ -52,18 +54,24 @@ class RedivisServices:
                 replace_on_conflict=True,
                 remove_on_fail=True
             )
-            print(f"{file_name} has been uploaded to redivis table")
+            self.upload_to_redivis_log.append(f"{file_name} has been uploaded to redivis table")
         except Exception as e:
-            print(f"{file_name} failed to upload to redivis table, {e}")
+            self.upload_to_redivis_log.append(f"{file_name} failed to upload to redivis table, {e}")
 
     def create_dateset_version(self):
-        if self.dataset.exists():
-            self.dataset = self.dataset.create_next_version(if_not_exists=True)
-        else:
-            self.dataset.create(description=f"This is a dataset for {self.lab_id}", public_access_level="overview")
+        try:
+            if self.dataset.exists():
+                self.dataset = self.dataset.create_next_version(if_not_exists=True)
+            else:
+                self.dataset.create(description=f"This is a dataset for {self.lab_id}", public_access_level="overview")
+        except Exception as e:
+            self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
 
     def release_dataset(self):
-        self.dataset.release()
+        try:
+            self.dataset.release()
+        except Exception as e:
+            self.upload_to_redivis_log.append(f"Failed on release_dataset: {e}")
         self.get_properties()
 
     def count_tables(self):
@@ -78,3 +86,5 @@ class RedivisServices:
     def get_specified_table(self, table_list: list, spec_key: str, spec_value: str):
         return [item for item in table_list if item.get(spec_key) == spec_value]
 
+    def get_datasets_list(self):
+        return [dn.name for dn in self.organization.list_datasets()]

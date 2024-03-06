@@ -2,6 +2,7 @@ import settings
 from storage_services import StorageServices
 from secret_services import SecretServices
 from redivis_services import RedivisServices
+from entity_controller import EntityController
 import functions_framework
 import os
 
@@ -26,26 +27,45 @@ def data_validator(request):
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
-            dataset_version = request_json.get('dataset_version', None)
-            if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name, dataset_version):
-                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore, dataset_version=dataset_version)
-                if is_save_to_storage:
-                    storage.process()
+            if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name):
+                ec = EntityController(is_from_firestore=is_from_firestore)
+                if is_from_firestore:
+                    ec.set_values_from_firestore(lab_id=lab_id)
+                elif lab_id != 'all':
+                    ec.set_values_for_consolidate()
                 else:
+                    ec.set_values_from_redivis(lab_id=lab_id)
+                print(f"validation_log_list: {ec.validation_log}")
+
+                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
+                if is_save_to_storage:
+                    storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
+                    print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                elif is_upload_to_redivis:
                     storage.storage_prefix = prefix_name
+                else:
+                    output = {'title': f'Function executed successfully! Here is the invalid data columns.',
+                              'logs': ec.validation_log,
+                              'data': ec.get_invalid_data()}
+                    return output, 200
 
                 if is_upload_to_redivis:
-                    rs = RedivisServices(lab_id=lab_id, dataset_version=dataset_version, is_from_firestore=is_from_firestore)
+                    rs = RedivisServices(is_from_firestore=is_from_firestore)
+                    rs.set_dataset(lab_id=lab_id)
                     rs.create_dateset_version()
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
-                    print(f"Current DS has {rs.count_tables()} tables.")
                     if is_release_on_redivis:
                         rs.release_dataset()
-                    return f'Function executed successfully!', 200
+                    print(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
+                    output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
+                              'logs': rs.upload_to_redivis_log}
+                    return output, 200
                 else:
-                    return f'Function executed successfully! Data not ship to redivis', 200
+                    output = {'title': f'Function executed successfully! Data has not been shipped to redivis.',
+                              'logs': storage.upload_to_GCP_log}
+                    return output, 200
             else:
                 return 'Missing significant parameter in the request body', 400
         else:
@@ -54,7 +74,7 @@ def data_validator(request):
         return 'Function needs to receive POST request', 500
 
 
-def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name, dataset_version):
+def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name):
     if not lab_id:
         return "Parameter 'lab_id' needs to be specified.", 400
     elif not isinstance(lab_id, str):

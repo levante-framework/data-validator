@@ -24,6 +24,19 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in {app_name} FirestoreService init: {e}")
 
+    def get_groups(self, lab_id: str):
+        result = []
+        try:
+            doc = self.db.collection('groups').document(lab_id).get()
+            doc_dict = doc.to_dict()  # Convert the document to a dictionary
+            doc_dict['group_id'] = doc.id
+            doc_dict['abbreviation'] = doc_dict.pop('abbreviation', None)
+            result.append(doc_dict)
+
+        except Exception as e:
+            print(f"Error in get_groups: {e}")
+        return result
+
     def get_districts(self, lab_id: str):
         result = []
         try:
@@ -94,25 +107,23 @@ class FirestoreServices:
     def get_users(self, lab_id: str):
         result = []
         try:
-            docs = self.db.collection('users').where('districts.current', 'array_contains', lab_id).get()
+            if settings.MODE == 'guest':
+                docs = self.db.collection('guests').get()
+            else:
+                docs = self.db.collection('users').where('groups.current', 'array_contains', lab_id).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['user_id'] = doc.id
-                doc_dict['assessment_pid'] = doc_dict.pop('assessmentPid', None)
-                doc_dict['assessment_uid'] = doc_dict.pop('assessmentUid', None)
-                doc_dict['user_type'] = doc_dict.pop('userType', None)
+                doc_dict['user_type'] = doc_dict.get('userType', None)
+                doc_dict['assessment_uid'] = doc_dict.get('assessmentUid', None)
+                doc_dict['parent_id'] = doc_dict.get('parentId', None)
+                doc_dict['teacher_id'] = doc_dict.get('teacherId', None)
+                doc_dict['birth_year'] = doc_dict.get('birthYear', None)
+                doc_dict['birth_month'] = doc_dict.get('birthMonth', None)
+                doc_dict['email_verified'] = doc_dict.get('emailVerified', None)
 
-                name = doc_dict.get('name', {})
-                doc_dict['full_name'] = f"{name.get('first', '')} {name.get('middle', '')}. {name.get('last', '')}"
-
-                student_data = doc_dict.get('studentData', {})
-                doc_dict['dob'] = student_data.get('dob', None)
-                doc_dict['gender'] = student_data.get('gender', None)
-                doc_dict['grade'] = student_data.get('grade', None)
-
-                doc_dict['hispanic_ethnicity'] = True if student_data.get('hispanic_ethnicity', None) == "Y" else False
-                doc_dict['state_id'] = student_data.get('state_id', None)
-                doc_dict['races'] = ', '.join(student_data.get('race', []))
+                doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
 
                 result.append(doc_dict)
         except Exception as e:
@@ -122,17 +133,21 @@ class FirestoreServices:
     def get_runs(self, user_id: str):
         result = []
         try:
-            docs = self.db.collection('users').document(user_id).collection('runs').get()
+            if settings.MODE == 'guest':
+                docs = self.db.collection('guests').document(user_id).collection('runs').get()
+            else:
+                docs = self.db.collection('users').document(user_id).collection('runs').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['run_id'] = doc.id
                 doc_dict['user_id'] = user_id
-                doc_dict['task_id'] = doc_dict.pop('taskId', None)
-                doc_dict['variant_id'] = doc_dict.pop('variantId', None)
-                doc_dict['assignment_id'] = doc_dict.pop('assignmentId', None)
-                doc_dict['is_completed'] = doc_dict.pop('completed', None)
-                doc_dict['time_finished'] = doc_dict.pop('timeFinished', None)
-                doc_dict['time_started'] = doc_dict.pop('timeStarted', None)
+                doc_dict['task_id'] = doc_dict.get('taskId', None)
+                doc_dict['variant_id'] = doc_dict.get('variantId', None)
+                doc_dict['assignment_id'] = doc_dict.get('assignmentId', None)
+                doc_dict['assigning_orgs'] = doc_dict.get('assigningOrgs', None)
+                doc_dict['is_completed'] = doc_dict.get('completed', None)
+                doc_dict['time_finished'] = doc_dict.get('timeFinished', None)
+                doc_dict['time_started'] = doc_dict.get('timeStarted', None)
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_runs: {e}")
@@ -141,21 +156,27 @@ class FirestoreServices:
     def get_trials(self, user_id: str, run_id: str, task_id: str):
         result = []
         try:
-            docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
-                'trials').get()
+            if settings.MODE == 'guest':
+                docs = self.db.collection('guests').document(user_id).collection('runs').document(
+                    run_id).collection('trials').get()
+            else:
+                docs = self.db.collection('users').document(user_id).collection('runs').document(
+                    run_id).collection('trials').get()
+
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['trial_id'] = doc.id
                 doc_dict['user_id'] = user_id
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
-                doc_dict['subtask_id'] = doc_dict.pop('subtask', None)
-                doc_dict['is_practice'] = True if 'practice' in doc_dict.get('assessment_stage', '') else False
-                doc_dict['corpus_id'] = doc_dict.pop('corpusId', None)
-                doc_dict['is_correct'] = True if doc_dict.get('correct', '') == 1 else False
-                doc_dict['response'] = doc_dict.get('responseValue', None) or doc_dict.get('response',
-                                                                                           None) or doc_dict.get(
-                    'keyboard_response', None)
+
+                doc_dict['distract_options'] = str(doc_dict.get('distractors', None))
+                doc_dict['expected_answer'] = doc_dict.get('answer', None)
+                doc_dict['response_type'] = doc_dict.get('response_type', None)
+                doc_dict['response_source'] = doc_dict.get('response_source', None)
+                doc_dict['is_correct'] = doc_dict.get('correct', None)
+
+                doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
                 doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
                 result.append(doc_dict)
         except Exception as e:
@@ -211,3 +232,4 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_assignments: {e}")
         return result
+

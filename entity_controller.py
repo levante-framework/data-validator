@@ -1,5 +1,7 @@
 from pydantic import ValidationError
-from core_models import Task, Variant, VariantParams, District, School, Class, User, UserClass, UserAssignment, \
+
+import settings
+from core_models import Task, Variant, VariantParams, Group, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Score, Trial
 from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
@@ -7,9 +9,12 @@ from redivis_services import RedivisServices
 
 class EntityController:
 
-    def __init__(self, lab_id, source):
-        self.lab_id = lab_id
-        self.source = source
+    def __init__(self, is_from_firestore: bool):
+        self.source = "firestore" if is_from_firestore else "redivis"
+        self.validation_log = []
+
+        self.valid_groups = []
+        self.invalid_groups = []
         self.valid_districts = []
         self.invalid_districts = []
         self.valid_schools = []
@@ -42,37 +47,43 @@ class EntityController:
         self.valid_trials = []
         self.invalid_trials = []
 
-    def set_values_from_firestore(self):
+    def set_values_from_firestore(self, lab_id: str):
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
-        self.set_districts(districts=fs_admin.get_districts(lab_id=self.lab_id))
-        self.set_schools(schools=fs_admin.get_schools(lab_id=self.lab_id))
-        self.set_classes(classes=fs_admin.get_classes(lab_id=self.lab_id))
-        self.set_tasks(tasks=fs_assessment.get_tasks())
-        self.set_users(users=fs_admin.get_users(lab_id=self.lab_id))
-        self.set_assignments(assignments=fs_admin.get_assignments())
 
-        if self.valid_tasks:
-            for task in self.valid_tasks:
-                self.set_variants(variants=fs_assessment.get_variants(task.task_id))
+        if settings.MODE == "guest":
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
         else:
-            print(f"No valid tasks in {self.lab_id}.")
+            self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+            self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
+            self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
+            self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
+            self.set_assignments(assignments=fs_admin.get_assignments())
+
+            self.set_tasks(tasks=fs_assessment.get_tasks())
+            if self.valid_tasks:
+                for task in self.valid_tasks:
+                    self.set_variants(variants=fs_assessment.get_variants(task.task_id))
+            else:
+                self.validation_log.append(f"firebase_db has no valid tasks in {lab_id}.")
 
         if self.valid_users:
             for user in self.valid_users:
-                self.set_runs(user=user, runs=fs_assessment.get_runs(user.user_id))
+                self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
         else:
-            print(f"No valid users in {self.lab_id}.")
+            self.validation_log.append(f"firebase_db has no valid users in {lab_id}.")
 
         if self.valid_runs:
             for run in self.valid_runs:
-                self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id, run_id=run.run_id,
+                self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,
+                                                                         run_id=run.run_id,
                                                                          task_id=run.task_id))
         else:
-            print(f"No valid runs in {self.lab_id}.")
+            self.validation_log.append(f"firebase_db has no valid runs in {lab_id}.")
 
-    def set_values_from_redivis(self, dataset_version):
-        rs = RedivisServices(lab_id=self.lab_id, is_from_firestore=False, dataset_version=dataset_version)
+    def set_values_from_redivis(self, lab_id: str):
+        rs = RedivisServices(is_from_firestore=False)
+        rs.set_dataset(lab_id=lab_id)
 
         self.set_districts(districts=rs.get_tables(table_name="districts"))
         self.set_schools(schools=rs.get_tables(table_name="schools"))
@@ -86,18 +97,86 @@ class EntityController:
         # print(runs_table)
         if self.valid_users:
             for user in self.valid_users:
-                print(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
-                self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+                # print(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+                self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
+                                                                     spec_value=user.user_id))
         else:
-            print(f"No valid users in {self.lab_id}.")
+            self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
 
         trials_table = rs.get_tables(table_name="trials")
         if self.valid_runs:
             for run in self.valid_runs:
-                self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id", spec_value=run.run_id))
+                self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
+                                                                       spec_value=run.run_id))
         else:
-            print(f"No valid runs in {self.lab_id}.")
+            self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
 
+    def set_values_for_consolidate(self):
+        rs = RedivisServices(is_from_firestore=False)
+
+        lab_lists = rs.get_datasets_list()
+        print(lab_lists)
+        for lab in lab_lists:
+            self.set_values_from_redivis(lab)
+
+    def get_valid_data(self):
+        valid_dict = {
+            'districts': [obj.model_dump() for obj in self.valid_districts],
+            'schools': [obj.model_dump() for obj in self.valid_schools],
+            'classes': [obj.model_dump() for obj in self.valid_classes],
+            'users': [obj.model_dump() for obj in self.valid_users],
+            'runs': [obj.model_dump() for obj in self.valid_runs],
+            'trials': [obj.model_dump() for obj in self.valid_trials],
+            'assignments': [obj.model_dump() for obj in self.valid_assignments],
+            'tasks': [obj.model_dump() for obj in self.valid_tasks],
+            'variants': [obj.model_dump() for obj in self.valid_variants]
+        }
+        if self.source == "firestore":
+            valid_dict['variants_params'] = [obj.model_dump() for obj in self.valid_variants_params]
+            valid_dict['user_classes'] = [obj.model_dump() for obj in self.valid_user_class]
+            valid_dict['user_assignments'] = [obj.model_dump() for obj in self.valid_user_assignment]
+            valid_dict['assignment_tasks'] = [obj.model_dump() for obj in self.valid_assignment_task]
+        return valid_dict
+
+    def get_invalid_data(self):
+        invalid_list = ([{**obj, "table_name": "districts"} for obj in self.invalid_districts]
+                        + [{**obj, "table_name": "schools"} for obj in self.invalid_schools]
+                        + [{**obj, "table_name": "classes"} for obj in self.invalid_classes]
+                        + [{**obj, "table_name": "users"} for obj in self.invalid_users]
+                        + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
+                        + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
+                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_assignments]
+                        + [{**obj, "table_name": "tasks"} for obj in self.invalid_tasks]
+                        + [{**obj, "table_name": "variants"} for obj in self.invalid_variants])
+
+        if self.source == "firestore":
+            invalid_list = (invalid_list
+                            + [{**obj, "table_name": "variants_params"} for obj in self.invalid_variants_params]
+                            + [{**obj, "table_name": "user_class"} for obj in self.invalid_user_class]
+                            + [{**obj, "table_name": "user_assignment"} for obj in self.invalid_user_assignment]
+                            + [{**obj, "table_name": "assignment_task"} for obj in self.invalid_assignment_task])
+
+        for invalid_item in invalid_list:
+            if 'loc' in invalid_item:
+                invalid_item['invalid_key'] = invalid_item.pop('loc')[0]
+            if 'input' in invalid_item:
+                invalid_item['invalid_value'] = str(invalid_item.pop('input'))
+            if 'type' in invalid_item:
+                invalid_item['expected_value'] = invalid_item.pop('type')
+            if 'url' in invalid_item:
+                invalid_item.pop('url')
+
+        return invalid_list
+
+    def set_groups(self, groups: list):
+        for group in groups:
+            try:
+                group = Group(**group)
+                self.valid_groups.append(group)
+
+            except ValidationError as e:
+                for error in e.errors():
+                    self.valid_groups.append({**error, 'group_id': group["group_id"]})
 
     def set_districts(self, districts: list):
         for district in districts:
@@ -167,7 +246,7 @@ class EntityController:
     def set_users(self, users: list):
         for user in users:
             try:
-                if self.source == "firestore":
+                if self.source == "firestore" and settings.MODE != "guest":
                     self.set_user_class(user)
                     self.set_user_assignment(user)
 

@@ -12,7 +12,7 @@ SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
 
 redivis_api_token = 'AAAChAdeK/oVg/jVDmR6QFxuXvqVrEm4'
 
-
+MODE = "guest" #guest, test, prod
 
 #functions-framework --target=main
 #gcloud config set project hs-levante-admin-dev
