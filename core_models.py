@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, List
+from typing import Optional, Union
 from datetime import datetime
 
 
@@ -55,7 +55,7 @@ class User(BaseModel):
     email: Optional[str] = None
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
-    last_updated: datetime
+    last_updated: Optional[datetime] = None
 
     # age: Optional[str] = None
     # assessment_pid: str
@@ -99,7 +99,6 @@ class Variant(BaseModel):
 
 
 class VariantParams(BaseModel):
-    variant_params_id: str
     variant_id: str
     params_field: str
     params_type: str
@@ -151,19 +150,19 @@ class Trial(BaseModel):
     task_id: str
 
     # Answers related
-    item: str
-    distract_options: str
-    expected_answer: str
-    response: str
-    response_type: str
-    response_source: str
-    is_correct: bool
-    rt: int
-    time_elapsed: int
+    item: Optional[str] = None
+    distract_options: Optional[str] = None
+    expected_answer: Optional[Union[int, str, float]] = None
+    response: Optional[Union[int, str, float]] = None
+    response_type: Optional[str] = None
+    response_source: Optional[str] = None
+    is_correct: Optional[bool] = None
+    rt: Optional[int] = None
+    time_elapsed: Optional[int] = None
 
     # Trial attributes
     trial_index: int
-    is_practice: bool
+    is_practice: Optional[bool] = None
     difficulty: Optional[float] = None
     trial_type: Optional[str] = None
     assessment_stage: Optional[str] = None

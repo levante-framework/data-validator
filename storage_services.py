@@ -44,9 +44,11 @@ class StorageServices:
 
     def process(self, valid_data: dict, invalid_data: dict):
         for key, value in valid_data.items():
-            self.save_to_storage(table_name=key, data=value)
+            if value:
+                self.save_to_storage(table_name=key, data=value)
 
-        self.save_to_storage(table_name="validation_results", data=invalid_data)
+        if invalid_data:
+            self.save_to_storage(table_name="validation_results", data=invalid_data)
         # self.save_to_storage(table_name="data_upload_logs", data=self.upload_to_GCP_log)
 
     def save_to_storage(self, table_name: str, data):

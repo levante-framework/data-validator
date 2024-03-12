@@ -5,6 +5,10 @@ from redivis_services import RedivisServices
 from entity_controller import EntityController
 import functions_framework
 import os
+import logging
+
+# Configure logging to show debug messages
+# logging.basicConfig(level=logging.DEBUG)
 
 
 @functions_framework.http
@@ -29,20 +33,21 @@ def data_validator(request):
             prefix_name = request_json.get('prefix_name', None)
             if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name):
                 ec = EntityController(is_from_firestore=is_from_firestore)
-                if is_from_firestore:
-                    ec.set_values_from_firestore(lab_id=lab_id)
-                elif lab_id != 'all':
-                    ec.set_values_for_consolidate()
-                else:
-                    ec.set_values_from_redivis(lab_id=lab_id)
-                print(f"validation_log_list: {ec.validation_log}")
+                if not prefix_name:
+                    if is_from_firestore:
+                        ec.set_values_from_firestore(lab_id=lab_id)
+                    elif lab_id != 'all':
+                        ec.set_values_for_consolidate()
+                    else:
+                        ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
+                    print(f"validation_log_list: {ec.validation_log}")
 
                 storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
-                if is_save_to_storage:
+                if prefix_name:
+                    storage.storage_prefix = prefix_name
+                elif is_save_to_storage:
                     storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
                     print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
-                elif is_upload_to_redivis:
-                    storage.storage_prefix = prefix_name
                 else:
                     output = {'title': f'Function executed successfully! Here is the invalid data columns.',
                               'logs': ec.validation_log,
@@ -53,6 +58,7 @@ def data_validator(request):
                     rs = RedivisServices(is_from_firestore=is_from_firestore)
                     rs.set_dataset(lab_id=lab_id)
                     rs.create_dateset_version()
+                    # rs.save_to_redivis_table(file_name="lab_guests_firestore_2024-03-11-19-23-32/trials.json")
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)

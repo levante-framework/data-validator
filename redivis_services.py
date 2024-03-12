@@ -20,7 +20,6 @@ class RedivisServices:
     def set_dataset(self, lab_id: str):
         self.lab_id = lab_id
         self.dataset = self.organization.dataset(name=lab_id)
-        self.get_properties()
 
     def get_properties(self):
         properties = self.dataset.get().properties
@@ -32,13 +31,13 @@ class RedivisServices:
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]
         table_name = upload_name.split(".")[0]
-        if self.dataset.table(f"{table_name}").exists():
-            table = self.dataset.table(f"{table_name}")
+        if self.dataset.table(table_name).exists():
+            table = self.dataset.table(table_name)
             table.update(upload_merge_strategy='replace', description=f"This upload is from {file_name}")
         else:
             table = (
                 self.dataset
-                .table(f"{table_name}")
+                .table(table_name)
                 .create(description=f"{table_name}_table from {self.source}",
                         upload_merge_strategy='replace')
             )
@@ -52,11 +51,17 @@ class RedivisServices:
                     "identity": "ezhang61@stanford.edu",  # The email associated with the data source
                 },
                 replace_on_conflict=True,
-                remove_on_fail=True
+                remove_on_fail=True,
+                raise_on_fail=False
             )
             self.upload_to_redivis_log.append(f"{file_name} has been uploaded to redivis table")
         except Exception as e:
             self.upload_to_redivis_log.append(f"{file_name} failed to upload to redivis table, {e}")
+            # try:
+            #     self.dataset.table(table_name).delete()
+            #     self.upload_to_redivis_log.append(f"{table_name} has been deleted from redivis.")
+            # except Exception as e:
+            #     self.upload_to_redivis_log.append(f"{table_name} failed to be deleted from redivis, {e}")
 
     def create_dateset_version(self):
         try:

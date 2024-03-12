@@ -7,6 +7,10 @@ from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
 
 
+def print_progress(current, total, ):
+    print(f"Progress: {current}/{total}")
+
+
 class EntityController:
 
     def __init__(self, is_from_firestore: bool):
@@ -52,14 +56,16 @@ class EntityController:
         fs_admin = FirestoreServices(app_name='admin_site')
 
         if settings.MODE == "guest":
+            print("GUEST MODE: Setting users...")
             self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+            print(f"Valid users: {len(self.valid_users)}")
         else:
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
             self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
             self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
             self.set_assignments(assignments=fs_admin.get_assignments())
-
+            print("Start to setting tasks...")
             self.set_tasks(tasks=fs_assessment.get_tasks())
             if self.valid_tasks:
                 for task in self.valid_tasks:
@@ -67,12 +73,13 @@ class EntityController:
             else:
                 self.validation_log.append(f"firebase_db has no valid tasks in {lab_id}.")
 
+        print("Start to setting runs...")
         if self.valid_users:
             for user in self.valid_users:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
         else:
             self.validation_log.append(f"firebase_db has no valid users in {lab_id}.")
-
+        print(f"Valid runs: {len(self.valid_runs)}. Start to setting trials...")
         if self.valid_runs:
             for run in self.valid_runs:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,
@@ -80,11 +87,13 @@ class EntityController:
                                                                          task_id=run.task_id))
         else:
             self.validation_log.append(f"firebase_db has no valid runs in {lab_id}.")
+        print(f"Valid trials: {len(self.valid_trials)}. ")
 
-    def set_values_from_redivis(self, lab_id: str):
+    def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
         rs = RedivisServices(is_from_firestore=False)
         rs.set_dataset(lab_id=lab_id)
 
+        self.set_groups(groups=rs.get_tables(table_name="groups"))
         self.set_districts(districts=rs.get_tables(table_name="districts"))
         self.set_schools(schools=rs.get_tables(table_name="schools"))
         self.set_classes(classes=rs.get_tables(table_name="classes"))
@@ -312,8 +321,6 @@ class EntityController:
                         {**error, 'assignment_id': assignment['assignment_id'], task: task_id})
 
     def set_runs(self, user: User, runs: list):
-        if self.source == "redivis":
-            pass
         for run in runs:
             try:
                 self.valid_runs.append(Run(**run))
@@ -368,4 +375,5 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append(
-                        {**error, 'run_id': run.run_id, 'user_id': run.user_id, 'trial_id': trial['trial_id']})
+                        {**error, 'task_id': run.task_id, 'run_id': run.run_id, 'user_id': run.user_id,
+                         'trial_id': trial['trial_id']})

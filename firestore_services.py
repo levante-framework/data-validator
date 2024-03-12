@@ -170,14 +170,20 @@ class FirestoreServices:
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
 
+                doc_dict['item'] = str(doc_dict.get('item', None))
                 doc_dict['distract_options'] = str(doc_dict.get('distractors', None))
                 doc_dict['expected_answer'] = doc_dict.get('answer', None)
                 doc_dict['response_type'] = doc_dict.get('response_type', None)
                 doc_dict['response_source'] = doc_dict.get('response_source', None)
                 doc_dict['is_correct'] = doc_dict.get('correct', None)
+                doc_dict['rt'] = None if str(doc_dict.get('rt')) == 'nan' else doc_dict.get('rt')
 
                 doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
                 doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
+
+                doc_dict['difficulty'] = doc_dict.get('difficulty', None)
+                if doc_dict['difficulty'] == 0:
+                    doc_dict['difficulty'] = None
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_trails: {e}")
