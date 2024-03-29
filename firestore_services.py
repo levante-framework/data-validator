@@ -9,8 +9,6 @@ import json
 class FirestoreServices:
     default_app = None
     db = None
-    if 'local' in settings.DB_SITE:
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
 
     def __init__(self, app_name):
         try:
@@ -107,7 +105,7 @@ class FirestoreServices:
     def get_users(self, lab_id: str):
         result = []
         try:
-            if settings.MODE == 'guest':
+            if os.environ.get('guest_mode', None):
                 docs = self.db.collection('guests').get()
             else:
                 docs = self.db.collection('users').where('groups.current', 'array_contains', lab_id).get()
@@ -133,7 +131,7 @@ class FirestoreServices:
     def get_runs(self, user_id: str):
         result = []
         try:
-            if settings.MODE == 'guest':
+            if os.environ.get('guest_mode', None):
                 docs = self.db.collection('guests').document(user_id).collection('runs').get()
             else:
                 docs = self.db.collection('users').document(user_id).collection('runs').get()
@@ -156,7 +154,7 @@ class FirestoreServices:
     def get_trials(self, user_id: str, run_id: str, task_id: str):
         result = []
         try:
-            if settings.MODE == 'guest':
+            if os.environ.get('guest_mode', None):
                 docs = self.db.collection('guests').document(user_id).collection('runs').document(
                     run_id).collection('trials').get()
             else:

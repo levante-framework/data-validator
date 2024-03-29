@@ -3,6 +3,14 @@ from google.oauth2 import service_account
 from datetime import datetime
 import json
 import settings
+import os
+
+if 'local' in settings.ENV:
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
+    with open(settings.SA_KEY_LOCATION_ADMIN, 'r') as sa:
+        os.environ['project_id'] = json.load(sa).get("project_id", None)
+else:
+    os.environ['project_id'] = storage.Client().project
 
 
 def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_type):
@@ -16,7 +24,7 @@ def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_ty
         - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
         """
     # Create a client
-    if "local" in settings.DB_SITE:
+    if 'local' in settings.ENV:
         cred = service_account.Credentials.from_service_account_file(filename=settings.SA_KEY_LOCATION_ADMIN)
         storage_client = storage.Client(credentials=cred)
     else:
@@ -60,7 +68,8 @@ class StorageServices:
                                     content_type='application/json')
             self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
         except Exception as e:
-            self.upload_to_GCP_log.append(f"Failed to save {self.source} data to cloud, {self.lab_id}, {table_name}, {e}")
+            self.upload_to_GCP_log.append(
+                f"Failed to save {self.source} data to cloud, {self.lab_id}, {table_name}, {e}")
 
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""

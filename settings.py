@@ -1,6 +1,6 @@
 version = '0.0.1'
 
-DB_SITE = 'local-dev'  # local-dev, local-prod, remote
+ENV = 'remote'  # local-dev, local-prod, remote
 
 BUCKET_NAME = "levante-roar-data-bucket-dev"  # levante-roar-raw-data-bucket-prod
 
@@ -12,8 +12,6 @@ SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
 
 redivis_api_token = 'AAAChAdeK/oVg/jVDmR6QFxuXvqVrEm4'
 
-MODE = "guest" #guest, test, prod
-
-#functions-framework --target=main
-#gcloud config set project hs-levante-admin-dev
-#gcloud functions deploy data_validator --runtime python312 --trigger-http --allow-unauthenticated --entry-point main
+# functions-framework --target=main
+# gcloud config set project hs-levante-admin-dev
+# gcloud functions deploy data_validator --runtime python312 --trigger-http --allow-unauthenticated --entry-point main

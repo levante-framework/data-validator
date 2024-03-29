@@ -5,17 +5,14 @@ from redivis_services import RedivisServices
 from entity_controller import EntityController
 import functions_framework
 import os
-import logging
-
-# Configure logging to show debug messages
-# logging.basicConfig(level=logging.DEBUG)
 
 
 @functions_framework.http
 def data_validator(request):
-    print(f"running version {settings.version}...")
+    print(f"running version {settings.version}, ENV: {settings.ENV}, project_id: {os.environ.get('project_id', None)}")
     sec = SecretServices()
-    os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id, version_id="latest")
+    os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id,
+                                                              version_id="latest")
     admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id="latest")
 
     api_key = request.headers.get('API-Key')
@@ -26,14 +23,22 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_id = request_json.get('lab_id', None)
+            if lab_id == "guest":
+                os.environ['guest_mode'] = "True"
+
             is_from_firestore = request_json.get('is_from_firestore', False)
             is_save_to_storage = request_json.get('is_save_to_storage', False)
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
-            if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name):
-                ec = EntityController(is_from_firestore=is_from_firestore)
-                if not prefix_name:
+            if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
+                            prefix_name):
+                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
+
+                if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
+                    storage.storage_prefix = prefix_name
+                else:  # if no prefix_name specified, start validation process.
+                    ec = EntityController(is_from_firestore=is_from_firestore)
                     if is_from_firestore:
                         ec.set_values_from_firestore(lab_id=lab_id)
                     elif lab_id != 'all':
@@ -42,18 +47,16 @@ def data_validator(request):
                         ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
                     print(f"validation_log_list: {ec.validation_log}")
 
-                storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
-                if prefix_name:
-                    storage.storage_prefix = prefix_name
-                elif is_save_to_storage:
-                    storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
-                    print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
-                else:
-                    output = {'title': f'Function executed successfully! Here is the invalid data columns.',
-                              'logs': ec.validation_log,
-                              'data': ec.get_invalid_data()}
-                    return output, 200
-
+                    # GCP storage service
+                    if is_save_to_storage:
+                        storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
+                        print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                    else:
+                        output = {'title': f'Function executed successfully! Here is the invalid data columns.',
+                                  'logs': ec.validation_log,
+                                  'data': ec.get_invalid_data()}
+                        return output, 200
+                # redivis service
                 if is_upload_to_redivis:
                     rs = RedivisServices(is_from_firestore=is_from_firestore)
                     rs.set_dataset(lab_id=lab_id)
@@ -68,19 +71,22 @@ def data_validator(request):
                     output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
                               'logs': rs.upload_to_redivis_log}
                     return output, 200
-                else:
-                    output = {'title': f'Function executed successfully! Data has not been shipped to redivis.',
+                elif is_save_to_storage and not prefix_name:
+                    output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
                               'logs': storage.upload_to_GCP_log}
                     return output, 200
+                else:
+                    return 'Error in parameters setup in the request body', 400
             else:
-                return 'Missing significant parameter in the request body', 400
+                return 'Error in parameters setup in the request body', 400
         else:
             return 'Request body is not received properly', 500
     else:
         return 'Function needs to receive POST request', 500
 
 
-def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, prefix_name):
+def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
+                 prefix_name):
     if not lab_id:
         return "Parameter 'lab_id' needs to be specified.", 400
     elif not isinstance(lab_id, str):
@@ -95,7 +101,6 @@ def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_red
         return "Parameter 'is_release_on_redivis' has to be a bool value.", 400
 
     return True
-
 
 # if __name__ == "__main__":
 #     data_validator("asf")

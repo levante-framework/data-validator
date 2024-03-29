@@ -43,7 +43,10 @@ https://...
 2. Include followings in json format. 
 {
     "lab_id": "61e8aee84cf0e71b14295d45",
-    "source": "firestore",
+    "is_from_firestore": true,
+    "is_save_to_storage": true,
+    "prefix_name": 
+    "is_upload_to_redivis": true,
     "is_release_to_redivis": true,
 }
 
@@ -58,7 +61,7 @@ Then send request to http://localhost:8080/
 deploy to cloud:
 ```
 gcloud config set project hs-levante-admin-dev
-gcloud functions deploy data-validator --runtime python312 --trigger-http --allow-unauthenticated --entry-point data_validator
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 600s --allow-unauthenticated --entry-point data_validator
 ```
 https://us-central1-hs-levante-admin-dev.cloudfunctions.net/data-validator
 ## Acknowledgments

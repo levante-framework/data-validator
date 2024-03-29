@@ -1,14 +1,9 @@
 from pydantic import ValidationError
-
-import settings
+import os
 from core_models import Task, Variant, VariantParams, Group, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Score, Trial
 from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
-
-
-def print_progress(current, total, ):
-    print(f"Progress: {current}/{total}")
 
 
 class EntityController:
@@ -55,7 +50,7 @@ class EntityController:
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
 
-        if settings.MODE == "guest":
+        if os.environ.get('guest_mode', None):
             print("GUEST MODE: Setting users...")
             self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
             print(f"Valid users: {len(self.valid_users)}")
@@ -255,7 +250,7 @@ class EntityController:
     def set_users(self, users: list):
         for user in users:
             try:
-                if self.source == "firestore" and settings.MODE != "guest":
+                if self.source == "firestore" and not os.environ.get('guest_mode', None):
                     self.set_user_class(user)
                     self.set_user_assignment(user)
 
