@@ -47,7 +47,7 @@ class RedivisServices:
             upload.create(
                 transfer_specification={
                     "sourceType": "gcs",  # one of gcs, s3, bigQuery, url, redivis
-                    "sourcePath": f"{settings.BUCKET_NAME}/{file_name}",
+                    "sourcePath": f"{settings.CORE_DATA_BUCKET_NAME}/{file_name}",
                     "identity": "ezhang61@stanford.edu",  # The email associated with the data source
                 },
                 replace_on_conflict=True,
@@ -93,3 +93,10 @@ class RedivisServices:
 
     def get_datasets_list(self):
         return [dn.name for dn in self.organization.list_datasets()]
+
+    def delete_table(self, table_name: str):
+        try:
+            if self.dataset.table(table_name).exists():
+                self.dataset.table(table_name).delete()
+        except Exception as e:
+            self.upload_to_redivis_log.append(f"Failed to delete table {table_name}: {e}")

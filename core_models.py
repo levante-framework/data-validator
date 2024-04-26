@@ -46,6 +46,7 @@ class Class(BaseModel):
 
 class User(BaseModel):
     user_id: str
+    assessment_pid: Optional[str] = None
     user_type: str
     assessment_uid: Optional[str] = None
     parent_id: Optional[str] = None
@@ -157,7 +158,7 @@ class Trial(BaseModel):
     response_type: Optional[str] = None
     response_source: Optional[str] = None
     is_correct: Optional[bool] = None
-    rt: Optional[int] = None
+    rt: Optional[Union[int, str]] = None
     time_elapsed: Optional[int] = None
 
     # Trial attributes

@@ -46,13 +46,13 @@ class EntityController:
         self.valid_trials = []
         self.invalid_trials = []
 
-    def set_values_from_firestore(self, lab_id: str):
+    def set_values_from_firestore(self, lab_id: str, start_date):
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
 
         if os.environ.get('guest_mode', None):
             print("GUEST MODE: Setting users...")
-            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date))
             print(f"Valid users: {len(self.valid_users)}")
         else:
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))

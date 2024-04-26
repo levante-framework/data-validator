@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 import os
-import settings
+from datetime import datetime
 import json
 
 
@@ -102,16 +102,18 @@ class FirestoreServices:
             print(f"Error in get_classes: {e}")
         return result
 
-    def get_users(self, lab_id: str):
+    def get_users(self, lab_id: str, start_date):
         result = []
+        start_date = datetime.strptime(start_date, "%m/%d/%Y")
         try:
             if os.environ.get('guest_mode', None):
-                docs = self.db.collection('guests').get()
+                docs = self.db.collection('guests').where('created', '>=', start_date).get()
             else:
-                docs = self.db.collection('users').where('groups.current', 'array_contains', lab_id).get()
+                docs = self.db.collection('users').where('groups.current', 'array_contains', lab_id).where('created', '>=', start_date).get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['user_id'] = doc.id
+                doc_dict['assessment_pid'] = doc_dict.get('assessmentPid', None)
                 doc_dict['user_type'] = doc_dict.get('userType', None)
                 doc_dict['assessment_uid'] = doc_dict.get('assessmentUid', None)
                 doc_dict['parent_id'] = doc_dict.get('parentId', None)
@@ -170,11 +172,12 @@ class FirestoreServices:
 
                 doc_dict['item'] = str(doc_dict.get('item', None))
                 doc_dict['distract_options'] = str(doc_dict.get('distractors', None))
+                doc_dict['response'] = str(doc_dict.get('response', None))
                 doc_dict['expected_answer'] = doc_dict.get('answer', None)
                 doc_dict['response_type'] = doc_dict.get('response_type', None)
                 doc_dict['response_source'] = doc_dict.get('response_source', None)
                 doc_dict['is_correct'] = doc_dict.get('correct', None)
-                doc_dict['rt'] = None if str(doc_dict.get('rt')) == 'nan' else doc_dict.get('rt')
+                doc_dict['rt'] = None if str(doc_dict.get('rt')) == 'nan' else str(doc_dict.get('rt'))
 
                 doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
                 doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)

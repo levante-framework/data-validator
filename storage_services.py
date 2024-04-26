@@ -63,7 +63,7 @@ class StorageServices:
         data_json = json.dumps(data, cls=CustomJSONEncoder)
         destination_blob_name = f"lab_{self.lab_id}_{self.source}_{self.timestamp}/{table_name}.json"
         try:
-            upload_blob_from_memory(bucket_name=settings.BUCKET_NAME, data=data_json,
+            upload_blob_from_memory(bucket_name=settings.CORE_DATA_BUCKET_NAME, data=data_json,
                                     destination_blob_name=destination_blob_name,
                                     content_type='application/json')
             self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
@@ -74,7 +74,7 @@ class StorageServices:
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""
         storage_client = storage.Client()
-        blobs = storage_client.list_blobs(settings.BUCKET_NAME, prefix=self.storage_prefix, delimiter=delimiter)
+        blobs = storage_client.list_blobs(settings.CORE_DATA_BUCKET_NAME, prefix=self.storage_prefix, delimiter=delimiter)
 
         return [blob.name for blob in blobs if 'log' not in blob.name]
 

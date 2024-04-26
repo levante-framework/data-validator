@@ -23,7 +23,8 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_id = request_json.get('lab_id', None)
-            if lab_id == "guest":
+            is_from_guest = request_json.get('is_from_guest', False)
+            if is_from_guest:
                 os.environ['guest_mode'] = "True"
 
             is_from_firestore = request_json.get('is_from_firestore', False)
@@ -31,16 +32,16 @@ def data_validator(request):
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
+            start_date = request_json.get('start_date', None) # '04/01/2024'
             if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
                             prefix_name):
                 storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
-
+                ec = EntityController(is_from_firestore=is_from_firestore)
                 if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
                     storage.storage_prefix = prefix_name
                 else:  # if no prefix_name specified, start validation process.
-                    ec = EntityController(is_from_firestore=is_from_firestore)
                     if is_from_firestore:
-                        ec.set_values_from_firestore(lab_id=lab_id)
+                        ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date)
                     elif lab_id != 'all':
                         ec.set_values_for_consolidate()
                     else:
@@ -52,9 +53,12 @@ def data_validator(request):
                         storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
                         print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                     else:
-                        output = {'title': f'Function executed successfully! Here is the invalid data columns.',
+                        output = {'title': f'Function executed successfully!',
+                                  'valid_users_count': len(ec.valid_users),
+                                  'valid_runs_count': len(ec.valid_runs),
+                                  'valid_trials_count': len(ec.valid_trials),
                                   'logs': ec.validation_log,
-                                  'data': ec.get_invalid_data()}
+                                  'invalid_results': ec.get_invalid_data()}
                         return output, 200
                 # redivis service
                 if is_upload_to_redivis:
@@ -65,6 +69,8 @@ def data_validator(request):
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
+                    if not ec.get_invalid_data():
+                        rs.delete_table(table_name='validation_results')
                     if is_release_on_redivis:
                         rs.release_dataset()
                     print(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
