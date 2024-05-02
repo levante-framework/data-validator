@@ -33,7 +33,8 @@ pip install -r requirements.txt
 ### Usage
 
 1. Configure your Firebase/Redivis access credentials.
-2. Send HTTP request to this API deployed on GCP:
+2. Replace the creds files path in settings.py to your GCP project ones.
+3. Send HTTP request to this API deployed on GCP:
 ```angular2html
 https://...
 ```

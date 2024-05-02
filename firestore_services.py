@@ -102,14 +102,29 @@ class FirestoreServices:
             print(f"Error in get_classes: {e}")
         return result
 
-    def get_users(self, lab_id: str, start_date):
+    def get_users(self, lab_id: str, start_date, end_date):
         result = []
-        start_date = datetime.strptime(start_date, "%m/%d/%Y")
+        if start_date:
+            start_date = datetime.strptime(start_date, "%m/%d/%Y")
+        else:
+            start_date = datetime(2024, 1, 1)
+        if end_date:
+            end_date = datetime.strptime(end_date, '%m/%d/%Y')
+        else:
+            end_date = datetime(2030, 1, 1)
+
         try:
             if os.environ.get('guest_mode', None):
-                docs = self.db.collection('guests').where('created', '>=', start_date).get()
+                docs = (self.db.collection('guests')
+                        .where('created', '>=', start_date)
+                        .where('created', '<=', end_date)
+                        .get())
             else:
-                docs = self.db.collection('users').where('groups.current', 'array_contains', lab_id).where('created', '>=', start_date).get()
+                docs = (self.db.collection('users')
+                        .where('groups.current', 'array_contains', lab_id)
+                        .where('created', '>=', start_date)
+                        .where('created', '<=', end_date)
+                        .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['user_id'] = doc.id
@@ -211,13 +226,23 @@ class FirestoreServices:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['variant_id'] = doc.id  # Add the document ID under the key 'id'
                 doc_dict['task_id'] = task_id
-                # params = doc_dict.get('params', {})
-                # doc_dict['consent'] = params.get('consent', None)
-                # doc_dict['recruitment'] = params.get('recruitment', '')
-                # doc_dict['skip_instructions'] = params.get('skipInstructions', None)
-                # doc_dict['story'] = params.get('story', None)
-                # doc_dict['user_mode'] = params.get('user_mode', None)
+                doc_dict['variant_name'] = doc_dict.get('name', None)
                 doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
+                params = doc_dict.get('params', {})
+                doc_dict['age'] = params.get('age', None)
+                doc_dict['button_layout'] = params.get('buttonLayout', None)
+                doc_dict['corpus'] = params.get('corpus', None)
+                doc_dict['key_helpers'] = params.get('keyHelpers', None)
+                doc_dict['language'] = params.get('language', None)
+                doc_dict['max_incorrect'] = None if str(params.get('maxIncorrect', None)) == 'nan' else params.get('maxIncorrect', None)
+                doc_dict['max_time'] = params.get('maxTime', None)
+                doc_dict['num_of_practice_trials'] = params.get('numOfPracticeTrials', None)
+                doc_dict['number_of_trials'] = params.get('numberOfTrials', None)
+                doc_dict['sequential_practice'] = params.get('sequentialPractice', None)
+                doc_dict['sequential_stimulus'] = params.get('sequentialStimulus', None)
+                doc_dict['skip_instructions'] = params.get('skipInstructions', None)
+                doc_dict['stimulus_blocks'] = params.get('stimulusBlocks', None)
+                doc_dict['store_item_id'] = params.get('storeItemId', None)
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_variants: {e}")

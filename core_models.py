@@ -88,22 +88,36 @@ class UserGroup(BaseModel):
 
 class Task(BaseModel):
     task_id: str
-    description: str = None
+    description: Optional[str] = None
+    name: Optional[str] = None
     last_updated: datetime
 
 
 class Variant(BaseModel):
     variant_id: str
     task_id: str
-    name: Optional[str] = None
-    last_updated: Optional[datetime] = None
+    variant_name: Optional[str] = None
+    age: Optional[int] = None
+    button_layout: Optional[str] = None
+    corpus: Optional[str] = None
+    key_helpers: Optional[bool] = None
+    language: Optional[str] = None
+    max_incorrect: Optional[int] = None
+    max_time: Optional[int] = None
+    num_of_practice_trials: Optional[int] = None
+    num_of_trials: Optional[int] = None
+    sequential_practice: Optional[bool] = None
+    sequential_stimulus: Optional[bool] = None
+    skip_instructions: Optional[bool] = None
+    stimulus_blocks: Optional[int] = None
+    store_item_id: Optional[bool] = None
+    last_updated: datetime
 
-
-class VariantParams(BaseModel):
-    variant_id: str
-    params_field: str
-    params_type: str
-    params_value: str
+# class VariantParams(BaseModel):
+#     variant_id: str
+#     params_field: str
+#     params_type: str
+#     params_value: str
 
 
 class Assignment(BaseModel):

@@ -1,6 +1,6 @@
 from pydantic import ValidationError
 import os
-from core_models import Task, Variant, VariantParams, Group, District, School, Class, User, UserClass, UserAssignment, \
+from core_models import Task, Variant, Group, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Score, Trial
 from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
@@ -24,8 +24,6 @@ class EntityController:
         self.invalid_tasks = []
         self.valid_variants = []
         self.invalid_variants = []
-        self.valid_variants_params = []
-        self.invalid_variants_params = []
 
         self.valid_users = []
         self.invalid_users = []
@@ -41,32 +39,37 @@ class EntityController:
 
         self.valid_runs = []
         self.invalid_runs = []
-        # self.valid_score_details = []
-        # self.invalid_score_details = []
         self.valid_trials = []
         self.invalid_trials = []
 
-    def set_values_from_firestore(self, lab_id: str, start_date):
+        # self.valid_score_details = []
+        # self.invalid_score_details = []
+        # self.valid_variants_params = []
+        # self.invalid_variants_params = []
+
+    def set_values_from_firestore(self, lab_id: str, start_date, end_date):
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
 
         if os.environ.get('guest_mode', None):
             print("GUEST MODE: Setting users...")
-            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date))
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
             print(f"Valid users: {len(self.valid_users)}")
+            print("Start to setting tasks...")
+            self.set_tasks(tasks=fs_assessment.get_tasks())
+            if self.valid_tasks:
+                for task in self.valid_tasks:
+                    self.set_variants(variants=fs_assessment.get_variants(task.task_id), task_id=task.task_id)
+            else:
+                self.validation_log.append(f"firebase_db has no valid tasks in {lab_id}.")
+            print(f"Valid tasks: {len(self.valid_tasks)}. Valid variants: {len(self.valid_variants)}.")
+            print(f"Invalid tasks: {len(self.invalid_tasks)}. Invalid variants: {len(self.invalid_variants)}.")
         else:
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
             self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
             self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
             self.set_assignments(assignments=fs_admin.get_assignments())
-            print("Start to setting tasks...")
-            self.set_tasks(tasks=fs_assessment.get_tasks())
-            if self.valid_tasks:
-                for task in self.valid_tasks:
-                    self.set_variants(variants=fs_assessment.get_variants(task.task_id))
-            else:
-                self.validation_log.append(f"firebase_db has no valid tasks in {lab_id}.")
 
         print("Start to setting runs...")
         if self.valid_users:
@@ -136,7 +139,7 @@ class EntityController:
             'variants': [obj.model_dump() for obj in self.valid_variants]
         }
         if self.source == "firestore":
-            valid_dict['variants_params'] = [obj.model_dump() for obj in self.valid_variants_params]
+            # valid_dict['variants_params'] = [obj.model_dump() for obj in self.valid_variants_params]
             valid_dict['user_classes'] = [obj.model_dump() for obj in self.valid_user_class]
             valid_dict['user_assignments'] = [obj.model_dump() for obj in self.valid_user_assignment]
             valid_dict['assignment_tasks'] = [obj.model_dump() for obj in self.valid_assignment_task]
@@ -155,10 +158,10 @@ class EntityController:
 
         if self.source == "firestore":
             invalid_list = (invalid_list
-                            + [{**obj, "table_name": "variants_params"} for obj in self.invalid_variants_params]
                             + [{**obj, "table_name": "user_class"} for obj in self.invalid_user_class]
                             + [{**obj, "table_name": "user_assignment"} for obj in self.invalid_user_assignment]
                             + [{**obj, "table_name": "assignment_task"} for obj in self.invalid_assignment_task])
+            #               + [{**obj, "table_name": "variants_params"} for obj in self.invalid_variants_params]
 
         for invalid_item in invalid_list:
             if 'loc' in invalid_item:
@@ -221,31 +224,14 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_tasks.append({**error, 'task_id': task['task_id']})
 
-    def set_variants(self, variants: list):
+    def set_variants(self, variants: list, task_id: str):
         for variant in variants:
             try:
-                if self.source == "firestore":
-                    self.set_variant_params(variant)
                 variant = Variant(**variant)
                 self.valid_variants.append(variant)
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_variants.append({**error, 'variant_id': variant['variant_id']})
-
-    def set_variant_params(self, variant: dict):
-        variant_id = variant.get('variant_id', None)
-        variant_params = variant.get('params', {})
-        for key, value in variant_params.items():
-            try:
-                self.valid_variants_params.append(VariantParams(
-                    variant_id=variant_id,
-                    params_field=key,
-                    params_type=str(type(value)),
-                    params_value=str(value)))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_variants_params.append(
-                        {**error, 'variant_id': variant['variant_id'], variant_params: f"{key}, {value}"})
+                    self.invalid_variants.append({**error, 'variant_id': variant['variant_id'], 'task_id': task_id})
 
     def set_users(self, users: list):
         for user in users:
@@ -323,8 +309,17 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_assignments.append({**error, 'run_id': run['run_id'], 'user_id': user.user_id})
 
-    def set_score_details(self, run: dict):
-        pass
+    def set_trials(self, run: Run, trials: list):
+        for trial in trials:
+            try:
+                self.valid_trials.append(Trial(**trial))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_trials.append(
+                        {**error, 'task_id': run.task_id, 'run_id': run.run_id, 'user_id': run.user_id,
+                         'trial_id': trial['trial_id']})
+
+    # def set_score_details(self, run: dict):
         # run_id = run.get('id', None)
         # scores = run.get('scores', {})
         # computed_scores = scores.get('computed', {})
@@ -363,12 +358,17 @@ class EntityController:
         #         print(f"score_detail error for run {run_id}, computed_scores {key}: {e}")
         #         self.invalid_score_details.append(f"{run_id},{key}")
 
-    def set_trials(self, run: Run, trials: list):
-        for trial in trials:
-            try:
-                self.valid_trials.append(Trial(**trial))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_trials.append(
-                        {**error, 'task_id': run.task_id, 'run_id': run.run_id, 'user_id': run.user_id,
-                         'trial_id': trial['trial_id']})
+    # def set_variant_params(self, variant: dict):
+    #     variant_id = variant.get('variant_id', None)
+    #     variant_params = variant.get('params', {})
+    #     for key, value in variant_params.items():
+    #         try:
+    #             self.valid_variants_params.append(VariantParams(
+    #                 variant_id=variant_id,
+    #                 params_field=key,
+    #                 params_type=str(type(value)),
+    #                 params_value=str(value)))
+    #         except ValidationError as e:
+    #             for error in e.errors():
+    #                 self.invalid_variants_params.append(
+    #                     {**error, 'variant_id': variant['variant_id'], variant_params: f"{key}, {value}"})
