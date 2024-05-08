@@ -58,13 +58,6 @@ class User(BaseModel):
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 
-    # age: Optional[str] = None
-    # assessment_pid: str
-    # assessment_uid: str
-    # full_name: Optional[str] = None
-    # dob: Optional[datetime] = None
-    # state_id: Optional[str] = None
-
     # @model_validator(mode='after')
     # def assign_attributes(self) -> 'User':
     #     if self.name.get("first", None) and self.name.get("last", None):
@@ -172,7 +165,7 @@ class Trial(BaseModel):
     response_type: Optional[str] = None
     response_source: Optional[str] = None
     is_correct: Optional[bool] = None
-    rt: Optional[Union[int, str]] = None
+    rt: Optional[int] = Field(default=None, gt=0, description="Response time must be a positive integer")
     time_elapsed: Optional[int] = None
 
     # Trial attributes
@@ -184,17 +177,17 @@ class Trial(BaseModel):
     server_timestamp: datetime
 
 
-class Score(BaseModel):
-    score_id: Optional[int] = None
-    run_id: str
-    is_computed: Optional[bool] = False
-    is_composite: Optional[bool] = False
-    is_practice: Optional[bool] = False
-    subtask_name: Optional[str] = None
-    score_type: Optional[str] = None
-    score: Optional[str]
-    attempted_note: Optional[str] = None
-    correct_note: Optional[str] = None
-    incorrect_note: Optional[str] = None
-    theta_estimate: Optional[float] = None
-    theta_se: Optional[float] = None
+# class Score(BaseModel):
+#     score_id: Optional[int] = None
+#     run_id: str
+#     is_computed: Optional[bool] = False
+#     is_composite: Optional[bool] = False
+#     is_practice: Optional[bool] = False
+#     subtask_name: Optional[str] = None
+#     score_type: Optional[str] = None
+#     score: Optional[str]
+#     attempted_note: Optional[str] = None
+#     correct_note: Optional[str] = None
+#     incorrect_note: Optional[str] = None
+#     theta_estimate: Optional[float] = None
+#     theta_se: Optional[float] = None

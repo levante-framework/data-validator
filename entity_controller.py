@@ -1,7 +1,7 @@
 from pydantic import ValidationError
 import os
 from core_models import Task, Variant, Group, District, School, Class, User, UserClass, UserAssignment, \
-    Assignment, AssignmentTask, Run, Score, Trial
+    Assignment, AssignmentTask, Run, Trial
 from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
 
