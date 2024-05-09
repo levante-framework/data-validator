@@ -105,11 +105,11 @@ class FirestoreServices:
     def get_users(self, lab_id: str, start_date, end_date):
         result = []
         if start_date:
-            start_date = datetime.strptime(start_date, "%m/%d/%Y")
+            start_date = datetime.strptime(start_date, "%m/%d/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
         else:
             start_date = datetime(2024, 1, 1)
         if end_date:
-            end_date = datetime.strptime(end_date, '%m/%d/%Y')
+            end_date = datetime.strptime(end_date, '%m/%d/%Y').replace(hour=23, minute=59, second=59, microsecond=999999)
         else:
             end_date = datetime(2030, 1, 1)
 
@@ -185,9 +185,9 @@ class FirestoreServices:
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
 
-                doc_dict['item'] = str(doc_dict.get('item', None))
-                doc_dict['distract_options'] = str(doc_dict.get('distractors', None))
-                doc_dict['response'] = str(doc_dict.get('response', None))
+                doc_dict['item'] = str(doc_dict.get('item', None)) if doc_dict.get('item', None) else None
+                doc_dict['distract_options'] = str(doc_dict.get('distractors', None)) if doc_dict.get('distractors', None) else None
+                doc_dict['response'] = str(doc_dict.get('response', None)) if doc_dict.get('response', None) else None
                 doc_dict['expected_answer'] = doc_dict.get('answer', None)
                 doc_dict['response_type'] = doc_dict.get('response_type', None)
                 doc_dict['response_source'] = doc_dict.get('response_source', None)

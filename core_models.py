@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import Optional, Union
 from datetime import datetime
 
@@ -81,8 +81,8 @@ class UserGroup(BaseModel):
 
 class Task(BaseModel):
     task_id: str
+    name: str
     description: Optional[str] = None
-    name: Optional[str] = None
     last_updated: datetime
 
 
@@ -165,16 +165,29 @@ class Trial(BaseModel):
     response_type: Optional[str] = None
     response_source: Optional[str] = None
     is_correct: Optional[bool] = None
-    rt: Optional[int] = Field(default=None, gt=0, description="Response time must be a positive integer")
+    rt: Optional[Union[int, str]] = None
     time_elapsed: Optional[int] = None
 
     # Trial attributes
-    trial_index: int
+    trial_index: Optional[int] = None
     is_practice: Optional[bool] = None
     difficulty: Optional[float] = None
     trial_type: Optional[str] = None
     assessment_stage: Optional[str] = None
     server_timestamp: datetime
+
+    # @field_validator('rt')
+    # def validate_rt(self, cls, v):
+    #     if isinstance(v, int):
+    #         if v <= 0:
+    #             raise ValueError("Response time must be a positive integer")
+    #     elif isinstance(v, str):
+    #         # Only accept certain strings
+    #         if v not in ["timeout", "unrecorded"]:
+    #             raise ValueError("Invalid string for response time; allowed values are 'timeout' or 'unrecorded'")
+    #     else:
+    #         raise ValueError("Response time must be either an integer or one of the specific allowed strings")
+    #     return v
 
 
 # class Score(BaseModel):

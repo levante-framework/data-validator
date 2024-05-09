@@ -1,6 +1,6 @@
 version = '0.0.6'
 
-ENV = 'local-dev'  # local-dev, local-prod, remote
+ENV = 'remote'  # local-dev, local-prod, remote
 
 CORE_DATA_BUCKET_NAME = "levante-roar-data-bucket-dev"  # levante-roar-raw-data-bucket-prod
 EXTERNAL_DATA_BUCKET_NAME = "levante-external-data"
