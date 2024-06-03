@@ -55,9 +55,6 @@ def data_validator(request):
                         print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                     else:
                         output = {'title': f'Function executed successfully!',
-                                  'valid_users_count': len(ec.valid_users),
-                                  'valid_runs_count': len(ec.valid_runs),
-                                  'valid_trials_count': len(ec.valid_trials),
                                   'logs': ec.validation_log,
                                   'invalid_results': ec.get_invalid_data()}
                         return output, 200
@@ -70,17 +67,21 @@ def data_validator(request):
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
-                    if not ec.get_invalid_data():
+                    if all('validation_results' not in file_name for file_name in file_names):
                         rs.delete_table(table_name='validation_results')
                     if is_release_on_redivis:
                         rs.release_dataset()
-                    print(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                     output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
-                              'logs': rs.upload_to_redivis_log}
+                              'gcp_logs': storage.upload_to_GCP_log,
+                              'redivis_logs': rs.upload_to_redivis_log,
+                              'validation_logs': ec.validation_log}
+                    print(output)
                     return output, 200
                 elif is_save_to_storage and not prefix_name:
                     output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
-                              'logs': storage.upload_to_GCP_log}
+                              'gcp_logs': storage.upload_to_GCP_log,
+                              'validation_logs': ec.validation_log}
+                    print(output)
                     return output, 200
                 else:
                     return 'Error in parameters setup in the request body', 400

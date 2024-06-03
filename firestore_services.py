@@ -6,6 +6,15 @@ from datetime import datetime
 import json
 
 
+def stringify_variables(variable):
+    if isinstance(variable, (dict, list, tuple, int, float, bool, str)):
+        return str(variable)
+    elif variable is None or variable == 'nan':
+        return None
+    else:
+        return f'Error converting to string: {variable}'
+
+
 class FirestoreServices:
     default_app = None
     db = None
@@ -25,11 +34,14 @@ class FirestoreServices:
     def get_groups(self, lab_id: str):
         result = []
         try:
-            doc = self.db.collection('groups').document(lab_id).get()
-            doc_dict = doc.to_dict()  # Convert the document to a dictionary
-            doc_dict['group_id'] = doc.id
-            doc_dict['abbreviation'] = doc_dict.pop('abbreviation', None)
-            result.append(doc_dict)
+            docs = self.db.collection('groups').get() #.document(lab_id)
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['group_id'] = doc.id
+                doc_dict['abbreviation'] = doc_dict.get('abbreviation', None)
+                doc_dict['tags'] = stringify_variables(doc_dict.get('tags', None))
+                doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                result.append(doc_dict)
 
         except Exception as e:
             print(f"Error in get_groups: {e}")
@@ -121,9 +133,9 @@ class FirestoreServices:
                         .get())
             else:
                 docs = (self.db.collection('users')
-                        .where('groups.current', 'array_contains', lab_id)
-                        .where('created', '>=', start_date)
-                        .where('created', '<=', end_date)
+                        # .where('groups.current', 'array_contains', lab_id)
+                        .where('lastUpdated', '>=', start_date)
+                        .where('lastUpdated', '<=', end_date)
                         .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -185,16 +197,22 @@ class FirestoreServices:
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
 
-                doc_dict['item'] = str(doc_dict.get('item', None)) if doc_dict.get('item', None) else None
-                doc_dict['distract_options'] = str(doc_dict.get('distractors', None)) if doc_dict.get('distractors', None) else None
-                doc_dict['response'] = str(doc_dict.get('response', None)) if doc_dict.get('response', None) else None
+                doc_dict['item'] = stringify_variables(doc_dict.get('item', None))
+                doc_dict['distract_options'] = stringify_variables(doc_dict.get('distractors', None))
+                doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
+                doc_dict['blocks'] = stringify_variables(doc_dict.get('blocks', None))
+                doc_dict['selected_coordinates'] = stringify_variables(doc_dict.get('selectedCoordinates', None))
+                doc_dict['sequence'] = stringify_variables(doc_dict.get('sequence', None))
+
+                doc_dict['rt'] = stringify_variables(doc_dict.get('rt'))
+
                 doc_dict['expected_answer'] = doc_dict.get('answer', None)
-                doc_dict['response_type'] = doc_dict.get('response_type', None)
-                doc_dict['response_source'] = doc_dict.get('response_source', None)
+                doc_dict['response_type'] = doc_dict.get('responseType', None)
+                doc_dict['response_source'] = doc_dict.get('responseSource', None)
                 doc_dict['is_correct'] = doc_dict.get('correct', None)
-                doc_dict['rt'] = None if str(doc_dict.get('rt')) == 'nan' else str(doc_dict.get('rt'))
 
                 doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
+                doc_dict['corpus_trial_type'] = doc_dict.get('corpusTrialType', None)
                 doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
 
                 doc_dict['difficulty'] = doc_dict.get('difficulty', None)
@@ -264,4 +282,3 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_assignments: {e}")
         return result
-

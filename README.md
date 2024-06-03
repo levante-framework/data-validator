@@ -62,7 +62,7 @@ Then send request to http://localhost:8080/
 deploy to cloud:
 ```
 gcloud config set project hs-levante-admin-dev
-gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 600s --allow-unauthenticated --entry-point data_validator
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 1800s --allow-unauthenticated --entry-point data_validator
 ```
 https://us-central1-hs-levante-admin-dev.cloudfunctions.net/data-validator
 ## Acknowledgments

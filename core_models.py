@@ -6,7 +6,9 @@ from datetime import datetime
 class Group(BaseModel):
     group_id: str
     name: str
-    abbreviation: str
+    abbreviation: Optional[str] = None
+    tags: Optional[str] = None
+    created_at: datetime
 
 
 class District(BaseModel):
@@ -51,8 +53,8 @@ class User(BaseModel):
     assessment_uid: Optional[str] = None
     parent_id: Optional[str] = None
     teacher_id: Optional[str] = None
-    birth_year: Optional[int] = None
-    birth_month: Optional[int] = None
+    birth_year: Optional[int] = Field(None, ge=1900, le=datetime.now().year)
+    birth_month: Optional[int] = Field(None, ge=1, le=12)
     email: Optional[str] = None
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
@@ -105,6 +107,7 @@ class Variant(BaseModel):
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
     last_updated: datetime
+
 
 # class VariantParams(BaseModel):
 #     variant_id: str
@@ -161,11 +164,16 @@ class Trial(BaseModel):
     item: Optional[str] = None
     distract_options: Optional[str] = None
     expected_answer: Optional[Union[int, str, float]] = None
+    blocks: Optional[str] = None  #Mem-games
+    selected_coordinates: Optional[str] = None  #Mem-games
+    sequence: Optional[str] = None  #Mem-games
+
     response: Optional[Union[int, str, float]] = None
+    rt: Optional[Union[int, str]] = None
+
     response_type: Optional[str] = None
     response_source: Optional[str] = None
     is_correct: Optional[bool] = None
-    rt: Optional[Union[int, str]] = None
     time_elapsed: Optional[int] = None
 
     # Trial attributes
@@ -173,6 +181,7 @@ class Trial(BaseModel):
     is_practice: Optional[bool] = None
     difficulty: Optional[float] = None
     trial_type: Optional[str] = None
+    corpus_trial_type: Optional[str] = None
     assessment_stage: Optional[str] = None
     server_timestamp: datetime
 
@@ -188,7 +197,6 @@ class Trial(BaseModel):
     #     else:
     #         raise ValueError("Response time must be either an integer or one of the specific allowed strings")
     #     return v
-
 
 # class Score(BaseModel):
 #     score_id: Optional[int] = None
