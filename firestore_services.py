@@ -96,7 +96,7 @@ class FirestoreServices:
         if start_date:
             start_date = datetime.strptime(start_date, "%m/%d/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            start_date = datetime(2024, 1, 1)
+            start_date = datetime(2020, 1, 1)
         if end_date:
             end_date = datetime.strptime(end_date, '%m/%d/%Y').replace(hour=23, minute=59, second=59,
                                                                        microsecond=999999)
