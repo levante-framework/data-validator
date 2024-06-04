@@ -78,7 +78,7 @@ class EntityController:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
         else:
             self.validation_log.append(f"firebase_db has no valid users in {lab_id}.")
-        print(f"Valid runs: {len(self.valid_runs)}. Start to setting trials...")
+        print(f"Valid runs: {len(self.valid_runs)}. Setting trials...")
         if self.valid_runs:
             for run in self.valid_runs:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,

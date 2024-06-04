@@ -5,12 +5,18 @@ import json
 import settings
 import os
 
+# Create a client
 if 'local' in settings.ENV:
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
     with open(settings.SA_KEY_LOCATION_ADMIN, 'r') as sa:
         os.environ['project_id'] = json.load(sa).get("project_id", None)
+
+    cred = service_account.Credentials.from_service_account_file(filename=settings.SA_KEY_LOCATION_ADMIN)
+    storage_client = storage.Client(credentials=cred)
+
 else:
     os.environ['project_id'] = storage.Client().project
+    storage_client = storage.Client()
 
 
 def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_type):
@@ -23,13 +29,6 @@ def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_ty
         - destination_blob_name (str): Desired name for the file in the bucket.
         - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
         """
-    # Create a client
-    if 'local' in settings.ENV:
-        cred = service_account.Credentials.from_service_account_file(filename=settings.SA_KEY_LOCATION_ADMIN)
-        storage_client = storage.Client(credentials=cred)
-    else:
-        storage_client = storage.Client()
-
     # Get the bucket
     bucket = storage_client.bucket(bucket_name)
 
