@@ -16,15 +16,18 @@ class FirestoreServices:
 
     def __init__(self, app_name):
         try:
+            # Check if the app already exists
+            self.default_app = firebase_admin.get_app(name=app_name)
+        except ValueError:
+            # If the app does not exist, initialize it based on the app_name
             if app_name == 'assessment_site':
                 cred = credentials.Certificate(json.loads(os.environ['assessment_cred']))
             else:
                 cred = credentials.ApplicationDefault()
 
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
-            self.db = firestore.client(self.default_app)
-        except Exception as e:
-            logging.error(f"Error in {app_name} FirestoreService init: {e}")
+
+        self.db = firestore.client(self.default_app)
 
     def get_groups(self, lab_id: str):
         result = []
