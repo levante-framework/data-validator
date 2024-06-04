@@ -4,6 +4,8 @@ import logging
 import settings
 from secret_services import SecretServices
 
+logging.basicConfig(level=logging.DEBUG)
+
 if 'local' in settings.ENV:
     os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
 else:

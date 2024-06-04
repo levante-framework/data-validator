@@ -7,6 +7,8 @@ import functions_framework
 import logging
 import os
 
+logging.basicConfig(level=logging.DEBUG)
+
 
 @functions_framework.http
 def data_validator(request):

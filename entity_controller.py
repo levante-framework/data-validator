@@ -6,6 +6,8 @@ from core_models import Task, Variant, Group, District, School, Class, User, Use
 from firestore_services import FirestoreServices
 from redivis_services import RedivisServices
 
+logging.basicConfig(level=logging.DEBUG)
+
 
 class EntityController:
 
