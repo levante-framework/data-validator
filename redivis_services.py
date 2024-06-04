@@ -9,8 +9,7 @@ else:
     sec = SecretServices()
     os.environ["REDIVIS_API_TOKEN"] = sec.access_secret_version(secret_id=settings.redivis_api_token_secret_id,
                                                                 version_id="latest")
-
-print(f"REDIVIS_API_TOKEN: {os.environ.get('REDIVIS_API_TOKEN', None)}")
+    os.environ["REDIVIS_API_TOKEN"] = os.environ["REDIVIS_API_TOKEN"].strip()
 
 
 class RedivisServices:
