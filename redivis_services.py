@@ -1,8 +1,14 @@
 import redivis
 import os
 import settings
+from secret_services import SecretServices
 
-os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
+if 'local' in settings.ENV:
+    os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
+else:
+    sec = SecretServices()
+    os.environ["REDIVIS_API_TOKEN"] = sec.access_secret_version(secret_id=settings.redivis_api_token_secret_id,
+                                                                version_id="latest")
 
 
 class RedivisServices:

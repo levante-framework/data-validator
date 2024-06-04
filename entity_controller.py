@@ -72,7 +72,7 @@ class EntityController:
             self.set_assignments(assignments=fs_admin.get_assignments(lab_id=lab_id))
             self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
 
-        print("Start to setting runs...")
+        print("Setting runs...")
         if self.valid_users:
             for user in self.valid_users:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))

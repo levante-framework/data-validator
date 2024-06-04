@@ -17,3 +17,5 @@ admin_firebase_api_key_secret_id = 'adminPublicKey'
 SA_KEY_LOCATION_ADMIN = '../../firebase/admin-credentials.json'
 
 redivis_api_token = os.getenv('FIREBASE_REDIVIS_PIPELINE_ACCESS_TOKEN')
+# Store secret in Secret Manager for gse-roar-admin project
+redivis_api_token_secret_id = 'firebaseRedivisPipelineAccessToken'
