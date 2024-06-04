@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 from utils import process_doc_dict, handle_nan
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 class FirestoreServices:
