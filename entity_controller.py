@@ -69,7 +69,8 @@ class EntityController:
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
             self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
             self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
-            self.set_assignments(assignments=fs_admin.get_assignments())
+            self.set_assignments(assignments=fs_admin.get_assignments(lab_id=lab_id))
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
 
         print("Start to setting runs...")
         if self.valid_users:

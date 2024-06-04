@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, ValidationError
+from pydantic import BaseModel, Extra, Field, field_validator, ValidationError
 from typing import Optional, Union
 from datetime import datetime
 
@@ -6,31 +6,51 @@ from datetime import datetime
 class Group(BaseModel):
     group_id: str
     name: str
-    abbreviation: str
+    abbreviation: Optional[str] = None
+    last_updated: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+    tags: Optional[list] = None
 
 
 class District(BaseModel):
     district_id: str
     name: str
-    portal_url: str
-    district_contact_email: Optional[str] = None
+    abbreviation: Optional[str] = None
+    clever: Optional[bool] = None
+    portal_url: Optional[str] = None
+    login_methods: Optional[list] = None
+    district_contact: Optional[dict] = None
+    mdr_number: Optional[str] = None
+    pause_end_date: Optional[datetime] = None
+    pause_start_date: Optional[datetime] = None
+    schools: Optional[list] = None
+    sis_type: Optional[str] = None
     last_sync: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
     launch_date: Optional[datetime] = None
+    tags: Optional[list] = None
 
 
 class School(BaseModel):
     school_id: str
     district_id: str
-    school_number: str
     name: str
-    high_grade: Optional[int] = None
-    low_grade: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip: Optional[str] = None
+    abbreviation: Optional[str] = None
+    clever: Optional[bool] = None
+    school_number: Optional[str] = None
+    state_id: Optional[str] = None
+    high_grade: Optional[Union[int, str]] = None
+    low_grade: Optional[Union[int, str]] = None
+    mdr_number: Optional[str] = None
+    nces_id: Optional[str] = None
+    location: Optional[dict] = None
+    phone: Optional[str] = None
+    principal: Optional[dict] = None
     created: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
     last_modified: Optional[datetime] = None
+    tags: Optional[list] = None
 
 
 class Class(BaseModel):
@@ -38,10 +58,17 @@ class Class(BaseModel):
     school_id: str
     district_id: str
     name: str
+    abbreviation: Optional[str] = None
+    class_link: Optional[bool] = None
+    class_link_app_id: Optional[str] = None
     subject: Optional[str] = None
-    grade: Optional[str] = None
+    grade: Optional[Union[str, int]] = None
+    grades: Optional[list] = None
+    section_number: Optional[str] = None
     created: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
     last_modified: Optional[datetime] = None
+    tags: Optional[list] = None
 
 
 class User(BaseModel):
@@ -83,7 +110,14 @@ class Task(BaseModel):
     task_id: str
     name: str
     description: Optional[str] = None
+    game_config: Optional[dict] = None
+    image_url: Optional[str] = None
+    tutorial_video_url: Optional[str] = None
+    registered: Optional[bool] = None
     last_updated: datetime
+
+    class Config:
+        extra = Extra.allow
 
 
 class Variant(BaseModel):
@@ -106,6 +140,9 @@ class Variant(BaseModel):
     store_item_id: Optional[bool] = None
     last_updated: datetime
 
+    class Config:
+        extra = Extra.allow
+
 # class VariantParams(BaseModel):
 #     variant_id: str
 #     params_field: str
@@ -116,11 +153,18 @@ class Variant(BaseModel):
 class Assignment(BaseModel):
     assignment_id: str
     name: str
-    is_sequential: bool
+    public_name: Optional[str] = None
+    sequential: bool
     created_by: str
     date_created: datetime
     date_closed: datetime
     date_opened: datetime
+    assessments: Optional[list] = None
+    districts: Optional[list] = None
+    schools: Optional[list] = None
+    classes: Optional[list] = None
+    groups: Optional[list] = None
+    families: Optional[list] = None
 
 
 class AssignmentTask(BaseModel):
@@ -131,9 +175,17 @@ class AssignmentTask(BaseModel):
 class UserAssignment(BaseModel):
     assignment_id: str
     user_id: str
-    is_started: bool
-    is_completed: bool
+    started: bool
+    completed: bool
     date_assigned: datetime
+    date_closed: datetime
+    date_opened: datetime
+    assessments: Optional[list] = None
+    progress: Optional[dict] = None
+    assigning_orgs: Optional[dict] = None
+    read_orgs: Optional[dict] = None
+    minimal_orgs: Optional[dict] = None
+    user_data: Optional[dict] = None
 
 
 class Run(BaseModel):
@@ -142,12 +194,15 @@ class Run(BaseModel):
     task_id: str
     variant_id: str
     assignment_id: Optional[str] = None
-    is_reliable: Optional[bool] = None
+    reliable: Optional[bool] = None
     is_completed: Optional[bool] = None
-    is_bestrun: Optional[bool] = None
-    score_composite: Optional[int] = None
+    best_run: Optional[bool] = None
+    scores: Optional[dict] = None
     time_started: Optional[datetime] = None
     time_finished: Optional[datetime] = None
+    user_data: Optional[dict] = None
+    read_orgs: Optional[dict] = None
+    tags: Optional[list] = None
 
 
 class Trial(BaseModel):
@@ -157,24 +212,38 @@ class Trial(BaseModel):
     run_id: str
     task_id: str
 
-    # Answers related
-    item: Optional[str] = None
-    distract_options: Optional[str] = None
-    expected_answer: Optional[Union[int, str, float]] = None
-    response: Optional[Union[int, str, float]] = None
-    response_type: Optional[str] = None
-    response_source: Optional[str] = None
-    is_correct: Optional[bool] = None
-    rt: Optional[Union[int, str]] = None
+    # Required Firekit attributes
+    correct: int
+    assessment_stage: str
+
+    # Default jsPsych data attributes
+    trial_index: Optional[int] = None
+    trial_type: Optional[str] = None
     time_elapsed: Optional[int] = None
 
+    # All other trial level data attributes
+    trial_attributes: Optional[dict] = None
+
+    # Answers related
+    # item: Optional[str] = None
+    # button_response: Optional[str] = None
+    # response: Optional[Union[int, str, float]] = None
+    # response_type: Optional[str] = None
+    # response_source: Optional[str] = None
+    # rt: Optional[Union[int, str]] = None
+
     # Trial attributes
-    trial_index: Optional[int] = None
-    is_practice: Optional[bool] = None
-    difficulty: Optional[float] = None
-    trial_type: Optional[str] = None
-    assessment_stage: Optional[str] = None
-    server_timestamp: datetime
+    # is_practice: Optional[bool] = None
+    # theta_estimate: Optional[float] = None
+    # theta_se: Optional[float] = None
+    # theta_estimate_2: Optional[float] = None
+    # theta_se_2: Optional[float] = None
+    # difficulty: Optional[float] = None
+    # save_trial: Optional[bool] = None
+    # server_timestamp: datetime
+    #
+    # class Config:
+    #     extra = Extra.allow
 
     # @field_validator('rt')
     # def validate_rt(self, cls, v):
@@ -190,17 +259,17 @@ class Trial(BaseModel):
     #     return v
 
 
-# class Score(BaseModel):
-#     score_id: Optional[int] = None
-#     run_id: str
-#     is_computed: Optional[bool] = False
-#     is_composite: Optional[bool] = False
-#     is_practice: Optional[bool] = False
-#     subtask_name: Optional[str] = None
-#     score_type: Optional[str] = None
-#     score: Optional[str]
-#     attempted_note: Optional[str] = None
-#     correct_note: Optional[str] = None
-#     incorrect_note: Optional[str] = None
-#     theta_estimate: Optional[float] = None
-#     theta_se: Optional[float] = None
+class Score(BaseModel):
+    score_id: Optional[int] = None
+    run_id: str
+    is_computed: Optional[bool] = False
+    is_composite: Optional[bool] = False
+    is_practice: Optional[bool] = False
+    subtask_name: Optional[str] = None
+    score_type: Optional[str] = None
+    score: Optional[str]
+    attempted_note: Optional[str] = None
+    correct_note: Optional[str] = None
+    incorrect_note: Optional[str] = None
+    theta_estimate: Optional[float] = None
+    theta_se: Optional[float] = None

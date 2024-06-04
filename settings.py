@@ -1,14 +1,19 @@
-version = '0.0.6'
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+version = '0.0.1'
 
 ENV = 'remote'  # local-dev, local-prod, remote
 
-CORE_DATA_BUCKET_NAME = "levante-roar-data-bucket-dev"  # levante-roar-raw-data-bucket-prod
-EXTERNAL_DATA_BUCKET_NAME = "levante-external-data"
+CORE_DATA_BUCKET_NAME = 'firebase-redivis-pipeline'
+EXTERNAL_DATA_BUCKET_NAME = 'firebase-redivis-pipeline-external'
 
-assessment_service_account_secret_id = 'hs-levante-assessment-dev-service-account'
-admin_firebase_api_key_secret_id = 'firebase-api-key'
+assessment_service_account_secret_id = 'assessmentPrivateKey'
+admin_firebase_api_key_secret_id = 'adminPublicKey'
 
 # DB_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-db.json"
-SA_KEY_LOCATION_ADMIN = "../secrets/hs-levante-admin-dev-sa.json"
+SA_KEY_LOCATION_ADMIN = '../../firebase/admin-credentials.json'
 
-redivis_api_token = 'AAAChAdeK/oVg/jVDmR6QFxuXvqVrEm4'
+redivis_api_token = os.getenv('FIREBASE_REDIVIS_PIPELINE_ACCESS_TOKEN')

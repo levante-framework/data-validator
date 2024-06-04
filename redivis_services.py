@@ -14,7 +14,7 @@ class RedivisServices:
 
     def __init__(self, is_from_firestore: bool):
         self.source = "firestore" if is_from_firestore else "redivis"
-        self.organization = redivis.organization("LEVANTE")
+        self.organization = redivis.organization("ROAR")
         self.upload_to_redivis_log = []
 
     def set_dataset(self, lab_id: str):
@@ -48,7 +48,7 @@ class RedivisServices:
                 transfer_specification={
                     "sourceType": "gcs",  # one of gcs, s3, bigQuery, url, redivis
                     "sourcePath": f"{settings.CORE_DATA_BUCKET_NAME}/{file_name}",
-                    "identity": "ezhang61@stanford.edu",  # The email associated with the data source
+                    "identity": "kmontvil@stanford.edu",  # The email associated with the data source
                 },
                 replace_on_conflict=True,
                 remove_on_fail=True,
