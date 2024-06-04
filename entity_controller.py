@@ -52,7 +52,6 @@ class EntityController:
 
     def set_values_from_firestore(self, lab_id: str, start_date, end_date):
 
-
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
 

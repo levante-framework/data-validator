@@ -62,13 +62,13 @@ def data_validator(request):
                             ec.set_values_for_consolidate()
                         else:
                             ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
-                        logging.info(f"validation_log_list: {ec.validation_log}")
+                        # logging.info(f"validation_log_list: {ec.validation_log}")
 
                         # GCP storage service
                         if is_save_to_storage:
                             logging.info(f"Saving data to GCP storage for lab_id: {lab_id}.")
                             storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
-                            logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                            # logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                         else:
                             output = {'title': f'Function executed successfully!',
                                       'valid_users_count': len(ec.valid_users),
@@ -109,7 +109,6 @@ def data_validator(request):
             return 'Request body is not received properly', 500
     else:
         return 'Function needs to receive POST request', 500
-
 
 
 def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,

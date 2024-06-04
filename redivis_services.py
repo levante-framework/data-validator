@@ -36,7 +36,7 @@ class RedivisServices:
         self.is_released = properties.get("version", {}).get("isReleased", None)
         self.is_deleted = properties.get("version", {}).get("isDeleted", None)
         self.version = properties.get("version", {}).get("tag", None)
-        logging.info(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
+        # logging.info(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
 
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]

@@ -95,26 +95,26 @@ class FirestoreServices:
         result = []
         if start_date:
             start_date = datetime.strptime(start_date, "%m/%d/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
-        # else:
-        #     start_date = datetime(2024, 1, 1)
+        else:
+            start_date = datetime(2024, 1, 1)
         if end_date:
             end_date = datetime.strptime(end_date, '%m/%d/%Y').replace(hour=23, minute=59, second=59,
                                                                        microsecond=999999)
-        # else:
-        #     end_date = datetime(2030, 1, 1)
+        else:
+            end_date = datetime(2030, 1, 1)
 
         try:
             if os.environ.get('guest_mode', None):
                 docs = (self.db.collection('guests')
-                        # .where('createdAt', '>=', start_date)
-                        # .where('createdAt', '<=', end_date)
+                        .where('createdAt', '>=', start_date)
+                        .where('createdAt', '<=', end_date)
                         .get())
             else:
                 docs = (self.db.collection('users')
                         # .where('groups.current', 'array_contains', lab_id)
                         .where('districts.current', 'array_contains', lab_id)
-                        # .where('createdAt', '>=', start_date)
-                        # .where('createdAt', '<=', end_date)
+                        .where('createdAt', '>=', start_date)
+                        .where('createdAt', '<=', end_date)
                         .get())
             for doc in docs:
                 doc_dict = doc.to_dict()
