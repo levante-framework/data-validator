@@ -44,8 +44,8 @@ def data_validator(request):
             end_date = request_json.get('end_date', None)  # '04/01/2024'
 
             results = []
+            job = 1
             for lab_id in lab_ids:
-                job = 1
                 logging.info(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
                 if params_check(lab_id, is_from_firestore, is_save_to_storage,
                                 is_upload_to_redivis, is_release_on_redivis,
@@ -76,7 +76,6 @@ def data_validator(request):
                                       'valid_trials_count': len(ec.valid_trials),
                                       'logs': ec.validation_log,
                                       'invalid_results': ec.get_invalid_data()}
-                            job += 1
                             results.append(output)
                     # redivis service
                     if is_upload_to_redivis:
@@ -95,23 +94,22 @@ def data_validator(request):
                         logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                         output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
                                   'logs': rs.upload_to_redivis_log}
-                        job += 1
                         results.append(output)
                     elif is_save_to_storage and not prefix_name:
                         output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
                                   'logs': storage.upload_to_GCP_log}
-                        job += 1
                         results.append(output)
                     else:
                         return 'Error in parameters setup in the request body', 400
-                # Return results of for-loop if no errors were encountered
-                return "Finished looping through lab_ids!", results
-            else:
-                return 'Error in parameters setup in the request body', 400
+                else:
+                    return 'Error in parameters setup in the request body', 400
+                job += 1
+            return "Finished looping through lab_ids!", results
         else:
             return 'Request body is not received properly', 500
     else:
         return 'Function needs to receive POST request', 500
+
 
 
 def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,

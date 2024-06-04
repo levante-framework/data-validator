@@ -5,7 +5,7 @@ load_dotenv()
 
 version = '0.0.1'
 
-ENV = 'remote'  # local-dev, local-prod, remote
+ENV = 'local'  # local-dev, local-prod, remote
 
 CORE_DATA_BUCKET_NAME = 'firebase-redivis-pipeline'
 EXTERNAL_DATA_BUCKET_NAME = 'firebase-redivis-pipeline-external'
