@@ -46,7 +46,7 @@ def data_validator(request):
             results = []
             for lab_id in lab_ids:
                 job = 1
-                logging.info(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; {job} of {len(lab_ids)}.')
+                logging.info(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
                 if params_check(lab_id, is_from_firestore, is_save_to_storage,
                                 is_upload_to_redivis, is_release_on_redivis,
                                 prefix_name):
