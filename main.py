@@ -14,7 +14,6 @@ def data_validator(request):
     os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id,
                                                               version_id="latest")
 
-
     admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id="latest")
     admin_api_key = admin_api_key.strip().lower()
 
