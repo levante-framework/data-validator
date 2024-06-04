@@ -1,5 +1,6 @@
 from pydantic import ValidationError
 import os
+import logging
 from core_models import Task, Variant, Group, District, School, Class, User, UserClass, UserAssignment, \
     Assignment, AssignmentTask, Run, Trial
 from firestore_services import FirestoreServices
@@ -52,18 +53,18 @@ class EntityController:
         fs_admin = FirestoreServices(app_name='admin_site')
 
         if os.environ.get('guest_mode', None):
-            print("GUEST MODE: Setting users...")
+            logging.debug("GUEST MODE: Setting users...")
             self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
-            print(f"Valid users: {len(self.valid_users)}")
-            print("Start to setting tasks...")
+            logging.debug(f"Valid users: {len(self.valid_users)}")
+            logging.debug("Start to setting tasks...")
             self.set_tasks(tasks=fs_assessment.get_tasks())
             if self.valid_tasks:
                 for task in self.valid_tasks:
                     self.set_variants(variants=fs_assessment.get_variants(task.task_id), task_id=task.task_id)
             else:
                 self.validation_log.append(f"firebase_db has no valid tasks in {lab_id}.")
-            print(f"Valid tasks: {len(self.valid_tasks)}. Valid variants: {len(self.valid_variants)}.")
-            print(f"Invalid tasks: {len(self.invalid_tasks)}. Invalid variants: {len(self.invalid_variants)}.")
+            logging.debug(f"Valid tasks: {len(self.valid_tasks)}. Valid variants: {len(self.valid_variants)}.")
+            logging.debug(f"Invalid tasks: {len(self.invalid_tasks)}. Invalid variants: {len(self.invalid_variants)}.")
         else:
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
@@ -72,13 +73,13 @@ class EntityController:
             self.set_assignments(assignments=fs_admin.get_assignments(lab_id=lab_id))
             self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
 
-        print("Setting runs...")
+        logging.debug("Setting runs...")
         if self.valid_users:
             for user in self.valid_users:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
         else:
             self.validation_log.append(f"firebase_db has no valid users in {lab_id}.")
-        print(f"Valid runs: {len(self.valid_runs)}. Setting trials...")
+        logging.debug(f"Valid runs: {len(self.valid_runs)}. Setting trials...")
         if self.valid_runs:
             for run in self.valid_runs:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,
@@ -86,7 +87,7 @@ class EntityController:
                                                                          task_id=run.task_id))
         else:
             self.validation_log.append(f"firebase_db has no valid runs in {lab_id}.")
-        print(f"Valid trials: {len(self.valid_trials)}. ")
+        logging.debug(f"Valid trials: {len(self.valid_trials)}. ")
 
     def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
         rs = RedivisServices(is_from_firestore=False)
@@ -102,10 +103,10 @@ class EntityController:
         self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
 
         runs_table = rs.get_tables(table_name="runs")
-        # print(runs_table)
+        # logging.debug(runs_table)
         if self.valid_users:
             for user in self.valid_users:
-                # print(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+                # logging.debug(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
                 self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
                                                                      spec_value=user.user_id))
         else:
@@ -123,7 +124,7 @@ class EntityController:
         rs = RedivisServices(is_from_firestore=False)
 
         lab_lists = rs.get_datasets_list()
-        print(lab_lists)
+        logging.debug(lab_lists)
         for lab in lab_lists:
             self.set_values_from_redivis(lab)
 

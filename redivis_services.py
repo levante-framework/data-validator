@@ -1,5 +1,6 @@
 import redivis
 import os
+import logging
 import settings
 from secret_services import SecretServices
 
@@ -33,7 +34,7 @@ class RedivisServices:
         self.is_released = properties.get("version", {}).get("isReleased", None)
         self.is_deleted = properties.get("version", {}).get("isDeleted", None)
         self.version = properties.get("version", {}).get("tag", None)
-        print(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
+        logging.debug(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
 
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]

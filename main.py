@@ -4,12 +4,13 @@ from secret_services import SecretServices
 from redivis_services import RedivisServices
 from entity_controller import EntityController
 import functions_framework
+import logging
 import os
 
 
 @functions_framework.http
 def data_validator(request):
-    print(f"running version {settings.version}, ENV: {settings.ENV}, project_id: {os.environ.get('project_id', None)}")
+    logging.debug(f"running version {settings.version}, ENV: {settings.ENV}, project_id: {os.environ.get('project_id', None)}")
     sec = SecretServices()
     os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id,
                                                               version_id="latest")
@@ -42,7 +43,7 @@ def data_validator(request):
 
             for lab_id in lab_ids:
                 job = 1
-                print(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; {job} of {len(lab_ids)}.')
+                logging.debug(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; {job} of {len(lab_ids)}.')
                 if params_check(lab_id, is_from_firestore, is_save_to_storage,
                                 is_upload_to_redivis, is_release_on_redivis,
                                 prefix_name):
@@ -52,19 +53,19 @@ def data_validator(request):
                         storage.storage_prefix = prefix_name
                     else:  # if no prefix_name specified, start validation process.
                         if is_from_firestore:
-                            print(f'Getting data from Firestore for lab_id: {lab_id}.')
+                            logging.debug(f'Getting data from Firestore for lab_id: {lab_id}.')
                             ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date)
                         elif lab_id != 'all':
                             ec.set_values_for_consolidate()
                         else:
                             ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
-                        print(f"validation_log_list: {ec.validation_log}")
+                        logging.debug(f"validation_log_list: {ec.validation_log}")
 
                         # GCP storage service
                         if is_save_to_storage:
-                            print(f"Saving data to GCP storage for lab_id: {lab_id}.")
+                            logging.debug(f"Saving data to GCP storage for lab_id: {lab_id}.")
                             storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
-                            print(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                            logging.debug(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                         else:
                             output = {'title': f'Function executed successfully!',
                                       'valid_users_count': len(ec.valid_users),
@@ -76,7 +77,7 @@ def data_validator(request):
                             return output, 200
                     # redivis service
                     if is_upload_to_redivis:
-                        print(f"Uploading data to Redivis for lab_id: {lab_id}.")
+                        logging.debug(f"Uploading data to Redivis for lab_id: {lab_id}.")
                         rs = RedivisServices(is_from_firestore=is_from_firestore)
                         rs.set_dataset(lab_id=lab_id)
                         rs.create_dateset_version()
@@ -88,7 +89,7 @@ def data_validator(request):
                             rs.delete_table(table_name='validation_results')
                         if is_release_on_redivis:
                             rs.release_dataset()
-                        print(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
+                        logging.debug(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                         output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
                                   'logs': rs.upload_to_redivis_log}
                         job += 1

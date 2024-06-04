@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 import os
+import logging
 from datetime import datetime
 import json
 from utils import process_doc_dict, handle_nan
@@ -21,7 +22,7 @@ class FirestoreServices:
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
             self.db = firestore.client(self.default_app)
         except Exception as e:
-            print(f"Error in {app_name} FirestoreService init: {e}")
+            logging.error(f"Error in {app_name} FirestoreService init: {e}")
 
     def get_groups(self, lab_id: str):
         result = []
@@ -35,7 +36,7 @@ class FirestoreServices:
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
             result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_groups: {e}")
+            logging.error(f"Error in get_groups: {e}")
         return result
 
     def get_districts(self, lab_id: str):
@@ -50,7 +51,7 @@ class FirestoreServices:
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
             result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_districts: {e}")
+            logging.error(f"Error in get_districts: {e}")
         return result
 
     def get_schools(self, lab_id: str):
@@ -66,7 +67,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_schools: {e}")
+            logging.error(f"Error in get_schools: {e}")
         return result
 
     def get_classes(self, lab_id: str):
@@ -82,7 +83,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_classes: {e}")
+            logging.error(f"Error in get_classes: {e}")
         return result
 
     def get_users(self, lab_id: str, start_date, end_date):
@@ -119,7 +120,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_users: {e}")
+            logging.error(f"Error in get_users: {e}")
         return result
 
     def get_runs(self, user_id: str):
@@ -139,7 +140,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_runs: {e}")
+            logging.error(f"Error in get_runs: {e}")
         return result
 
     def get_trials(self, user_id: str, run_id: str, task_id: str):
@@ -176,7 +177,7 @@ class FirestoreServices:
                 # Append the formatted dictionary to the result list
                 result.append(doc_dict)
         except Exception as e:
-            print(f"Error in get_trails: {e}")
+            logging.error(f"Error in get_trails: {e}")
         return result
 
     def get_tasks(self):
@@ -192,7 +193,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_tasks: {e}")
+            logging.error(f"Error in get_tasks: {e}")
         return result
 
     def get_variants(self, task_id: str):
@@ -209,7 +210,7 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_variants: {e}")
+            logging.error(f"Error in get_variants: {e}")
         return result
 
     def get_assignments(self, lab_id: str):
@@ -225,5 +226,5 @@ class FirestoreServices:
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_assignments: {e}")
+            logging.error(f"Error in get_assignments: {e}")
         return result
