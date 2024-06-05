@@ -39,7 +39,8 @@ class FirestoreServices:
             })
             # Convert camelCase to snake_case and handle NaN values
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            return converted_doc_dict
+            # Return a list of dictionaries for EntityController functions to loop through
+            return [converted_doc_dict]
         except Exception as e:
             logging.error(f"Error in get_groups: {e}")
             return {}
@@ -54,7 +55,8 @@ class FirestoreServices:
             })
             # Convert camelCase to snake_case and handle NaN values
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            return converted_doc_dict
+            # Return a list of dictionaries for EntityController functions to loop through
+            return [converted_doc_dict]
         except Exception as e:
             logging.error(f"Error in get_districts: {e}")
             return {}

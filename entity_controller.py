@@ -69,7 +69,7 @@ class EntityController:
             logging.info(f"Valid tasks: {len(self.valid_tasks)}. Valid variants: {len(self.valid_variants)}.")
             logging.info(f"Invalid tasks: {len(self.invalid_tasks)}. Invalid variants: {len(self.invalid_variants)}.")
         else:
-            # self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+            self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
             self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
             self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
