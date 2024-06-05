@@ -105,8 +105,8 @@ def data_validator(request):
                     return 'Error in parameters setup in the request body', 400
                 logging.info(f'Finished job {job} of {len(lab_ids)}.')
                 job += 1
-            logging.info(f'Finished all jobs. {results}')
-            return f"Finished all jobs. {results}", 200
+            logging.info(f'Finished all jobs.\n{results}')
+            return f'Finished all jobs.\n{results}', 200
         else:
             return 'Request body is not received properly', 500
     else:
