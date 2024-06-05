@@ -104,7 +104,7 @@ def data_validator(request):
                 else:
                     return 'Error in parameters setup in the request body', 400
                 job += 1
-            return print("Finished all jobs.", results), 200
+            return "Finished all jobs. " + str(results), 200
         else:
             return 'Request body is not received properly', 500
     else:

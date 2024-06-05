@@ -82,7 +82,7 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} school chunks.")
+                logging.info(f"Setting schools... processing chunk {current_chunk} of {total_chunks} school chunks.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -117,7 +117,7 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} class chunks.")
+                logging.info(f"Setting classes... processing chunk {current_chunk} of {total_chunks} class chunks.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -163,7 +163,7 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} user chunks.")
+                logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -215,7 +215,8 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} chunks for user {user_id}.")
+                logging.info(f"Setting runs... processing chunk {current_chunk} of {total_chunks} "
+                             f"run chunks for user {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -277,7 +278,8 @@ class FirestoreServices:
                     break
                 current_chunk += 1
                 logging.info(
-                    f"Processing chunk {current_chunk} of {total_chunks} chunks of run {run_id} for user {user_id}.")
+                    f"Setting trials... processing chunk {current_chunk} of {total_chunks} "
+                    f"trial chunks of run {run_id} for user {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     # Add identifiers to the dictionary
@@ -319,7 +321,7 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} chunks.")
+                logging.info(f"Setting tasks... processing chunk {current_chunk} of {total_chunks} chunks.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -349,7 +351,8 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} chunks for task {task_id}.")
+                logging.info(f"Setting variants... processing chunk {current_chunk} of {total_chunks} "
+                             f"chunks for task {task_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
@@ -385,7 +388,8 @@ class FirestoreServices:
                 if not docs:
                     break
                 current_chunk += 1
-                logging.info(f"Processing chunk {current_chunk} of {total_chunks} assignment chunks.")
+                logging.info(f"Setting assignments... processing chunk {current_chunk} of {total_chunks} "
+                             f"assignment chunks.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     doc_dict.update({
