@@ -31,7 +31,6 @@ class FirestoreServices:
 
     def get_groups(self, lab_id: str):
         # Does not need to be chunked since groups are unique
-        result = []
         try:
             doc = self.db.collection('groups').document(lab_id).get()
             doc_dict = doc.to_dict()
@@ -40,14 +39,13 @@ class FirestoreServices:
             })
             # Convert camelCase to snake_case and handle NaN values
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            result.append(converted_doc_dict)
+            return converted_doc_dict
         except Exception as e:
             logging.error(f"Error in get_groups: {e}")
-        return result
+            return {}
 
     def get_districts(self, lab_id: str):
         # Does not need to be chunked since districts are unique
-        result = []
         try:
             doc = self.db.collection('districts').document(lab_id).get()
             doc_dict = doc.to_dict()
@@ -56,10 +54,10 @@ class FirestoreServices:
             })
             # Convert camelCase to snake_case and handle NaN values
             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            result.append(converted_doc_dict)
+            return converted_doc_dict
         except Exception as e:
             logging.error(f"Error in get_districts: {e}")
-        return result
+            return {}
 
     def get_schools(self, lab_id: str, chunk_size=100):
         last_doc = None
