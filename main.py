@@ -40,8 +40,8 @@ def data_validator(request):
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
             prefix_name = request_json.get('prefix_name', None)
-            start_date = request_json.get('start_date', None) # '04/01/2024'
-            end_date = request_json.get('end_date', None)  # '04/01/2024'
+            # start_date = request_json.get('start_date', None) # '04/01/2024'
+            # end_date = request_json.get('end_date', None)  # '04/01/2024'
 
             results = []
             job = 1
@@ -57,7 +57,7 @@ def data_validator(request):
                     else:  # if no prefix_name specified, start validation process.
                         if is_from_firestore:
                             logging.info(f'Getting data from Firestore for lab_id: {lab_id}.')
-                            ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date)
+                            ec.set_values_from_firestore(lab_id=lab_id)
                         elif lab_id != 'all':
                             ec.set_values_for_consolidate()
                         else:

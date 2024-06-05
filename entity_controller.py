@@ -50,14 +50,14 @@ class EntityController:
         # self.valid_variants_params = []
         # self.invalid_variants_params = []
 
-    def set_values_from_firestore(self, lab_id: str, start_date, end_date):
+    def set_values_from_firestore(self, lab_id: str):
 
         fs_assessment = FirestoreServices(app_name='assessment_site')
         fs_admin = FirestoreServices(app_name='admin_site')
 
         if os.environ.get('guest_mode', None):
             logging.info("GUEST MODE: Setting users...")
-            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
             logging.info(f"Valid users: {len(self.valid_users)}")
             logging.info("Start to setting tasks...")
             self.set_tasks(tasks=fs_assessment.get_tasks())
@@ -69,12 +69,12 @@ class EntityController:
             logging.info(f"Valid tasks: {len(self.valid_tasks)}. Valid variants: {len(self.valid_variants)}.")
             logging.info(f"Invalid tasks: {len(self.invalid_tasks)}. Invalid variants: {len(self.invalid_variants)}.")
         else:
-            self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+            # self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
             self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
             self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
             self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
             self.set_assignments(assignments=fs_admin.get_assignments(lab_id=lab_id))
-            self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
 
         logging.info("Setting runs...")
         if self.valid_users:
@@ -238,7 +238,7 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_variants.append({**error, 'variant_id': variant['variant_id'], 'task_id': task_id})
 
-    def set_users(self, users: list):
+    def set_users(self, users):
         for user in users:
             try:
                 if self.source == "firestore" and not os.environ.get('guest_mode', None):
