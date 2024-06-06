@@ -3,7 +3,7 @@ import os
 
 load_dotenv()
 
-version = '0.0.1'
+version = '1.0.0'
 
 ENV = 'remote'  # local, remote
 

@@ -24,7 +24,7 @@ Once validated, the data is submitted back to Redivis.
 
 1. Clone the repository:
 ```
-git clone https://github.com/levante-framework/data-validator.git
+git clone https://github.com/yeatmanlab/data-validator.git
 ```
 2. Install dependencies:
 ```
@@ -36,14 +36,14 @@ pip install -r requirements.txt
 2. Replace the creds files path in settings.py to your GCP project ones.
 3. Send HTTP request to this API deployed on GCP:
 ```angular2html
-https://...
+https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
 ```
 1. Include api_key in request header.
     --header 'Content-Type: application/json' 
     --header 'API-Key: ..'
 2. Include followings in json format. 
 {
-    "lab_id": "61e8aee84cf0e71b14295d45",
+    "lab_id": "yGGlUDTB5xzzCecoYucj",
     "is_from_firestore": true,
     "is_save_to_storage": true,
     "prefix_name": 
@@ -62,9 +62,9 @@ Then send request to http://localhost:8080/
 deploy to cloud:
 ```
 gcloud config set project hs-levante-admin-dev
-gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 600s --allow-unauthenticated --entry-point data_validator
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
 ```
-https://us-central1-hs-levante-admin-dev.cloudfunctions.net/data-validator
+https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
 ## Acknowledgments
 
 - ROAR and LEVANTE team
