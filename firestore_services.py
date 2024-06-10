@@ -19,7 +19,7 @@ class FirestoreServices:
     default_app = None
     db = None
 
-    def __init__(self, app_name):
+    def __init__(self, app_name, start_date, end_date):
         try:
             if app_name == 'assessment_site':
                 cred = credentials.Certificate(json.loads(os.environ['assessment_cred']))
@@ -28,6 +28,11 @@ class FirestoreServices:
 
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
             self.db = firestore.client(self.default_app)
+
+            self.start_date = (datetime.strptime(start_date, "%m/%d/%Y")
+                               .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1, 1)
+            self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
+                               .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(2050, 1, 1)
         except Exception as e:
             print(f"Error in {app_name} FirestoreService init: {e}")
 
@@ -114,28 +119,19 @@ class FirestoreServices:
             print(f"Error in get_classes: {e}")
         return result
 
-    def get_users(self, lab_id: str, start_date, end_date):
+    def get_users(self, lab_id: str):
         result = []
-        if start_date:
-            start_date = datetime.strptime(start_date, "%m/%d/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start_date = datetime(2024, 1, 1)
-        if end_date:
-            end_date = datetime.strptime(end_date, '%m/%d/%Y').replace(hour=23, minute=59, second=59, microsecond=999999)
-        else:
-            end_date = datetime(2030, 1, 1)
-
         try:
             if os.environ.get('guest_mode', None):
                 docs = (self.db.collection('guests')
-                        .where('created', '>=', start_date)
-                        .where('created', '<=', end_date)
+                        .where('created', '>=', self.start_date)
+                        .where('created', '<=', self.end_date)
                         .get())
             else:
                 docs = (self.db.collection('users')
                         # .where('groups.current', 'array_contains', lab_id)
-                        .where('lastUpdated', '>=', start_date)
-                        .where('lastUpdated', '<=', end_date)
+                        .where('lastUpdated', '>=', self.start_date)
+                        .where('lastUpdated', '<=', self.end_date)
                         .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -161,9 +157,15 @@ class FirestoreServices:
         result = []
         try:
             if os.environ.get('guest_mode', None):
-                docs = self.db.collection('guests').document(user_id).collection('runs').get()
+                docs = (self.db.collection('guests').document(user_id).collection('runs')
+                        .where('timeStarted', '>=', self.start_date)
+                        .where('timeStarted', '<=', self.end_date)
+                        .get())
             else:
-                docs = self.db.collection('users').document(user_id).collection('runs').get()
+                docs = (self.db.collection('users').document(user_id).collection('runs')
+                        .where('timeStarted', '>=', self.start_date)
+                        .where('timeStarted', '<=', self.end_date)
+                        .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict['run_id'] = doc.id
@@ -172,7 +174,10 @@ class FirestoreServices:
                 doc_dict['variant_id'] = doc_dict.get('variantId', None)
                 doc_dict['assignment_id'] = doc_dict.get('assignmentId', None)
                 doc_dict['assigning_orgs'] = doc_dict.get('assigningOrgs', None)
+                doc_dict['is_reliable'] = doc_dict.get('reliable', None)
+                doc_dict['is_bestrun'] = doc_dict.get('bestRun', None)
                 doc_dict['is_completed'] = doc_dict.get('completed', None)
+                doc_dict['task_version'] = doc_dict.get('taskVersion', None)
                 doc_dict['time_finished'] = doc_dict.get('timeFinished', None)
                 doc_dict['time_started'] = doc_dict.get('timeStarted', None)
                 result.append(doc_dict)
@@ -184,11 +189,15 @@ class FirestoreServices:
         result = []
         try:
             if os.environ.get('guest_mode', None):
-                docs = self.db.collection('guests').document(user_id).collection('runs').document(
-                    run_id).collection('trials').get()
+                docs = (self.db.collection('guests').document(user_id).collection('runs').document(run_id).collection('trials')
+                        .where('serverTimestamp', '>=', self.start_date)
+                        .where('serverTimestamp', '<=', self.end_date)
+                        .get())
             else:
-                docs = self.db.collection('users').document(user_id).collection('runs').document(
-                    run_id).collection('trials').get()
+                docs = (self.db.collection('users').document(user_id).collection('runs').document(run_id).collection('trials')
+                        .where('serverTimestamp', '>=', self.start_date)
+                        .where('serverTimestamp', '<=', self.end_date)
+                        .get())
 
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -197,28 +206,34 @@ class FirestoreServices:
                 doc_dict['run_id'] = run_id
                 doc_dict['task_id'] = task_id
 
-                doc_dict['item'] = stringify_variables(doc_dict.get('item', None))
-                doc_dict['distract_options'] = stringify_variables(doc_dict.get('distractors', None))
-                doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
-                doc_dict['blocks'] = stringify_variables(doc_dict.get('blocks', None))
-                doc_dict['selected_coordinates'] = stringify_variables(doc_dict.get('selectedCoordinates', None))
-                doc_dict['sequence'] = stringify_variables(doc_dict.get('sequence', None))
-
-                doc_dict['rt'] = stringify_variables(doc_dict.get('rt'))
-
-                doc_dict['expected_answer'] = doc_dict.get('answer', None)
-                doc_dict['response_type'] = doc_dict.get('responseType', None)
-                doc_dict['response_source'] = doc_dict.get('responseSource', None)
+                doc_dict['trial_index'] = doc_dict.get('trialIndex', doc_dict.get('trial_index', None))
                 doc_dict['is_correct'] = doc_dict.get('correct', None)
-
                 doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
                 doc_dict['corpus_trial_type'] = doc_dict.get('corpusTrialType', None)
-                doc_dict['server_timestamp'] = doc_dict.pop('serverTimestamp', None)
+                doc_dict['assessment_stage'] = doc_dict.get('assessment_stage', None)
+                doc_dict['response_type'] = doc_dict.get('responseType', None)
+                doc_dict['response_source'] = doc_dict.get('responseSource', None)
 
-                doc_dict['difficulty'] = doc_dict.get('difficulty', None)
-                if doc_dict['difficulty'] == 0:
-                    doc_dict['difficulty'] = None
-                result.append(doc_dict)
+                doc_dict['time_elapsed'] = doc_dict.get('time_elapsed', None)
+                doc_dict['server_timestamp'] = doc_dict.get('serverTimestamp', None)
+
+                doc_dict['item'] = stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None
+                doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None
+                doc_dict['expected_answer'] = stringify_variables(doc_dict['answer']) if doc_dict.get('answer') is not None else None
+                response_dict = doc_dict.get('response', None)
+                if isinstance(response_dict, dict):
+                    doc_dict['expected_answer'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
+                    rt_dict = doc_dict.get('rt', None)
+                    for key, value in response_dict.items():
+                        sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
+                        sub_trial_dict['response'] = value
+                        sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
+                        result.append(sub_trial_dict)
+                else:
+                    doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
+                    doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                    result.append(doc_dict)
+
         except Exception as e:
             print(f"Error in get_trails: {e}")
         return result

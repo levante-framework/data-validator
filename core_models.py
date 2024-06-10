@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator, ValidationError
-from typing import Optional, Union
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Union, List, Set
 from datetime import datetime
 
 
@@ -8,7 +8,7 @@ class Group(BaseModel):
     name: str
     abbreviation: Optional[str] = None
     tags: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
 
 class District(BaseModel):
@@ -60,13 +60,24 @@ class User(BaseModel):
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 
-    # @model_validator(mode='after')
-    # def assign_attributes(self) -> 'User':
-    #     if self.name.get("first", None) and self.name.get("last", None):
-    #         self.fullName = f"{self.name.get("first", None)} {self.name.get("middle", None)}.{self.name.get("last", None)}"
-    #     else:
-    #         raise ValueError("Incomplete Name.")
-    #     return self
+    _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
+
+    @classmethod
+    def set_valid_groups(cls, groups: List[Group]):
+        cls._valid_group_ids = {group.group_id for group in groups}
+
+    @model_validator(mode='before')
+    def check_user_in_valid_groups(cls, values):
+        user_id = values.get('user_id', None)
+        group_info = values.get('groups', {})
+        current_group_ids = group_info.get('current', [])
+        if current_group_ids:
+            for group_id in current_group_ids:
+                if group_id not in cls._valid_group_ids:
+                    raise ValueError(f'{user_id} has current group_id {group_id} not in the list of valid groups.')
+        else:
+            raise ValueError(f'{user_id} do not have group information.')
+        return values
 
 
 class UserClass(BaseModel):
@@ -100,7 +111,7 @@ class Variant(BaseModel):
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
     num_of_practice_trials: Optional[int] = None
-    num_of_trials: Optional[int] = None
+    number_of_trials: Optional[int] = None
     sequential_practice: Optional[bool] = None
     sequential_stimulus: Optional[bool] = None
     skip_instructions: Optional[bool] = None
@@ -148,41 +159,38 @@ class Run(BaseModel):
     is_reliable: Optional[bool] = None
     is_completed: Optional[bool] = None
     is_bestrun: Optional[bool] = None
-    score_composite: Optional[int] = None
-    time_started: Optional[datetime] = None
+    task_version: Optional[str] = None
+    # score_composite: Optional[int] = None
+    time_started: datetime
     time_finished: Optional[datetime] = None
 
 
 class Trial(BaseModel):
-    # Related IDs
+    # IDs
     trial_id: str
     user_id: str
     run_id: str
     task_id: str
+    sub_trial_id: Optional[int] = None
 
     # Answers related
     item: Optional[str] = None
     distract_options: Optional[str] = None
     expected_answer: Optional[Union[int, str, float]] = None
-    blocks: Optional[str] = None  #Mem-games
-    selected_coordinates: Optional[str] = None  #Mem-games
-    sequence: Optional[str] = None  #Mem-games
-
     response: Optional[Union[int, str, float]] = None
-    rt: Optional[Union[int, str]] = None
-
-    response_type: Optional[str] = None
-    response_source: Optional[str] = None
-    is_correct: Optional[bool] = None
-    time_elapsed: Optional[int] = None
 
     # Trial attributes
-    trial_index: Optional[int] = None
+    trial_index: int
     is_practice: Optional[bool] = None
-    difficulty: Optional[float] = None
-    trial_type: Optional[str] = None
+    is_correct: Optional[bool] = None
     corpus_trial_type: Optional[str] = None
     assessment_stage: Optional[str] = None
+    response_type: Optional[str] = None
+    response_source: Optional[str] = None
+
+    # Time related fields
+    rt: Optional[int] = None
+    time_elapsed: int
     server_timestamp: datetime
 
     # @field_validator('rt')

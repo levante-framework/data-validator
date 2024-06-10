@@ -50,8 +50,8 @@ class EntityController:
         # self.invalid_variants_params = []
 
     def set_values_from_firestore(self, lab_id: str, start_date, end_date):
-        fs_assessment = FirestoreServices(app_name='assessment_site')
-        fs_admin = FirestoreServices(app_name='admin_site')
+        fs_assessment = FirestoreServices(app_name='assessment_site', start_date=start_date, end_date=end_date)
+        fs_admin = FirestoreServices(app_name='admin_site', start_date=start_date, end_date=end_date)
 
         if os.environ.get('guest_mode', None):
             print("GUEST MODE:")
@@ -104,7 +104,7 @@ class EntityController:
 
         # self.set_assignments(assignments=fs_admin.get_assignments())
         print("Now Validating Users and UserGroups...")
-        self.set_users(users=fs_assessment.get_users(lab_id=lab_id, start_date=start_date, end_date=end_date))
+        self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }
@@ -218,7 +218,7 @@ class EntityController:
 
         for invalid_item in invalid_list:
             if 'loc' in invalid_item:
-                invalid_item['invalid_key'] = invalid_item.pop('loc')[0]
+                invalid_item['invalid_key'] = stringify_variables(invalid_item.pop('loc')[0]) if len(invalid_item['loc']) > 0 else stringify_variables(invalid_item.pop('loc'))
             if 'input' in invalid_item:
                 invalid_item['invalid_value'] = stringify_variables(invalid_item.pop('input'))
             if 'type' in invalid_item:
@@ -290,6 +290,7 @@ class EntityController:
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
     def set_users(self, users: list):
+        User.set_valid_groups(self.valid_groups)
         for user in users:
             user_dict = user
             try:
@@ -383,7 +384,7 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_assignments.append(
-                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user['user_id']}"})
+                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user.user_id}"})
 
     def set_trials(self, run: Run, trials: list):
         for trial in trials:
@@ -392,7 +393,7 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append({**error,
-                                                'id': f"trial_id: {trial['trial_id']}, run_id: {run['run_id']}, user_id: {run.user_id}"})
+                                                'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}"})
 
     # def set_score_details(self, run: dict):
     # run_id = run.get('id', None)
