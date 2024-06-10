@@ -5,17 +5,23 @@ load_dotenv()
 
 version = '1.0.0'
 
-ENV = 'remote'  # local, remote
+ENV = 'local'  # local, remote
 
 CORE_DATA_BUCKET_NAME = 'firebase-redivis-pipeline'
 EXTERNAL_DATA_BUCKET_NAME = 'firebase-redivis-pipeline-external'
 
+project_id = "gse-roar-admin"
+
+# Secret Manager secret ID for various API keys
+admin_service_account_secret_id = "adminServiceAccount"
+admin_public_key_secret_id = "adminPublicKey"
+data_validator_url_secret_id = "dataValidatorUrl"
 assessment_service_account_secret_id = 'assessmentPrivateKey'
 admin_firebase_api_key_secret_id = 'adminPublicKey'
-
-# Used when running locally
-SA_KEY_LOCATION_ADMIN = '../../firebase/admin-credentials.json'
+redivis_api_token_secret_id = 'firebaseRedivisPipelineAccessToken'
 
 redivis_api_token = os.getenv('FIREBASE_REDIVIS_PIPELINE_ACCESS_TOKEN')
-# Secret Manager secret ID for the Redivis API token in gse-roar-admin project
-redivis_api_token_secret_id = 'firebaseRedivisPipelineAccessToken'
+
+# Used when running locally
+local_admin_service_account = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
+

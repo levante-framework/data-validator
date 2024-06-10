@@ -7,11 +7,11 @@ import os
 
 # Create a client
 if 'local' in settings.ENV:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.SA_KEY_LOCATION_ADMIN
-    with open(settings.SA_KEY_LOCATION_ADMIN, 'r') as sa:
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.local_admin_service_account
+    with open(settings.local_admin_service_account, 'r') as sa:
         os.environ['project_id'] = json.load(sa).get("project_id", None)
 
-    cred = service_account.Credentials.from_service_account_file(filename=settings.SA_KEY_LOCATION_ADMIN)
+    cred = service_account.Credentials.from_service_account_file(filename=settings.local_admin_service_account)
     storage_client = storage.Client(credentials=cred)
 
 else:
