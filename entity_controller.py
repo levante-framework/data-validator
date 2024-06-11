@@ -61,35 +61,35 @@ class EntityController:
         fs_admin = FirestoreServices(app_name='admin_site', start_date=start_date, end_date=end_date)
 
         if os.environ.get('guest_mode', None):
-            print("GUEST MODE:")
+            logging.info("GUEST MODE:")
         else:
-            print("REGISTERED USER MODE:")
+            logging.info("REGISTERED USER MODE:")
 
-        print("Now Validating Groups...")
+        logging.info("Now Validating Groups...")
         self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
                          }
-        print(groups_result)
+        logging.info(groups_result)
         self.validation_log['groups'] = groups_result
 
-        print("Now Validating Schools...")
+        logging.info("Now Validating Schools...")
         self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
         schools_result = {"Valid": len(self.valid_schools),
                           "Invalid": len(self.invalid_schools),
                           }
-        print(schools_result)
+        logging.info(schools_result)
         self.validation_log['schools'] = schools_result
 
-        print("Now Validating Classes...")
+        logging.info("Now Validating Classes...")
         self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
         classes_result = {"Valid": len(self.valid_classes),
                           "Invalid": len(self.invalid_classes),
                           }
-        print(classes_result)
+        logging.info(classes_result)
         self.validation_log['classes'] = classes_result
 
-        print("Now Validating Tasks and Variants...")
+        logging.info("Now Validating Tasks and Variants...")
         self.set_tasks(tasks=fs_assessment.get_tasks())
         if self.valid_tasks:
             for task in self.valid_tasks:
@@ -101,30 +101,30 @@ class EntityController:
                                "Invalid": len(self.invalid_variants),
                                }
             self.validation_log['variants'] = variants_result
-            print(variants_result)
+            logging.info(variants_result)
         else:
             tasks_result = "No valid tasks were found."
         self.validation_log['tasks'] = tasks_result
-        print(tasks_result)
+        logging.info(tasks_result)
 
         # self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
 
         # self.set_assignments(assignments=fs_admin.get_assignments())
-        print("Now Validating Users and UserGroups...")
+        logging.info("Now Validating Users and UserGroups...")
         self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }
-        print(users_result)
+        logging.info(users_result)
         self.validation_log['users'] = users_result
 
         user_group_result = {"Valid": len(self.valid_user_group),
                              "Invalid": len(self.invalid_user_group),
                              }
-        print(user_group_result)
+        logging.info(user_group_result)
         self.validation_log['user_group'] = user_group_result
 
-        print("Now Validating SurveyResponses...")
+        logging.info("Now Validating SurveyResponses...")
         if self.valid_users:
             for user in self.valid_users:
                 self.set_survey_responses(user=user,
@@ -132,28 +132,28 @@ class EntityController:
             survey_responses_result = {"Valid": len(self.valid_survey_responses),
                                        "Invalid": len(self.invalid_survey_responses),
                                        }
-            print(survey_responses_result)
+            logging.info(survey_responses_result)
             self.validation_log['survey_responses'] = survey_responses_result
         else:
             self.validation_log['users'] = "No valid users were found."
             self.validation_log['runs'] = "No valid runs were found."
-            print("Runs result: No valid users were found.")
+            logging.info("Runs result: No valid users were found.")
 
-        print("Now Validating Runs...")
+        logging.info("Now Validating Runs...")
         if self.valid_users:
             for user in self.valid_users:
                 self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
             runs_result = {"Valid": len(self.valid_runs),
                            "Invalid": len(self.invalid_runs),
                            }
-            print(runs_result)
+            logging.info(runs_result)
             self.validation_log['runs'] = runs_result
         else:
             self.validation_log['users'] = "No valid users were found."
             self.validation_log['runs'] = "No valid runs were found."
-            print("Runs result: No valid users were found.")
+            logging.info("Runs result: No valid users were found.")
 
-        print("Now Validating Trials...")
+        logging.info("Now Validating Trials...")
         if self.valid_runs:
             for run in self.valid_runs:
                 self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,
@@ -162,7 +162,7 @@ class EntityController:
             trials_result = {"Valid": len(self.valid_trials),
                              "Invalid": len(self.invalid_trials),
                              }
-            print(trials_result)
+            logging.info(trials_result)
             self.validation_log['trials'] = trials_result
         else:
             self.validation_log['runs'] = "No valid runs were found."

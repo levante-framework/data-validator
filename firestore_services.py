@@ -42,7 +42,7 @@ class FirestoreServices:
             self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
                                .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(2050, 1, 1)
         except Exception as e:
-            print(f"Error in {app_name} FirestoreService init: {e}")
+            logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
     def get_groups(self, lab_id: str):
         # Does not need to be chunked since groups are unique
