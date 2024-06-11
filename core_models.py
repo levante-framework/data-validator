@@ -193,18 +193,44 @@ class Trial(BaseModel):
     time_elapsed: int
     server_timestamp: datetime
 
-    # @field_validator('rt')
-    # def validate_rt(self, cls, v):
-    #     if isinstance(v, int):
-    #         if v <= 0:
-    #             raise ValueError("Response time must be a positive integer")
-    #     elif isinstance(v, str):
-    #         # Only accept certain strings
-    #         if v not in ["timeout", "unrecorded"]:
-    #             raise ValueError("Invalid string for response time; allowed values are 'timeout' or 'unrecorded'")
-    #     else:
-    #         raise ValueError("Response time must be either an integer or one of the specific allowed strings")
-    #     return v
+    # @model_validator(mode='after')
+    # def check_passwords_match(self):
+    #     response = self.response
+    #     expected_answer = self.expected_answer
+    #     is_correct = self.is_correct
+    #     if response is not None and expected_answer is not None and response != response:
+    #         if is_correct is not None
+    #         raise ValueError('passwords do not match')
+    #     return self
+
+
+class SurveyResponse(BaseModel):
+    survey_response_id: str
+    user_id: str
+    class_friends: str
+    class_help: str
+    class_nice: str
+    class_play: str
+    example1_comic: str
+    example2_neat: str
+    growth_mind_math: str
+    growth_mind_read: str
+    growth_mind_smart: str
+    learning_good: str
+    lonely_school: str
+    math_enjoy: str
+    math_good: str
+    reading_enjoy: str
+    reading_good: str
+    school_enjoy: str
+    school_fun: str
+    school_give_up: str
+    school_happy: str
+    school_safe: str
+    teacher_like: str
+    teacher_listen: str
+    teacher_nice: str
+    created_at: datetime
 
 # class Score(BaseModel):
 #     score_id: Optional[int] = None

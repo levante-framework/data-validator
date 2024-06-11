@@ -1,7 +1,7 @@
 from pydantic import ValidationError
 import os
 from core_models import Task, Variant, Group, District, School, Class, User, UserClass, UserGroup, UserAssignment, \
-    Assignment, AssignmentTask, Run, Trial
+    Assignment, AssignmentTask, Run, Trial, SurveyResponse
 from firestore_services import FirestoreServices, stringify_variables
 from redivis_services import RedivisServices
 
@@ -43,6 +43,9 @@ class EntityController:
         self.invalid_runs = []
         self.valid_trials = []
         self.invalid_trials = []
+
+        self.valid_survey_responses = []
+        self.invalid_survey_responses = []
 
         # self.valid_score_details = []
         # self.invalid_score_details = []
@@ -116,6 +119,21 @@ class EntityController:
                              }
         print(user_group_result)
         self.validation_log['user_group'] = user_group_result
+
+        print("Now Validating SurveyResponses...")
+        if self.valid_users:
+            for user in self.valid_users:
+                self.set_survey_responses(user=user,
+                                          survey_responses=fs_admin.get_survey_responses(user_id=user.user_id))
+            survey_responses_result = {"Valid": len(self.valid_survey_responses),
+                                       "Invalid": len(self.invalid_survey_responses),
+                                       }
+            print(survey_responses_result)
+            self.validation_log['survey_responses'] = survey_responses_result
+        else:
+            self.validation_log['users'] = "No valid users were found."
+            self.validation_log['runs'] = "No valid runs were found."
+            print("Runs result: No valid users were found.")
 
         print("Now Validating Runs...")
         if self.valid_users:
@@ -198,7 +216,8 @@ class EntityController:
             'trials': [obj.model_dump() for obj in self.valid_trials],
             'assignments': [obj.model_dump() for obj in self.valid_assignments],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
-            'variants': [obj.model_dump() for obj in self.valid_variants]
+            'variants': [obj.model_dump() for obj in self.valid_variants],
+            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses]
         }
         return valid_dict
 
@@ -214,11 +233,13 @@ class EntityController:
                         + [{**obj, "table_name": "tasks"} for obj in self.invalid_tasks]
                         + [{**obj, "table_name": "variants"} for obj in self.invalid_variants]
                         + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_group]
+                        + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
                         )
 
         for invalid_item in invalid_list:
             if 'loc' in invalid_item:
-                invalid_item['invalid_key'] = stringify_variables(invalid_item.pop('loc')[0]) if len(invalid_item['loc']) > 0 else stringify_variables(invalid_item.pop('loc'))
+                invalid_item['invalid_key'] = stringify_variables(invalid_item.pop('loc')[0]) if len(
+                    invalid_item['loc']) > 0 else stringify_variables(invalid_item.pop('loc'))
             if 'input' in invalid_item:
                 invalid_item['invalid_value'] = stringify_variables(invalid_item.pop('input'))
             if 'type' in invalid_item:
@@ -305,6 +326,15 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_users.append({**error, 'id': user_dict['user_id']})
+
+    def set_survey_responses(self, user: User, survey_responses: list):
+        for survey_response in survey_responses:
+            try:
+                self.valid_survey_responses.append(SurveyResponse(**survey_response))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_survey_responses.append(
+                        {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response['survey_response_id']}"})
 
     def set_user_group(self, user: dict):
         user_id = user.get('user_id', None)

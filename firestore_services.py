@@ -153,6 +153,48 @@ class FirestoreServices:
             print(f"Error in get_users: {e}")
         return result
 
+    def get_survey_responses(self, user_id: str):
+        result = []
+        try:
+            docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
+                    .where('createdAt', '>=', self.start_date)
+                    .where('createdAt', '<=', self.end_date)
+                    .get())
+
+            for doc in docs:
+                doc_dict = doc.to_dict()
+                survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
+                doc_dict['survey_response_id'] = doc.id
+                doc_dict['user_id'] = user_id
+                doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                doc_dict['class_friends'] = survey_responses_dict.get('ClassFriends', None)
+                doc_dict['class_help'] = survey_responses_dict.get('ClassHelp', None)
+                doc_dict['class_nice'] = survey_responses_dict.get('ClassNice', None)
+                doc_dict['class_play'] = survey_responses_dict.get('ClassPlay', None)
+                doc_dict['example1_comic'] = survey_responses_dict.get('Example1Comic', None)
+                doc_dict['example2_neat'] = survey_responses_dict.get('Example2Neat', None)
+                doc_dict['growth_mind_math'] = survey_responses_dict.get('GrowthMindMath', None)
+                doc_dict['growth_mind_read'] = survey_responses_dict.get('GrowthMindRead', None)
+                doc_dict['growth_mind_smart'] = survey_responses_dict.get('GrowthMindSmart', None)
+                doc_dict['learning_good'] = survey_responses_dict.get('LearningGood', None)
+                doc_dict['lonely_school'] = survey_responses_dict.get('LonelySchool', None)
+                doc_dict['math_enjoy'] = survey_responses_dict.get('MathEnjoy', None)
+                doc_dict['math_good'] = survey_responses_dict.get('MathGood', None)
+                doc_dict['reading_enjoy'] = survey_responses_dict.get('ReadingEnjoy', None)
+                doc_dict['reading_good'] = survey_responses_dict.get('ReadingGood', None)
+                doc_dict['school_enjoy'] = survey_responses_dict.get('SchoolEnjoy', None)
+                doc_dict['school_fun'] = survey_responses_dict.get('SchoolFun', None)
+                doc_dict['school_give_up'] = survey_responses_dict.get('SchoolGiveUp', None)
+                doc_dict['school_happy'] = survey_responses_dict.get('SchoolHappy', None)
+                doc_dict['school_safe'] = survey_responses_dict.get('SchoolSafe', None)
+                doc_dict['teacher_like'] = survey_responses_dict.get('TeacherLike', None)
+                doc_dict['teacher_listen'] = survey_responses_dict.get('TeacherListen', None)
+                doc_dict['teacher_nice'] = survey_responses_dict.get('TeacherNice', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_survey_responses: {e}")
+        return result
+
     def get_runs(self, user_id: str):
         result = []
         try:
@@ -211,8 +253,8 @@ class FirestoreServices:
                 doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
                 doc_dict['corpus_trial_type'] = doc_dict.get('corpusTrialType', None)
                 doc_dict['assessment_stage'] = doc_dict.get('assessment_stage', None)
-                doc_dict['response_type'] = doc_dict.get('responseType', None)
-                doc_dict['response_source'] = doc_dict.get('responseSource', None)
+                doc_dict['response_type'] = doc_dict.get('responseType', doc_dict.get('response_type', None))
+                doc_dict['response_source'] = doc_dict.get('responseSource', doc_dict.get('response_source', None))
 
                 doc_dict['time_elapsed'] = doc_dict.get('time_elapsed', None)
                 doc_dict['server_timestamp'] = doc_dict.get('serverTimestamp', None)
@@ -222,12 +264,16 @@ class FirestoreServices:
                 doc_dict['expected_answer'] = stringify_variables(doc_dict['answer']) if doc_dict.get('answer') is not None else None
                 response_dict = doc_dict.get('response', None)
                 if isinstance(response_dict, dict):
-                    doc_dict['expected_answer'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
+                    doc_dict['item'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
                     rt_dict = doc_dict.get('rt', None)
+                    expected_answer_dict = doc_dict.get('sequence', None)
                     for key, value in response_dict.items():
                         sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
                         sub_trial_dict['response'] = value
+                        sub_trial_dict['expected_answer'] = expected_answer_dict[key] if expected_answer_dict else None
                         sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
+                        if sub_trial_dict['expected_answer'] is not None:
+                            sub_trial_dict['is_correct'] = True if sub_trial_dict['response'] == sub_trial_dict['expected_answer'] else False
                         result.append(sub_trial_dict)
                 else:
                     doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
