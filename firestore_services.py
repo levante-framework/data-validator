@@ -148,7 +148,11 @@ class FirestoreServices:
 
     def get_users(self, lab_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('users').where('districts.current', 'array_contains', lab_id).get()
+        total_docs = (self.db.collection('users')
+                      .where('districts.current', 'array_contains', lab_id)
+                      .where('lastUpdated', '>=', self.start_date)
+                      .where('lastUpdated', '<=', self.end_date)
+                      .get())
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
@@ -156,23 +160,31 @@ class FirestoreServices:
                 if os.environ.get('guest_mode', None):
                     if last_doc:
                         docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
                                 .limit(chunk_size)
                                 .start_after(last_doc)
                                 .get())
                     else:
                         docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
                                 .limit(chunk_size)
                                 .get())
                 else:
                     if last_doc:
                         docs = (self.db.collection('users')
                                 .where('districts.current', 'array_contains', lab_id)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
                                 .limit(chunk_size)
                                 .start_after(last_doc)
                                 .get())
                     else:
                         docs = (self.db.collection('users')
                                 .where('districts.current', 'array_contains', lab_id)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
                                 .limit(chunk_size)
                                 .get())
                 if not docs:
