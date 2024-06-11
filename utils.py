@@ -108,23 +108,12 @@ def get_lab_ids(_request, app):
             # This clause allows testing the function locally with a POST request
             logging.info("Running in test mode with preset lab_ids.")
             return get_lab_ids_from_payload(request_json)
-            # lab_ids = request_json.get('lab_ids', [])
-            # logging.info(f"Found {len(lab_ids)} lab_ids in request: {lab_ids}")
         else:
             # This clause allows triggering the function manually with a POST request
             logging.info("Running in manual mode with lab_ids from Firestore.")
             return get_lab_ids_from_firestore(app)
-            # db = firestore.client(app)
-            # docs = db.collection("districts").get()
-            # # Filter out test data
-            # lab_ids = [doc.id for doc in docs if not doc.to_dict().get('testData')]
-            # logging.info(f"Found {len(lab_ids)} docs in Firestore: {lab_ids}")
     else:
         # This clause allows the function to run as a scheduled Cloud job
         logging.info("Running in scheduled mode with lab_ids from Firestore.")
         return get_lab_ids_from_firestore(app)
-        # db = firestore.client(app)
-        # docs = db.collection("districts").get()
-        # # Filter out test data
-        # lab_ids = [doc.id for doc in docs if not doc.to_dict().get('testData')]
-        # logging.info(f"Found {len(lab_ids)} docs in Firestore: {lab_ids}")
+
