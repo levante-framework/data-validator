@@ -69,7 +69,8 @@ Then send request to
 https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
 
 ```
-deploy data-validator-trigger to cloud:
+gcloud config set project hs-levante-admin-dev
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=2GiB --timeout 1800s --allow-unauthenticated --entry-point data_validator
 ```
 gcloud config set project gse-roar-admin
 ```

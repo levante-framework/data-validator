@@ -10,11 +10,20 @@ from utils import process_doc_dict, handle_nan
 logging.basicConfig(level=logging.INFO)
 
 
+def stringify_variables(variable):
+    if isinstance(variable, (dict, list, tuple, int, float, bool, str)):
+        return str(variable)
+    elif variable is None or variable == 'nan':
+        return None
+    else:
+        return f'Error converting to string: {variable}'
+
+
 class FirestoreServices:
     default_app = None
     db = None
 
-    def __init__(self, app_name):
+    def __init__(self, app_name, start_date, end_date):
         try:
             # Check if the app already exists
             self.default_app = firebase_admin.get_app(name=app_name)
@@ -26,8 +35,14 @@ class FirestoreServices:
                 cred = credentials.ApplicationDefault()
 
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
+            self.db = firestore.client(self.default_app)
 
-        self.db = firestore.client(self.default_app)
+            self.start_date = (datetime.strptime(start_date, "%m/%d/%Y")
+                               .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1, 1)
+            self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
+                               .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(2050, 1, 1)
+        except Exception as e:
+            print(f"Error in {app_name} FirestoreService init: {e}")
 
     def get_groups(self, lab_id: str):
         # Does not need to be chunked since groups are unique

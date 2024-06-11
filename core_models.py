@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Extra, Field, field_validator, ValidationError
-from typing import Optional, Union
+from pydantic import BaseModel, Extra, Field, field_validator, model_validator
+from typing import Optional, Union, List, Set
 from datetime import datetime
 
 
@@ -78,20 +78,31 @@ class User(BaseModel):
     assessment_uid: Optional[str] = None
     parent_id: Optional[str] = None
     teacher_id: Optional[str] = None
-    birth_year: Optional[int] = None
-    birth_month: Optional[int] = None
+    birth_year: Optional[int] = Field(None, ge=1900, le=datetime.now().year)
+    birth_month: Optional[int] = Field(None, ge=1, le=12)
     email: Optional[str] = None
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 
-    # @model_validator(mode='after')
-    # def assign_attributes(self) -> 'User':
-    #     if self.name.get("first", None) and self.name.get("last", None):
-    #         self.fullName = f"{self.name.get("first", None)} {self.name.get("middle", None)}.{self.name.get("last", None)}"
-    #     else:
-    #         raise ValueError("Incomplete Name.")
-    #     return self
+    _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
+
+    @classmethod
+    def set_valid_groups(cls, groups: List[Group]):
+        cls._valid_group_ids = {group.group_id for group in groups}
+
+    @model_validator(mode='before')
+    def check_user_in_valid_groups(cls, values):
+        user_id = values.get('user_id', None)
+        group_info = values.get('groups', {})
+        current_group_ids = group_info.get('current', [])
+        if current_group_ids:
+            for group_id in current_group_ids:
+                if group_id not in cls._valid_group_ids:
+                    raise ValueError(f'{user_id} has current group_id {group_id} not in the list of valid groups.')
+        else:
+            raise ValueError(f'{user_id} do not have group information.')
+        return values
 
 
 class UserClass(BaseModel):
@@ -132,7 +143,7 @@ class Variant(BaseModel):
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
     num_of_practice_trials: Optional[int] = None
-    num_of_trials: Optional[int] = None
+    number_of_trials: Optional[int] = None
     sequential_practice: Optional[bool] = None
     sequential_stimulus: Optional[bool] = None
     skip_instructions: Optional[bool] = None
@@ -198,7 +209,9 @@ class Run(BaseModel):
     is_completed: Optional[bool] = None
     best_run: Optional[bool] = None
     scores: Optional[dict] = None
+    task_version: Optional[str] = None
     time_started: Optional[datetime] = None
+    # score_composite: Optional[int] = None
     time_finished: Optional[datetime] = None
     user_data: Optional[dict] = None
     read_orgs: Optional[dict] = None
@@ -206,12 +219,18 @@ class Run(BaseModel):
 
 
 class Trial(BaseModel):
-    # Related IDs
+    # IDs
     trial_id: str
     user_id: str
     run_id: str
     task_id: str
+    sub_trial_id: Optional[int] = None
 
+    # Answers related
+    item: Optional[str] = None
+    distract_options: Optional[str] = None
+    expected_answer: Optional[Union[int, str, float]] = None
+    response: Optional[Union[int, str, float]] = None
     # Required Firekit attributes
     correct: int
     assessment_stage: str
@@ -233,31 +252,57 @@ class Trial(BaseModel):
     # rt: Optional[Union[int, str]] = None
 
     # Trial attributes
-    # is_practice: Optional[bool] = None
-    # theta_estimate: Optional[float] = None
-    # theta_se: Optional[float] = None
-    # theta_estimate_2: Optional[float] = None
-    # theta_se_2: Optional[float] = None
-    # difficulty: Optional[float] = None
-    # save_trial: Optional[bool] = None
-    # server_timestamp: datetime
-    #
-    # class Config:
-    #     extra = Extra.allow
+    trial_index: int
+    is_practice: Optional[bool] = None
+    is_correct: Optional[bool] = None
+    corpus_trial_type: Optional[str] = None
+    assessment_stage: Optional[str] = None
+    response_type: Optional[str] = None
+    response_source: Optional[str] = None
 
-    # @field_validator('rt')
-    # def validate_rt(self, cls, v):
-    #     if isinstance(v, int):
-    #         if v <= 0:
-    #             raise ValueError("Response time must be a positive integer")
-    #     elif isinstance(v, str):
-    #         # Only accept certain strings
-    #         if v not in ["timeout", "unrecorded"]:
-    #             raise ValueError("Invalid string for response time; allowed values are 'timeout' or 'unrecorded'")
-    #     else:
-    #         raise ValueError("Response time must be either an integer or one of the specific allowed strings")
-    #     return v
+    # Time related fields
+    rt: Optional[int] = None
+    time_elapsed: int
+    server_timestamp: datetime
 
+    # @model_validator(mode='after')
+    # def check_passwords_match(self):
+    #     response = self.response
+    #     expected_answer = self.expected_answer
+    #     is_correct = self.is_correct
+    #     if response is not None and expected_answer is not None and response != response:
+    #         if is_correct is not None
+    #         raise ValueError('passwords do not match')
+    #     return self
+
+
+class SurveyResponse(BaseModel):
+    survey_response_id: str
+    user_id: str
+    class_friends: str
+    class_help: str
+    class_nice: str
+    class_play: str
+    example1_comic: str
+    example2_neat: str
+    growth_mind_math: str
+    growth_mind_read: str
+    growth_mind_smart: str
+    learning_good: str
+    lonely_school: str
+    math_enjoy: str
+    math_good: str
+    reading_enjoy: str
+    reading_good: str
+    school_enjoy: str
+    school_fun: str
+    school_give_up: str
+    school_happy: str
+    school_safe: str
+    teacher_like: str
+    teacher_listen: str
+    teacher_nice: str
+    created_at: datetime
 
 class Score(BaseModel):
     score_id: Optional[int] = None
