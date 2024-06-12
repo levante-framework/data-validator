@@ -36,17 +36,19 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in {app_name} FirestoreService init: {e}")
 
-    def get_groups(self, lab_id: str):
+    def get_groups(self, group_ids: list):
         result = []
         try:
-            docs = self.db.collection('groups').get() #.document(lab_id)
+            docs = self.db.collection('groups').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['group_id'] = doc.id
-                doc_dict['abbreviation'] = doc_dict.get('abbreviation', None)
-                doc_dict['tags'] = stringify_variables(doc_dict.get('tags', None))
-                doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                result.append(doc_dict)
+                name = doc_dict.get('name', None)
+                if name in group_ids:
+                    doc_dict['group_id'] = doc.id
+                    doc_dict['abbreviation'] = doc_dict.get('abbreviation', None)
+                    doc_dict['tags'] = stringify_variables(doc_dict.get('tags', None))
+                    doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                    result.append(doc_dict)
 
         except Exception as e:
             print(f"Error in get_groups: {e}")
@@ -119,7 +121,7 @@ class FirestoreServices:
             print(f"Error in get_classes: {e}")
         return result
 
-    def get_users(self, lab_id: str):
+    def get_users(self, valid_group_ids: list):
         result = []
         try:
             if os.environ.get('guest_mode', None):
@@ -129,26 +131,27 @@ class FirestoreServices:
                         .get())
             else:
                 docs = (self.db.collection('users')
-                        # .where('groups.current', 'array_contains', lab_id)
                         .where('lastUpdated', '>=', self.start_date)
                         .where('lastUpdated', '<=', self.end_date)
                         .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['user_id'] = doc.id
-                doc_dict['assessment_pid'] = doc_dict.get('assessmentPid', None)
-                doc_dict['user_type'] = doc_dict.get('userType', None)
-                doc_dict['assessment_uid'] = doc_dict.get('assessmentUid', None)
-                doc_dict['parent_id'] = doc_dict.get('parentId', None)
-                doc_dict['teacher_id'] = doc_dict.get('teacherId', None)
-                doc_dict['birth_year'] = doc_dict.get('birthYear', None)
-                doc_dict['birth_month'] = doc_dict.get('birthMonth', None)
-                doc_dict['email_verified'] = doc_dict.get('emailVerified', None)
+                current_group_ids = doc_dict.get('groups', {}).get('current', [])
+                if set(current_group_ids) & set(valid_group_ids):
+                    doc_dict['user_id'] = doc.id
+                    doc_dict['assessment_pid'] = doc_dict.get('assessmentPid', None)
+                    doc_dict['user_type'] = doc_dict.get('userType', None)
+                    doc_dict['assessment_uid'] = doc_dict.get('assessmentUid', None)
+                    doc_dict['parent_id'] = doc_dict.get('parentId', None)
+                    doc_dict['teacher_id'] = doc_dict.get('teacherId', None)
+                    doc_dict['birth_year'] = doc_dict.get('birthYear', None)
+                    doc_dict['birth_month'] = doc_dict.get('birthMonth', None)
+                    doc_dict['email_verified'] = doc_dict.get('emailVerified', None)
 
-                doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
+                    doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                    doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
 
-                result.append(doc_dict)
+                    result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_users: {e}")
         return result

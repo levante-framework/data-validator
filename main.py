@@ -34,6 +34,7 @@ def data_validator(request):
             prefix_name = request_json.get('prefix_name', None)
             start_date = request_json.get('start_date', None) # '04/01/2024'
             end_date = request_json.get('end_date', None)  # '04/01/2024'
+            group_ids = request_json.get('group_ids', [])
             if params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
                             prefix_name):
                 storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
@@ -42,7 +43,7 @@ def data_validator(request):
                     storage.storage_prefix = prefix_name
                 else:  # if no prefix_name specified, start validation process.
                     if is_from_firestore:
-                        ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date)
+                        ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date, group_ids=group_ids)
                     elif lab_id != 'all':
                         ec.set_values_for_consolidate()
                     else:

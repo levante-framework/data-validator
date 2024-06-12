@@ -52,7 +52,7 @@ class EntityController:
         # self.valid_variants_params = []
         # self.invalid_variants_params = []
 
-    def set_values_from_firestore(self, lab_id: str, start_date, end_date):
+    def set_values_from_firestore(self, lab_id: str, start_date, end_date, group_ids):
         fs_assessment = FirestoreServices(app_name='assessment_site', start_date=start_date, end_date=end_date)
         fs_admin = FirestoreServices(app_name='admin_site', start_date=start_date, end_date=end_date)
 
@@ -62,7 +62,7 @@ class EntityController:
             print("REGISTERED USER MODE:")
 
         print("Now Validating Groups...")
-        self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+        self.set_groups(groups=fs_admin.get_groups(group_ids=group_ids))
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
                          }
@@ -107,7 +107,7 @@ class EntityController:
 
         # self.set_assignments(assignments=fs_admin.get_assignments())
         print("Now Validating Users and UserGroups...")
-        self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+        self.set_users(users=fs_assessment.get_users(valid_group_ids=[group.group_id for group in self.valid_groups]))
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }

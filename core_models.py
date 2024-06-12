@@ -79,6 +79,15 @@ class User(BaseModel):
             raise ValueError(f'{user_id} do not have group information.')
         return values
 
+    @model_validator(mode='before')
+    def check_birth_year_for_students(cls, values):
+        birth_year = values.get('birth_year', None)
+        user_type = values.get('user_type', None)
+        if birth_year and user_type == 'student':
+            if birth_year < 2000:
+                raise ValueError("Students must be born in or after 2000.")
+        return values
+
 
 class UserClass(BaseModel):
     user_id: str
@@ -180,7 +189,7 @@ class Trial(BaseModel):
     response: Optional[Union[int, str, float]] = None
 
     # Trial attributes
-    trial_index: int
+    trial_index: Optional[int] = None
     is_practice: Optional[bool] = None
     is_correct: Optional[bool] = None
     corpus_trial_type: Optional[str] = None
