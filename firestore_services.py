@@ -2,8 +2,12 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 import os
+import logging
 from datetime import datetime
 import json
+from utils import process_doc_dict, handle_nan
+
+logging.basicConfig(level=logging.INFO)
 
 
 def stringify_variables(variable):
@@ -21,6 +25,10 @@ class FirestoreServices:
 
     def __init__(self, app_name, start_date, end_date):
         try:
+            # Check if the app already exists
+            self.default_app = firebase_admin.get_app(name=app_name)
+        except ValueError:
+            # If the app does not exist, initialize it based on the app_name
             if app_name == 'assessment_site':
                 cred = credentials.Certificate(json.loads(os.environ['assessment_cred']))
             else:
@@ -34,127 +42,409 @@ class FirestoreServices:
             self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
                                .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(2050, 1, 1)
         except Exception as e:
-            print(f"Error in {app_name} FirestoreService init: {e}")
+            logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
-    def get_groups(self, group_ids: list):
+    def get_groups_roar(self, lab_id: str):
+        # Does not need to be chunked since groups are unique
+        try:
+            doc = self.db.collection('groups').document(lab_id).get()
+            doc_dict = doc.to_dict()
+            doc_dict.update({
+                'group_id': doc.id,
+            })
+            # Convert camelCase to snake_case and handle NaN values
+            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+            # Return a list of dictionaries for EntityController functions to loop through
+            return [converted_doc_dict]
+        except Exception as e:
+            logging.error(f"Error in get_groups: {e}")
+            return {}
+          
+    def get_groups_levante(self, group_ids: list):
         result = []
         try:
             docs = self.db.collection('groups').get()
             for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                name = doc_dict.get('name', None)
-                if name in group_ids:
-                    doc_dict['group_id'] = doc.id
-                    doc_dict['abbreviation'] = doc_dict.get('abbreviation', None)
-                    doc_dict['tags'] = stringify_variables(doc_dict.get('tags', None))
-                    doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                    result.append(doc_dict)
-
+                doc_dict = doc.to_dict()
+                doc_dict.update({
+                  'group_id': doc.id,
+                })
+                # Convert camelCase to snake_case and handle NaN values
+                converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_groups: {e}")
+            logging.error(f"Error in get_groups: {e}")
         return result
 
     def get_districts(self, lab_id: str):
-        result = []
+        # Does not need to be chunked since districts are unique
         try:
             doc = self.db.collection('districts').document(lab_id).get()
-            doc_dict = doc.to_dict()  # Convert the document to a dictionary
-            doc_dict['district_id'] = doc.id
-            doc_dict['portal_url'] = doc_dict.pop('portalUrl', None)
-
-            district_contact = doc_dict.get('districtContact', {})
-            district_contact_name = district_contact.get('name', {})
-            doc_dict[
-                'district_contact_name'] = f"{district_contact_name.get('first', '')}, {district_contact_name.get('last', '')}"
-            doc_dict['district_contact_email'] = district_contact.get('email', None)
-            doc_dict['district_contact_title'] = district_contact.get('title', None)
-            doc_dict['last_sync'] = doc_dict.pop('lastSync', None)
-            doc_dict['launch_date'] = doc_dict.pop('launchDate', None)
-            result.append(doc_dict)
-
+            doc_dict = doc.to_dict()
+            doc_dict.update({
+                'district_id': doc.id,
+            })
+            # Convert camelCase to snake_case and handle NaN values
+            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+            # Return a list of dictionaries for EntityController functions to loop through
+            return [converted_doc_dict]
         except Exception as e:
-            print(f"Error in get_districts: {e}")
-        return result
+            logging.error(f"Error in get_districts: {e}")
+            return {}
 
-    def get_schools(self, lab_id: str):
-        result = []
-        try:
-            docs = self.db.collection('schools').where('districtId', '==', lab_id).get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['school_id'] = doc.id
-                doc_dict['district_id'] = doc_dict.pop('districtId', None)
-                doc_dict['state_id'] = doc_dict.pop('stateId', None)
-                doc_dict['school_number'] = doc_dict.pop('schoolNumber', None)
-                doc_dict['high_grade'] = doc_dict.pop('highGrade', None)
-                doc_dict['low_grade'] = doc_dict.pop('lowGrade', None)
+    def get_schools(self, lab_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('schools').where('districtId', '==', lab_id).get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if last_doc:
+                    docs = (self.db.collection('schools')
+                            .where('districtId', '==', lab_id)
+                            .limit(chunk_size)
+                            .start_after(last_doc)
+                            .get())
+                else:
+                    docs = (self.db.collection('schools')
+                            .where('districtId', '==', lab_id)
+                            .limit(chunk_size)
+                            .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting schools... processing chunk {current_chunk} of {total_chunks} school chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'school_id': doc.id,
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_schools: {e}")
+                break
 
-                location = doc_dict.get('location', {})
-                doc_dict['address'] = location.get('address', None)
-                doc_dict['city'] = location.get('city', None)
-                doc_dict['state'] = location.get('state', None)
-                doc_dict['zip'] = location.get('zip', None)
+    def get_classes(self, lab_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('classes').where('districtId', '==', lab_id).get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if last_doc:
+                    docs = (self.db.collection('classes')
+                            .where('districtId', '==', lab_id)
+                            .limit(chunk_size)
+                            .start_after(last_doc)
+                            .get())
+                else:
+                    docs = (self.db.collection('classes')
+                            .where('districtId', '==', lab_id)
+                            .limit(chunk_size)
+                            .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting classes... processing chunk {current_chunk} of {total_chunks} class chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'class_id': doc.id,
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_classes: {e}")
+                break
 
-                principal = doc_dict.get('principal', {})
-                doc_dict['principal_name'] = principal.get('name', None)
-                doc_dict['principal_email'] = principal.get('email', None)
+    def get_users(self, lab_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = (self.db.collection('users')
+                      .where('districts.current', 'array_contains', lab_id)
+                      .where('lastUpdated', '>=', self.start_date)
+                      .where('lastUpdated', '<=', self.end_date)
+                      .get())
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if os.environ.get('guest_mode', None):
+                    if last_doc:
+                        docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .get())
+                else:
+                    if last_doc:
+                        docs = (self.db.collection('users')
+                                .where('districts.current', 'array_contains', lab_id)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('users')
+                                .where('districts.current', 'array_contains', lab_id)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'user_id': doc.id,
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_users: {e}")
+                break
 
-                doc_dict['last_modified'] = doc_dict.pop('lastModified', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_schools: {e}")
-        return result
+    def get_runs(self, user_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('users').document(user_id).collection('runs').get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if os.environ.get('guest_mode', None):
+                    if last_doc:
+                        docs = (self.db.collection('guests')
+                                .document(user_id)
+                                .collection('runs')
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('guests')
+                                .document(user_id)
+                                .collection('runs')
+                                .limit(chunk_size)
+                                .get())
+                else:
+                    if last_doc:
+                        docs = (self.db.collection('users')
+                                .document(user_id)
+                                .collection('runs')
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('users')
+                                .document(user_id)
+                                .collection('runs')
+                                .limit(chunk_size)
+                                .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting runs... processing chunk {current_chunk} of {total_chunks} "
+                             f"run chunks for user {user_id}.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'run_id': doc.id,
+                        'user_id': user_id
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_runs: {e}")
+                break
 
-    def get_classes(self, lab_id: str):
-        result = []
-        try:
-            docs = self.db.collection('classes').where('districtId', '==', lab_id).get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['class_id'] = doc.id
-                doc_dict['school_id'] = doc_dict.pop('schoolId', None)
-                doc_dict['district_id'] = doc_dict.pop('districtId', None)
-                doc_dict['section_number'] = doc_dict.pop('sectionNumber', None)
-                doc_dict['last_modified'] = doc_dict.pop('lastModified', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_classes: {e}")
-        return result
+    def get_trials(self, user_id: str, run_id: str, task_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection('trials').get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if os.environ.get('guest_mode', None):
+                    if last_doc:
+                        docs = (self.db.collection('guests')
+                                .document(user_id)
+                                .collection('runs')
+                                .document(run_id)
+                                .collection('trials')
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('guests')
+                                .document(user_id)
+                                .collection('runs')
+                                .document(run_id)
+                                .collection('trials')
+                                .limit(chunk_size)
+                                .get())
+                else:
+                    if last_doc:
+                        docs = (self.db.collection('users')
+                                .document(user_id)
+                                .collection('runs')
+                                .document(run_id)
+                                .collection('trials')
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('users')
+                                .document(user_id)
+                                .collection('runs')
+                                .document(run_id)
+                                .collection('trials')
+                                .limit(chunk_size)
+                                .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(
+                    f"Setting trials... processing chunk {current_chunk} of {total_chunks} "
+                    f"trial chunks of run {run_id} for user {user_id}.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    # Add identifiers to the dictionary
+                    doc_dict.update({
+                        'trial_id': doc.id,
+                        'user_id': user_id,
+                        'run_id': run_id,
+                        'task_id': task_id,
+                        # Pop required Firekit attributes
+                        'correct': handle_nan(doc_dict.pop('correct', None)),
+                        'assessment_stage': handle_nan(doc_dict.pop('assessment_stage', None)),
+                        # Pop default jsPsych data attributes
+                        'trial_index': handle_nan(doc_dict.pop('trial_index', None)),
+                        'trial_type': handle_nan(doc_dict.pop('trial_type', None)),
+                        'time_elapsed': handle_nan(doc_dict.pop('time_elapsed', None)),
+                    })
 
-    def get_users(self, valid_group_ids: list):
-        result = []
-        try:
-            if os.environ.get('guest_mode', None):
-                docs = (self.db.collection('guests')
-                        .where('created', '>=', self.start_date)
-                        .where('created', '<=', self.end_date)
-                        .get())
-            else:
-                docs = (self.db.collection('users')
-                        .where('lastUpdated', '>=', self.start_date)
-                        .where('lastUpdated', '<=', self.end_date)
-                        .get())
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                current_group_ids = doc_dict.get('groups', {}).get('current', [])
-                if set(current_group_ids) & set(valid_group_ids):
-                    doc_dict['user_id'] = doc.id
-                    doc_dict['assessment_pid'] = doc_dict.get('assessmentPid', None)
-                    doc_dict['user_type'] = doc_dict.get('userType', None)
-                    doc_dict['assessment_uid'] = doc_dict.get('assessmentUid', None)
-                    doc_dict['parent_id'] = doc_dict.get('parentId', None)
-                    doc_dict['teacher_id'] = doc_dict.get('teacherId', None)
-                    doc_dict['birth_year'] = doc_dict.get('birthYear', None)
-                    doc_dict['birth_month'] = doc_dict.get('birthMonth', None)
-                    doc_dict['email_verified'] = doc_dict.get('emailVerified', None)
+                    # Ignore keys which we do not want duplicated in trial_attributes
+                    ignore_keys = ['trial_id', 'user_id', 'run_id', 'task_id']
+                    # Process the remaining doc_dict keys
+                    doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
+                    yield doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_trails: {e}")
+                break
 
-                    doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                    doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
+    def get_tasks(self, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('tasks').get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if last_doc:
+                    docs = self.db.collection('tasks').limit(chunk_size).start_after(last_doc).get()
+                else:
+                    docs = self.db.collection('tasks').limit(chunk_size).get()
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting tasks... processing chunk {current_chunk} of {total_chunks} chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'task_id': doc.id
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_tasks: {e}")
+                break
 
-                    result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_users: {e}")
-        return result
+    def get_variants(self, task_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('tasks').document(task_id).collection('variants').get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if last_doc:
+                    docs = (self.db.collection('tasks').document(task_id).collection('variants')
+                            .limit(chunk_size).start_after(last_doc).get())
+                else:
+                    docs = (self.db.collection('tasks').document(task_id).collection('variants')
+                            .limit(chunk_size).get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting variants... processing chunk {current_chunk} of {total_chunks} "
+                             f"chunks for task {task_id}.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'variant_id': doc.id,
+                        'task_id': task_id
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_variants: {e}")
+                break
+
+    def get_assignments(self, lab_id: str, chunk_size=100):
+        last_doc = None
+        total_docs = self.db.collection('administrations').where('minimalOrgs.districts', 'array_contains', lab_id).get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if last_doc:
+                    docs = (self.db.collection('administrations')
+                            .where('minimalOrgs.districts', 'array_contains', lab_id)
+                            .limit(100)
+                            .start_after(last_doc)
+                            .get())
+                else:
+                    docs = (self.db.collection('administrations')
+                            .where('minimalOrgs.districts', 'array_contains', lab_id)
+                            .limit(100)
+                            .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting assignments... processing chunk {current_chunk} of {total_chunks} "
+                             f"assignment chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'assignment_id': doc.id,
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_assignments: {e}")
+                break
 
     def get_survey_responses(self, user_id: str):
         result = []
@@ -197,40 +487,8 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
         return result
-
-    def get_runs(self, user_id: str):
-        result = []
-        try:
-            if os.environ.get('guest_mode', None):
-                docs = (self.db.collection('guests').document(user_id).collection('runs')
-                        .where('timeStarted', '>=', self.start_date)
-                        .where('timeStarted', '<=', self.end_date)
-                        .get())
-            else:
-                docs = (self.db.collection('users').document(user_id).collection('runs')
-                        .where('timeStarted', '>=', self.start_date)
-                        .where('timeStarted', '<=', self.end_date)
-                        .get())
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['run_id'] = doc.id
-                doc_dict['user_id'] = user_id
-                doc_dict['task_id'] = doc_dict.get('taskId', None)
-                doc_dict['variant_id'] = doc_dict.get('variantId', None)
-                doc_dict['assignment_id'] = doc_dict.get('assignmentId', None)
-                doc_dict['assigning_orgs'] = doc_dict.get('assigningOrgs', None)
-                doc_dict['is_reliable'] = doc_dict.get('reliable', None)
-                doc_dict['is_bestrun'] = doc_dict.get('bestRun', None)
-                doc_dict['is_completed'] = doc_dict.get('completed', None)
-                doc_dict['task_version'] = doc_dict.get('taskVersion', None)
-                doc_dict['time_finished'] = doc_dict.get('timeFinished', None)
-                doc_dict['time_started'] = doc_dict.get('timeStarted', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_runs: {e}")
-        return result
-
-    def get_trials(self, user_id: str, run_id: str, task_id: str):
+      
+    def get_trials_levante(self, user_id: str, run_id: str, task_id: str):
         result = []
         try:
             if os.environ.get('guest_mode', None):
@@ -293,64 +551,4 @@ class FirestoreServices:
 
         except Exception as e:
             print(f"Error in get_trails: {e}")
-        return result
-
-    def get_tasks(self):
-        result = []
-        try:
-            docs = self.db.collection('tasks').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['task_id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['last_updated'] = doc_dict.pop('lastUpdated', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_tasks: {e}")
-        return result
-
-    def get_variants(self, task_id: str):
-        result = []
-        try:
-            docs = self.db.collection('tasks').document(task_id).collection('variants').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['variant_id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['task_id'] = task_id
-                doc_dict['variant_name'] = doc_dict.get('name', None)
-                doc_dict['last_updated'] = doc_dict.get('lastUpdated', None)
-                params = doc_dict.get('params', {})
-                doc_dict['age'] = params.get('age', None)
-                doc_dict['button_layout'] = params.get('buttonLayout', None)
-                doc_dict['corpus'] = params.get('corpus', None)
-                doc_dict['key_helpers'] = params.get('keyHelpers', None)
-                doc_dict['language'] = params.get('language', None)
-                doc_dict['max_incorrect'] = None if str(params.get('maxIncorrect', None)) == 'nan' else params.get('maxIncorrect', None)
-                doc_dict['max_time'] = params.get('maxTime', None)
-                doc_dict['num_of_practice_trials'] = params.get('numOfPracticeTrials', None)
-                doc_dict['number_of_trials'] = params.get('numberOfTrials', None)
-                doc_dict['sequential_practice'] = params.get('sequentialPractice', None)
-                doc_dict['sequential_stimulus'] = params.get('sequentialStimulus', None)
-                doc_dict['skip_instructions'] = params.get('skipInstructions', None)
-                doc_dict['stimulus_blocks'] = params.get('stimulusBlocks', None)
-                doc_dict['store_item_id'] = params.get('storeItemId', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_variants: {e}")
-        return result
-
-    def get_assignments(self):
-        result = []
-        try:
-            docs = self.db.collection('administrations').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['assignment_id'] = doc.id  # Add the document ID under the key 'id'
-                doc_dict['is_sequential'] = doc_dict.pop('sequential', None)
-                doc_dict['created_by'] = doc_dict.pop('createdBy', None)
-                doc_dict['date_created'] = doc_dict.pop('dateCreated', None)
-                doc_dict['date_closed'] = doc_dict.pop('dateClosed', None)
-                doc_dict['date_opened'] = doc_dict.pop('dateOpened', None)
-                result.append(doc_dict)
-        except Exception as e:
-            print(f"Error in get_assignments: {e}")
         return result

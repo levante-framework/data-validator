@@ -19,8 +19,8 @@ jobs:
     - name: Authenticate with Google Cloud
       uses: google-github-actions/auth@v2.1.2
       with:
-        credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
-        project_id: hs-levante-admin-dev
+        credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GSE_ROAR_ADMIN }}
+        project_id: gse-roar-admin
 
     - name: Deploy to Google Cloud Functions
       run: | 
@@ -29,8 +29,8 @@ jobs:
           --region us-central1 \
           --runtime python312 \
           --trigger-http \
-          --memory=2GiB \
-          --timeout 600s \
+          --memory=4GiB \
+          --timeout 3600s \
           --allow-unauthenticated \
           --entry-point data_validator
 

@@ -1,8 +1,18 @@
 import redivis
 import os
+import logging
 import settings
+from secret_services import SecretServices
 
-os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
+logging.basicConfig(level=logging.INFO)
+
+if 'local' in settings.ENV:
+    os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
+else:
+    sec = SecretServices()
+    os.environ["REDIVIS_API_TOKEN"] = sec.access_secret_version(secret_id=settings.redivis_api_token_secret_id,
+                                                                version_id="latest")
+    os.environ["REDIVIS_API_TOKEN"] = os.environ["REDIVIS_API_TOKEN"].strip()
 
 
 class RedivisServices:
@@ -14,7 +24,7 @@ class RedivisServices:
 
     def __init__(self, is_from_firestore: bool):
         self.source = "firestore" if is_from_firestore else "redivis"
-        self.organization = redivis.organization("LEVANTE")
+        self.organization = redivis.organization("ROAR")
         self.upload_to_redivis_log = []
 
     def set_dataset(self, lab_id: str):
@@ -26,7 +36,7 @@ class RedivisServices:
         self.is_released = properties.get("version", {}).get("isReleased", None)
         self.is_deleted = properties.get("version", {}).get("isDeleted", None)
         self.version = properties.get("version", {}).get("tag", None)
-        print(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
+        # logging.info(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
 
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]
@@ -48,7 +58,7 @@ class RedivisServices:
                 transfer_specification={
                     "sourceType": "gcs",  # one of gcs, s3, bigQuery, url, redivis
                     "sourcePath": f"{settings.CORE_DATA_BUCKET_NAME}/{file_name}",
-                    "identity": "ezhang61@stanford.edu",  # The email associated with the data source
+                    "identity": "kmontvil@stanford.edu",  # The email associated with the data source
                 },
                 replace_on_conflict=True,
                 remove_on_fail=True,
