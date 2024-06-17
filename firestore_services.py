@@ -44,7 +44,7 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
-    def get_groups(self, lab_id: str):
+    def get_groups_roar(self, lab_id: str):
         # Does not need to be chunked since groups are unique
         try:
             doc = self.db.collection('groups').document(lab_id).get()
@@ -59,6 +59,22 @@ class FirestoreServices:
         except Exception as e:
             logging.error(f"Error in get_groups: {e}")
             return {}
+          
+    def get_groups_levante(self, group_ids: list):
+        result = []
+        try:
+            docs = self.db.collection('groups').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()
+                doc_dict.update({
+                  'group_id': doc.id,
+                })
+                # Convert camelCase to snake_case and handle NaN values
+                converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                result.append(converted_doc_dict)
+        except Exception as e:
+            logging.error(f"Error in get_groups: {e}")
+        return result
 
     def get_districts(self, lab_id: str):
         # Does not need to be chunked since districts are unique
@@ -429,3 +445,110 @@ class FirestoreServices:
             except Exception as e:
                 logging.error(f"Error in get_assignments: {e}")
                 break
+
+    def get_survey_responses(self, user_id: str):
+        result = []
+        try:
+            docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
+                    .where('createdAt', '>=', self.start_date)
+                    .where('createdAt', '<=', self.end_date)
+                    .get())
+
+            for doc in docs:
+                doc_dict = doc.to_dict()
+                survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
+                doc_dict['survey_response_id'] = doc.id
+                doc_dict['user_id'] = user_id
+                doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                doc_dict['class_friends'] = survey_responses_dict.get('ClassFriends', None)
+                doc_dict['class_help'] = survey_responses_dict.get('ClassHelp', None)
+                doc_dict['class_nice'] = survey_responses_dict.get('ClassNice', None)
+                doc_dict['class_play'] = survey_responses_dict.get('ClassPlay', None)
+                doc_dict['example1_comic'] = survey_responses_dict.get('Example1Comic', None)
+                doc_dict['example2_neat'] = survey_responses_dict.get('Example2Neat', None)
+                doc_dict['growth_mind_math'] = survey_responses_dict.get('GrowthMindMath', None)
+                doc_dict['growth_mind_read'] = survey_responses_dict.get('GrowthMindRead', None)
+                doc_dict['growth_mind_smart'] = survey_responses_dict.get('GrowthMindSmart', None)
+                doc_dict['learning_good'] = survey_responses_dict.get('LearningGood', None)
+                doc_dict['lonely_school'] = survey_responses_dict.get('LonelySchool', None)
+                doc_dict['math_enjoy'] = survey_responses_dict.get('MathEnjoy', None)
+                doc_dict['math_good'] = survey_responses_dict.get('MathGood', None)
+                doc_dict['reading_enjoy'] = survey_responses_dict.get('ReadingEnjoy', None)
+                doc_dict['reading_good'] = survey_responses_dict.get('ReadingGood', None)
+                doc_dict['school_enjoy'] = survey_responses_dict.get('SchoolEnjoy', None)
+                doc_dict['school_fun'] = survey_responses_dict.get('SchoolFun', None)
+                doc_dict['school_give_up'] = survey_responses_dict.get('SchoolGiveUp', None)
+                doc_dict['school_happy'] = survey_responses_dict.get('SchoolHappy', None)
+                doc_dict['school_safe'] = survey_responses_dict.get('SchoolSafe', None)
+                doc_dict['teacher_like'] = survey_responses_dict.get('TeacherLike', None)
+                doc_dict['teacher_listen'] = survey_responses_dict.get('TeacherListen', None)
+                doc_dict['teacher_nice'] = survey_responses_dict.get('TeacherNice', None)
+                result.append(doc_dict)
+        except Exception as e:
+            print(f"Error in get_survey_responses: {e}")
+        return result
+      
+    def get_trials_levante(self, user_id: str, run_id: str, task_id: str):
+        result = []
+        try:
+            if os.environ.get('guest_mode', None):
+                docs = (self.db.collection('guests').document(user_id).collection('runs').document(run_id).collection('trials')
+                        .where('serverTimestamp', '>=', self.start_date)
+                        .where('serverTimestamp', '<=', self.end_date)
+                        .get())
+            else:
+                docs = (self.db.collection('users').document(user_id).collection('runs').document(run_id).collection('trials')
+                        .where('serverTimestamp', '>=', self.start_date)
+                        .where('serverTimestamp', '<=', self.end_date)
+                        .get())
+
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                doc_dict['trial_id'] = doc.id
+                doc_dict['user_id'] = user_id
+                doc_dict['run_id'] = run_id
+                doc_dict['task_id'] = task_id
+
+                doc_dict['trial_index'] = doc_dict.get('trialIndex', doc_dict.get('trial_index', None))
+                doc_dict['is_correct'] = doc_dict.get('correct', None)
+                doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
+                doc_dict['corpus_trial_type'] = doc_dict.get('corpusTrialType', None)
+                doc_dict['assessment_stage'] = doc_dict.get('assessment_stage', None)
+                doc_dict['response_type'] = doc_dict.get('responseType', doc_dict.get('response_type', None))
+                doc_dict['response_source'] = doc_dict.get('responseSource', doc_dict.get('response_source', None))
+
+                doc_dict['time_elapsed'] = doc_dict.get('time_elapsed', None)
+                doc_dict['server_timestamp'] = doc_dict.get('serverTimestamp', None)
+
+                doc_dict['item'] = stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None
+                doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None
+                doc_dict['expected_answer'] = stringify_variables(doc_dict.get('answer', doc_dict.get('sequence', None)))
+                doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
+                doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+
+                doc_dict['theta_estimate'] = doc_dict.get('thetaEstimate', None)
+                doc_dict['theta_estimate2'] = doc_dict.get('thetaEstimate2', None)
+                doc_dict['theta_SE'] = doc_dict.get('thetaSE', None)
+                doc_dict['theta_SE2'] = doc_dict.get('thetaSE2', None)
+
+                result.append(doc_dict)
+                # if isinstance(response_dict, dict) :
+                #     doc_dict['item'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
+                #     rt_dict = doc_dict.get('rt', None)
+                #     expected_answer_dict = doc_dict.get('sequence', None)
+                #     for key, value in response_dict.items():
+                #         sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
+                #         sub_trial_dict['response'] = value
+                #         sub_trial_dict['expected_answer'] = expected_answer_dict[key] if expected_answer_dict else None
+                #         sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
+                #         if sub_trial_dict['expected_answer'] is not None:
+                #             sub_trial_dict['is_correct'] = True if sub_trial_dict['response'] == sub_trial_dict['expected_answer'] else False
+                #         result.append(sub_trial_dict)
+                # else:
+                #     doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
+                #     doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                #     result.append(doc_dict)
+
+        except Exception as e:
+            print(f"Error in get_trails: {e}")
+        return result

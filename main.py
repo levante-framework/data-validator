@@ -45,6 +45,8 @@ def data_validator(request):
             prefix_name = request_json.get('prefix_name', None)
             start_date = request_json.get('start_date', None) # '04/01/2024'
             end_date = request_json.get('end_date', None)  # '04/01/2024'
+            group_ids = request_json.get('group_ids', [])
+
 
             results = []
             job = 1

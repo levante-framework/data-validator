@@ -55,8 +55,7 @@ class EntityController:
         # self.valid_variants_params = []
         # self.invalid_variants_params = []
 
-    def set_values_from_firestore(self, lab_id: str):
-
+    def set_values_from_firestore(self, lab_id: str, start_date, end_date, group_ids):
         fs_assessment = FirestoreServices(app_name='assessment_site', start_date=start_date, end_date=end_date)
         fs_admin = FirestoreServices(app_name='admin_site', start_date=start_date, end_date=end_date)
 
@@ -66,7 +65,8 @@ class EntityController:
             logging.info("REGISTERED USER MODE:")
 
         logging.info("Now Validating Groups...")
-        self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+        self.set_groups(groups=fs_admin.get_groups(group_ids=group_ids))
+
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
                          }
@@ -111,7 +111,7 @@ class EntityController:
 
         # self.set_assignments(assignments=fs_admin.get_assignments())
         logging.info("Now Validating Users and UserGroups...")
-        self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+        self.set_users(users=fs_assessment.get_users(valid_group_ids=[group.group_id for group in self.valid_groups]))
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }
@@ -467,18 +467,3 @@ class EntityController:
     #     except ValidationError as e:
     #         print(f"score_detail error for run {run_id}, computed_scores {key}: {e}")
     #         self.invalid_score_details.append(f"{run_id},{key}")
-
-    # def set_variant_params(self, variant: dict):
-    #     variant_id = variant.get('variant_id', None)
-    #     variant_params = variant.get('params', {})
-    #     for key, value in variant_params.items():
-    #         try:
-    #             self.valid_variants_params.append(VariantParams(
-    #                 variant_id=variant_id,
-    #                 params_field=key,
-    #                 params_type=str(type(value)),
-    #                 params_value=str(value)))
-    #         except ValidationError as e:
-    #             for error in e.errors():
-    #                 self.invalid_variants_params.append(
-    #                     {**error, 'variant_id': variant['variant_id'], variant_params: f"{key}, {value}"})
