@@ -53,8 +53,8 @@ class User(BaseModel):
     assessment_uid: Optional[str] = None
     parent_id: Optional[str] = None
     teacher_id: Optional[str] = None
-    birth_year: Optional[int] = Field(None, ge=1900, le=datetime.now().year)
-    birth_month: Optional[int] = Field(None, ge=1, le=12)
+    birth_year: Optional[int] = None #Field(None, ge=1900, le=datetime.now().year)
+    birth_month: Optional[int] = None #Field(None, ge=1, le=12)
     email: Optional[str] = None
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
@@ -79,14 +79,14 @@ class User(BaseModel):
             raise ValueError(f'{user_id} do not have group information.')
         return values
 
-    @model_validator(mode='before')
-    def check_birth_year_for_students(cls, values):
-        birth_year = values.get('birth_year', None)
-        user_type = values.get('user_type', None)
-        if birth_year and user_type == 'student':
-            if birth_year < 2000:
-                raise ValueError("Students must be born in or after 2000.")
-        return values
+    # @model_validator(mode='before')
+    # def check_birth_year_for_students(cls, values):
+    #     birth_year = values.get('birth_year', None)
+    #     user_type = values.get('user_type', None)
+    #     if birth_year and user_type == 'student':
+    #         if birth_year < 2000:
+    #             raise ValueError("Students must be born in or after 2000.")
+    #     return values
 
 
 class UserClass(BaseModel):
@@ -180,7 +180,7 @@ class Trial(BaseModel):
     user_id: str
     run_id: str
     task_id: str
-    sub_trial_id: Optional[int] = None
+    # sub_trial_id: Optional[int] = None
 
     # Answers related
     item: Optional[str] = None
@@ -190,17 +190,23 @@ class Trial(BaseModel):
 
     # Trial attributes
     trial_index: Optional[int] = None
-    is_practice: Optional[bool] = None
-    is_correct: Optional[bool] = None
     corpus_trial_type: Optional[str] = None
     assessment_stage: Optional[str] = None
+    is_correct: Optional[bool] = None
+    is_practice: Optional[bool] = None
     response_type: Optional[str] = None
     response_source: Optional[str] = None
 
     # Time related fields
-    rt: Optional[int] = None
+    rt: Optional[Union[int, str]] = None
     time_elapsed: int
     server_timestamp: datetime
+
+    # Roar tasks
+    theta_estimate: Optional[float] = None
+    theta_estimate2: Optional[float] = None
+    theta_SE: Optional[float] = None
+    theta_SE2: Optional[float] = None
 
     # @model_validator(mode='after')
     # def check_passwords_match(self):

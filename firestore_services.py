@@ -264,24 +264,32 @@ class FirestoreServices:
 
                 doc_dict['item'] = stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None
                 doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None
-                doc_dict['expected_answer'] = stringify_variables(doc_dict['answer']) if doc_dict.get('answer') is not None else None
-                response_dict = doc_dict.get('response', None)
-                if isinstance(response_dict, dict):
-                    doc_dict['item'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
-                    rt_dict = doc_dict.get('rt', None)
-                    expected_answer_dict = doc_dict.get('sequence', None)
-                    for key, value in response_dict.items():
-                        sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
-                        sub_trial_dict['response'] = value
-                        sub_trial_dict['expected_answer'] = expected_answer_dict[key] if expected_answer_dict else None
-                        sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
-                        if sub_trial_dict['expected_answer'] is not None:
-                            sub_trial_dict['is_correct'] = True if sub_trial_dict['response'] == sub_trial_dict['expected_answer'] else False
-                        result.append(sub_trial_dict)
-                else:
-                    doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
-                    doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
-                    result.append(doc_dict)
+                doc_dict['expected_answer'] = stringify_variables(doc_dict.get('answer', doc_dict.get('sequence', None)))
+                doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
+                doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+
+                doc_dict['theta_estimate'] = doc_dict.get('thetaEstimate', None)
+                doc_dict['theta_estimate2'] = doc_dict.get('thetaEstimate2', None)
+                doc_dict['theta_SE'] = doc_dict.get('thetaSE', None)
+                doc_dict['theta_SE2'] = doc_dict.get('thetaSE2', None)
+
+                result.append(doc_dict)
+                # if isinstance(response_dict, dict) :
+                #     doc_dict['item'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
+                #     rt_dict = doc_dict.get('rt', None)
+                #     expected_answer_dict = doc_dict.get('sequence', None)
+                #     for key, value in response_dict.items():
+                #         sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
+                #         sub_trial_dict['response'] = value
+                #         sub_trial_dict['expected_answer'] = expected_answer_dict[key] if expected_answer_dict else None
+                #         sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
+                #         if sub_trial_dict['expected_answer'] is not None:
+                #             sub_trial_dict['is_correct'] = True if sub_trial_dict['response'] == sub_trial_dict['expected_answer'] else False
+                #         result.append(sub_trial_dict)
+                # else:
+                #     doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
+                #     doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                #     result.append(doc_dict)
 
         except Exception as e:
             print(f"Error in get_trails: {e}")
