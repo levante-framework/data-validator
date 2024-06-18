@@ -6,6 +6,8 @@ import logging
 from datetime import datetime
 import json
 from utils import process_doc_dict, handle_nan
+from secret_services import secret_services
+import settings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,7 +32,10 @@ class FirestoreServices:
         except ValueError:
             # If the app does not exist, initialize it based on the app_name
             if app_name == 'assessment_site':
-                cred = credentials.Certificate(json.loads(os.environ['assessment_cred']))
+                assessment_cred = secret_services.access_secret_version(
+                    secret_id=settings.config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID'],
+                    version_id="latest")
+                cred = credentials.Certificate(json.loads(assessment_cred))
             else:
                 cred = credentials.ApplicationDefault()
 
@@ -38,9 +43,11 @@ class FirestoreServices:
             self.db = firestore.client(self.default_app)
 
             self.start_date = (datetime.strptime(start_date, "%m/%d/%Y")
-                               .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1, 1)
+                               .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1,
+                                                                                                                1)
             self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
-                               .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(2050, 1, 1)
+                             .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
+                2050, 1, 1)
         except Exception as e:
             logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
@@ -59,7 +66,7 @@ class FirestoreServices:
         except Exception as e:
             logging.error(f"Error in get_groups: {e}")
             return {}
-          
+
     def get_groups_levante(self, group_ids: list):
         result = []
         try:
@@ -67,7 +74,7 @@ class FirestoreServices:
             for doc in docs:
                 doc_dict = doc.to_dict()
                 doc_dict.update({
-                  'group_id': doc.id,
+                    'group_id': doc.id,
                 })
                 # Convert camelCase to snake_case and handle NaN values
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
@@ -276,7 +283,8 @@ class FirestoreServices:
 
     def get_trials(self, user_id: str, run_id: str, task_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection('trials').get()
+        total_docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
+            'trials').get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
@@ -412,7 +420,8 @@ class FirestoreServices:
 
     def get_assignments(self, lab_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('administrations').where('minimalOrgs.districts', 'array_contains', lab_id).get()
+        total_docs = self.db.collection('administrations').where('minimalOrgs.districts', 'array_contains',
+                                                                 lab_id).get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
@@ -487,17 +496,19 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
         return result
-      
+
     def get_trials_levante(self, user_id: str, run_id: str, task_id: str):
         result = []
         try:
             if os.environ.get('guest_mode', None):
-                docs = (self.db.collection('guests').document(user_id).collection('runs').document(run_id).collection('trials')
+                docs = (self.db.collection('guests').document(user_id).collection('runs').document(run_id).collection(
+                    'trials')
                         .where('serverTimestamp', '>=', self.start_date)
                         .where('serverTimestamp', '<=', self.end_date)
                         .get())
             else:
-                docs = (self.db.collection('users').document(user_id).collection('runs').document(run_id).collection('trials')
+                docs = (self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
+                    'trials')
                         .where('serverTimestamp', '>=', self.start_date)
                         .where('serverTimestamp', '<=', self.end_date)
                         .get())
@@ -521,8 +532,10 @@ class FirestoreServices:
                 doc_dict['server_timestamp'] = doc_dict.get('serverTimestamp', None)
 
                 doc_dict['item'] = stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None
-                doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None
-                doc_dict['expected_answer'] = stringify_variables(doc_dict.get('answer', doc_dict.get('sequence', None)))
+                doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get(
+                    'distractors') is not None else None
+                doc_dict['expected_answer'] = stringify_variables(
+                    doc_dict.get('answer', doc_dict.get('sequence', None)))
                 doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
                 doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
 

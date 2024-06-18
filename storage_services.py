@@ -2,20 +2,15 @@ from google.cloud import storage
 from google.oauth2 import service_account
 from datetime import datetime
 import json
-import settings
 import os
 
+import settings
+
 # Create a client
-if 'local' in settings.ENV:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = settings.local_admin_service_account
-    with open(settings.local_admin_service_account, 'r') as sa:
-        os.environ['project_id'] = json.load(sa).get("project_id", None)
-
-    cred = service_account.Credentials.from_service_account_file(filename=settings.local_admin_service_account)
+if 'local' in os.environ['ENV']:
+    cred = service_account.Credentials.from_service_account_file(filename=os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'))
     storage_client = storage.Client(credentials=cred)
-
 else:
-    os.environ['project_id'] = storage.Client().project
     storage_client = storage.Client()
 
 
@@ -62,7 +57,7 @@ class StorageServices:
         data_json = json.dumps(data, cls=CustomJSONEncoder)
         destination_blob_name = f"lab_{self.lab_id}_{self.source}_{self.timestamp}/{table_name}.json"
         try:
-            upload_blob_from_memory(bucket_name=settings.CORE_DATA_BUCKET_NAME, data=data_json,
+            upload_blob_from_memory(bucket_name=settings.config['CORE_DATA_BUCKET_NAME'], data=data_json,
                                     destination_blob_name=destination_blob_name,
                                     content_type='application/json')
             self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
@@ -72,8 +67,7 @@ class StorageServices:
 
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""
-        storage_client = storage.Client()
-        blobs = storage_client.list_blobs(settings.CORE_DATA_BUCKET_NAME, prefix=self.storage_prefix, delimiter=delimiter)
+        blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix, delimiter=delimiter)
 
         return [blob.name for blob in blobs if 'log' not in blob.name]
 

@@ -4,8 +4,8 @@ import settings
 import requests
 import functions_framework
 from flask import Flask, request
+from secret_services import secret_services
 from storage_services import StorageServices
-from secret_services import SecretServices
 from redivis_services import RedivisServices
 from entity_controller import EntityController
 from utils import *
@@ -15,18 +15,19 @@ logging.basicConfig(level=logging.INFO)
 
 @functions_framework.http
 def data_validator(request):
-    logging.info(f"running version {settings.version}, ENV: {settings.ENV}, project_id: {os.environ.get('project_id', None)}")
-    sec = SecretServices()
-    os.environ['assessment_cred'] = sec.access_secret_version(secret_id=settings.assessment_service_account_secret_id,
-                                                              version_id="latest")
+    settings.initialize_env_securities()
+    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}")
+    os.environ["REDIVIS_API_TOKEN"] = secret_services.access_secret_version(secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
+                                                                            version_id="latest")
 
-    admin_api_key = sec.access_secret_version(secret_id=settings.admin_firebase_api_key_secret_id, version_id="latest")
+    admin_api_key = secret_services.access_secret_version(secret_id=settings.config['VALIDATOR_API_SECRET_ID'],
+                                                          version_id="latest")
     admin_api_key = admin_api_key.strip().lower()
 
     # Sanitize API Keys
     api_key = request.headers.get('API-Key')
     api_key = api_key.strip().lower()
-
+    #
     if api_key != admin_api_key:
         return 'Invalid API Key', 403
 
@@ -47,7 +48,6 @@ def data_validator(request):
             end_date = request_json.get('end_date', None)  # '04/01/2024'
             group_ids = request_json.get('group_ids', [])
 
-
             results = []
             job = 1
             for lab_id in lab_ids:
@@ -67,13 +67,13 @@ def data_validator(request):
                             ec.set_values_for_consolidate()
                         else:
                             ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
-                        # logging.info(f"validation_log_list: {ec.validation_log}")
+                        logging.info(f"validation_log_list: {ec.validation_log}")
 
                         # GCP storage service
                         if is_save_to_storage:
                             logging.info(f"Saving data to GCP storage for lab_id: {lab_id}.")
                             storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
-                            # logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                            logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                         else:
                             output = {'title': f'Function executed successfully!',
                                       'valid_users_count': len(ec.valid_users),
@@ -123,8 +123,7 @@ def data_validator(request):
 # Or it can be triggered by a scheduled job to run on a regular basis
 # Using Firestore to get the list of lab_ids to pass to the data_validator
 def data_validator_trigger(http_request=None):
-    logging.info(f"running version {settings.version}, ENV: {settings.ENV}, project_id: "
-                 f"{os.environ.get('project_id', None)}")
+    logging.info(f"running version {settings.version}, project_id: {os.environ.get('project_id', None)}")
 
     client = get_secret_manager_client()
     admin_service_account = get_secret(settings.admin_service_account_secret_id, client)
