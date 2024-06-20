@@ -123,12 +123,12 @@ def data_validator(request):
 # Or it can be triggered by a scheduled job to run on a regular basis
 # Using Firestore to get the list of lab_ids to pass to the data_validator
 def data_validator_trigger(http_request=None):
-    logging.info(f"running version {settings.version}, project_id: {os.environ.get('project_id', None)}")
+    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}")
 
     client = get_secret_manager_client()
-    admin_service_account = get_secret(settings.admin_service_account_secret_id, client)
-    admin_public_key = get_secret(settings.admin_public_key_secret_id, client)
-    data_validator_url = get_secret(settings.data_validator_url_secret_id, client)
+    admin_service_account = get_secret(settings.config['ADMIN_SERVICE_ACCOUNT_SECRET_ID'], client)
+    admin_public_key = get_secret(settings.config['ADMIN_PUBLIC_KEY_SECRET_ID'], client)
+    data_validator_url = get_secret(settings.config['DATA_VALIDATOR_URL_SECRET_ID'], client)
     admin_app = initialize_firebase(admin_service_account)
 
     lab_ids = get_lab_ids(_request=http_request, app=admin_app)

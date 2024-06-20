@@ -1,8 +1,8 @@
 from pydantic import ValidationError
 import os
 import logging
-from core_models import Task, Variant, Group, District, School, Class, User, UserClass, UserGroup, UserAssignment, \
-    Assignment, AssignmentTask, Run, Trial, SurveyResponse
+import core_models
+import settings
 from firestore_services import FirestoreServices, stringify_variables
 from redivis_services import RedivisServices
 
@@ -65,7 +65,7 @@ class EntityController:
             logging.info("REGISTERED USER MODE:")
 
         logging.info("Now Validating Groups...")
-        self.set_groups(groups=fs_admin.get_groups(group_ids=group_ids))
+        self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_ids=group_ids))
 
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
@@ -73,21 +73,21 @@ class EntityController:
         logging.info(groups_result)
         self.validation_log['groups'] = groups_result
 
-        logging.info("Now Validating Schools...")
-        self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
-        schools_result = {"Valid": len(self.valid_schools),
-                          "Invalid": len(self.invalid_schools),
-                          }
-        logging.info(schools_result)
-        self.validation_log['schools'] = schools_result
-
-        logging.info("Now Validating Classes...")
-        self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
-        classes_result = {"Valid": len(self.valid_classes),
-                          "Invalid": len(self.invalid_classes),
-                          }
-        logging.info(classes_result)
-        self.validation_log['classes'] = classes_result
+        # logging.info("Now Validating Schools...")
+        # self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
+        # schools_result = {"Valid": len(self.valid_schools),
+        #                   "Invalid": len(self.invalid_schools),
+        #                   }
+        # logging.info(schools_result)
+        # self.validation_log['schools'] = schools_result
+        #
+        # logging.info("Now Validating Classes...")
+        # self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
+        # classes_result = {"Valid": len(self.valid_classes),
+        #                   "Invalid": len(self.invalid_classes),
+        #                   }
+        # logging.info(classes_result)
+        # self.validation_log['classes'] = classes_result
 
         logging.info("Now Validating Tasks and Variants...")
         self.set_tasks(tasks=fs_assessment.get_tasks())
@@ -142,7 +142,7 @@ class EntityController:
         logging.info("Now Validating Runs...")
         if self.valid_users:
             for user in self.valid_users:
-                self.set_runs(user=user, runs=fs_assessment.get_runs(user_id=user.user_id))
+                self.set_runs(user_id=user.user_id, runs=fs_assessment.get_runs(user_id=user.user_id))
             runs_result = {"Valid": len(self.valid_runs),
                            "Invalid": len(self.invalid_runs),
                            }
@@ -156,9 +156,11 @@ class EntityController:
         logging.info("Now Validating Trials...")
         if self.valid_runs:
             for run in self.valid_runs:
-                self.set_trials(run=run, trials=fs_assessment.get_trials(user_id=run.user_id,
-                                                                         run_id=run.run_id,
-                                                                         task_id=run.task_id))
+                self.set_trials(user_id=run.user_id,
+                                run_id=run.run_id,
+                                trials=fs_assessment.get_trials(user_id=run.user_id,
+                                                                run_id=run.run_id,
+                                                                task_id=run.task_id))
             trials_result = {"Valid": len(self.valid_trials),
                              "Invalid": len(self.invalid_trials),
                              }
@@ -183,7 +185,6 @@ class EntityController:
         self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
 
         runs_table = rs.get_tables(table_name="runs")
-        # logging.info(runs_table)
         if self.valid_users:
             for user in self.valid_users:
                 # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
@@ -258,7 +259,7 @@ class EntityController:
     def set_groups(self, groups: list):
         for group in groups:
             try:
-                group = Group(**group)
+                group = core_models.LevanteGroup(**group)
                 self.valid_groups.append(group)
 
             except ValidationError as e:
@@ -268,7 +269,7 @@ class EntityController:
     def set_districts(self, districts: list):
         for district in districts:
             try:
-                district = District(**district)
+                district = core_models.DistrictBase(**district)
                 self.valid_districts.append(district)
 
             except ValidationError as e:
@@ -278,7 +279,7 @@ class EntityController:
     def set_schools(self, schools: list):
         for school in schools:
             try:
-                school = School(**school)
+                school = core_models.SchoolBase(**school)
                 self.valid_schools.append(school)
 
             except ValidationError as e:
@@ -288,7 +289,7 @@ class EntityController:
     def set_classes(self, classes: list):
         for c in classes:
             try:
-                c = Class(**c)
+                c = core_models.SchoolBase(**c)
                 self.valid_classes.append(c)
 
             except ValidationError as e:
@@ -298,7 +299,7 @@ class EntityController:
     def set_tasks(self, tasks: list):
         for task in tasks:
             try:
-                task = Task(**task)
+                task = core_models.TaskBase(**task)
                 self.valid_tasks.append(task)
             except ValidationError as e:
                 for error in e.errors():
@@ -307,7 +308,7 @@ class EntityController:
     def set_variants(self, variants: list, task_id: str):
         for variant in variants:
             try:
-                variant = Variant(**variant)
+                variant = core_models.LevanteVariant(**variant)
                 self.valid_variants.append(variant)
             except ValidationError as e:
                 for error in e.errors():
@@ -315,14 +316,14 @@ class EntityController:
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
     def set_users(self, users):
-        User.set_valid_groups(self.valid_groups)
+        core_models.LevanteUser.set_valid_groups(self.valid_groups)
         for user in users:
             user_dict = user
             try:
                 # if self.source == "firestore" and not os.environ.get('guest_mode', None):
                 #     self.set_user_class(user)
                 #     self.set_user_assignment(user)
-                user = User(**user)
+                user = core_models.LevanteUser(**user)
                 self.valid_users.append(user)
 
                 self.set_user_group(user=user_dict)
@@ -331,10 +332,10 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_users.append({**error, 'id': user_dict['user_id']})
 
-    def set_survey_responses(self, user: User, survey_responses: list):
+    def set_survey_responses(self, user: core_models.LevanteUser, survey_responses: list):
         for survey_response in survey_responses:
             try:
-                self.valid_survey_responses.append(SurveyResponse(**survey_response))
+                self.valid_survey_responses.append(core_models.SurveyResponse(**survey_response))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(
@@ -347,7 +348,7 @@ class EntityController:
         current_groups = user_groups.get('current', [])
         for group_id in all_groups:
             try:
-                self.valid_user_group.append(UserGroup(
+                self.valid_user_group.append(core_models.UserGroup(
                     user_id=user_id,
                     group_id=group_id,
                     is_active=True if group_id in current_groups else False))
@@ -362,7 +363,7 @@ class EntityController:
         current_classes = user_classes.get('current', [])
         for class_id in all_classes:
             try:
-                self.valid_user_class.append(UserClass(
+                self.valid_user_class.append(core_models.UserClass(
                     user_id=user_id,
                     class_id=class_id,
                     is_active=True if class_id in current_classes else False))
@@ -376,7 +377,7 @@ class EntityController:
         assignments_started = user.get('assignmentsStarted', {})
         for key, value in assignments_assigned.items():
             try:
-                self.valid_user_assignment.append(UserAssignment(
+                self.valid_user_assignment.append(core_models.UserAssignment(
                     user_id=user_id,
                     assignment_id=key,
                     is_started=True if key in assignments_started.keys() else False,
@@ -391,7 +392,7 @@ class EntityController:
             try:
                 if self.source == "firestore":
                     self.set_assignment_task(assignment)
-                assignment = Assignment(**assignment)
+                assignment = core_models.Assignment(**assignment)
                 self.valid_assignments.append(assignment)
             except ValidationError as e:
                 for error in e.errors():
@@ -403,7 +404,7 @@ class EntityController:
         for task in tasks:
             task_id = task.get('taskId', None)
             try:
-                self.valid_assignment_task.append(AssignmentTask(
+                self.valid_assignment_task.append(core_models.AssignmentTask(
                     assignment_id=assignment_id,
                     task_id=task_id))
             except ValidationError as e:
@@ -411,23 +412,33 @@ class EntityController:
                     self.invalid_assignment_task.append(
                         {**error, 'id': f"a_id:{assignment['assignment_id']}, t_id:{task_id}"})
 
-    def set_runs(self, user: User, runs: list):
+    def set_runs(self, user_id: str, runs: list):
         for run in runs:
             try:
-                self.valid_runs.append(Run(**run))
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    self.valid_runs.append(core_models.LevanteRun(**run))
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    self.valid_runs.append(core_models.RoarRun(**run))
+                else:
+                    self.valid_trials.append(core_models.RunBase(**run))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_assignments.append(
-                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user.user_id}"})
+                    self.invalid_runs.append(
+                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user_id}"})
 
-    def set_trials(self, run: Run, trials: list):
+    def set_trials(self, user_id: str, run_id: str, trials: list):
         for trial in trials:
             try:
-                self.valid_trials.append(Trial(**trial))
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    self.valid_trials.append(core_models.LevanteTrial(**trial))
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    self.valid_trials.append(core_models.RoarTrial(**trial))
+                else:
+                    self.valid_trials.append(core_models.TrialBase(**trial))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append({**error,
-                                                'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}"})
+                                                'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}"})
 
     # def set_score_details(self, run: dict):
     # run_id = run.get('id', None)

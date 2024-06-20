@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import math
@@ -52,7 +53,7 @@ def camel_to_snake(camel_str):
 
 def handle_nan(value):
     if isinstance(value, float) and math.isnan(value):
-        return "NaN"
+        return None if settings.config['INSTANCE'] == 'LEVANTE' else "NaN"
     elif isinstance(value, dict):
         # Recursively handle NaN values in nested dictionaries
         return {key: handle_nan(val) for key, val in value.items()}

@@ -51,36 +51,37 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
-    def get_groups_roar(self, lab_id: str):
-        # Does not need to be chunked since groups are unique
-        try:
-            doc = self.db.collection('groups').document(lab_id).get()
-            doc_dict = doc.to_dict()
-            doc_dict.update({
-                'group_id': doc.id,
-            })
-            # Convert camelCase to snake_case and handle NaN values
-            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            # Return a list of dictionaries for EntityController functions to loop through
-            return [converted_doc_dict]
-        except Exception as e:
-            logging.error(f"Error in get_groups: {e}")
-            return {}
-
-    def get_groups_levante(self, group_ids: list):
+    def get_all_groups(self):
         result = []
         try:
             docs = self.db.collection('groups').get()
             for doc in docs:
-                doc_dict = doc.to_dict()
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 doc_dict.update({
                     'group_id': doc.id,
                 })
-                # Convert camelCase to snake_case and handle NaN values
                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                 result.append(converted_doc_dict)
+
         except Exception as e:
-            logging.error(f"Error in get_groups: {e}")
+            print(f"Error in get_groups_by_group_id_list: {e}")
+        return result
+
+    def get_groups_by_group_name_list(self, group_ids: list):
+        result = []
+        try:
+            docs = self.db.collection('groups').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                name = doc_dict.get('name', None)
+                if name in group_ids:
+                    doc_dict.update({
+                        'group_id': doc.id,
+                    })
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    result.append(converted_doc_dict)
+        except Exception as e:
+            print(f"Error in get_groups_by_group_id_list: {e}")
         return result
 
     def get_districts(self, lab_id: str):
@@ -98,6 +99,22 @@ class FirestoreServices:
         except Exception as e:
             logging.error(f"Error in get_districts: {e}")
             return {}
+
+    def get_districts_by_district_id_list(self, district_ids: list):
+        result = []
+        try:
+            docs = self.db.collection('districts').get()
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                if doc.id in district_ids:
+                    doc_dict.update({
+                        'district_id': doc.id,
+                    })
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    result.append(converted_doc_dict)
+        except Exception as e:
+            print(f"Error in get_districts_by_district_id_list: {e}")
+        return result
 
     def get_schools(self, lab_id: str, chunk_size=100):
         last_doc = None
@@ -227,6 +244,64 @@ class FirestoreServices:
                 logging.error(f"Error in get_users: {e}")
                 break
 
+    def get_users_by_group_name_list(self, valid_group_ids: list, chunk_size=100):
+        last_doc = None
+        total_docs = (self.db.collection('users')
+                      .where('groups.current', 'array_contains_any', valid_group_ids)
+                      .where('lastUpdated', '>=', self.start_date)
+                      .where('lastUpdated', '<=', self.end_date)
+                      .get())
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                if os.environ.get('guest_mode', None):
+                    if last_doc:
+                        docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('guests')
+                                .where('created', '>=', self.start_date)
+                                .where('created', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .get())
+                else:
+                    if last_doc:
+                        docs = (self.db.collection('users')
+                                .where('groups.current', 'array_contains_any', valid_group_ids)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .start_after(last_doc)
+                                .get())
+                    else:
+                        docs = (self.db.collection('users')
+                                .where('groups.current', 'array_contains_any', valid_group_ids)
+                                .where('lastUpdated', '>=', self.start_date)
+                                .where('lastUpdated', '<=', self.end_date)
+                                .limit(chunk_size)
+                                .get())
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'user_id': doc.id,
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_users_by_group_name_list: {e}")
+                break
+
     def get_runs(self, user_id: str, chunk_size=100):
         last_doc = None
         total_docs = self.db.collection('users').document(user_id).collection('runs').get()
@@ -269,6 +344,12 @@ class FirestoreServices:
                              f"run chunks for user {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
+                    test_comp_scores = doc_dict.get('scores', {}).get('raw', {}).get('composite', {}).get('test', {})
+                    doc_dict['num_attempted'] = test_comp_scores.get('numAttempted', None)
+                    doc_dict['num_correct'] = test_comp_scores.get('numCorrect', None)
+                    doc_dict['test_comp_theta_estimate'] = test_comp_scores.get('thetaEstimate', None)
+                    doc_dict['test_comp_theta_se'] = test_comp_scores.get('thetaSE', None)
+
                     doc_dict.update({
                         'run_id': doc.id,
                         'user_id': user_id
