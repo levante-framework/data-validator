@@ -11,8 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 class EntityController:
 
-    def __init__(self, is_from_firestore: bool):
-        self.source = "firestore" if is_from_firestore else "redivis"
+    def __init__(self):
         self.validation_log = {}
 
         self.valid_groups = []
@@ -65,7 +64,12 @@ class EntityController:
             logging.info("REGISTERED USER MODE:")
 
         logging.info("Now Validating Groups...")
-        self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_ids=group_ids))
+        if settings.config['INSTANCE'] == 'ROAR':
+            self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
+        elif settings.config['INSTANCE'] == 'LEVANTE':
+            self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_name_list=group_ids))
+        else:
+            logging.info("Can't set groups without specifying instance.")
 
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
@@ -73,21 +77,30 @@ class EntityController:
         logging.info(groups_result)
         self.validation_log['groups'] = groups_result
 
-        # logging.info("Now Validating Schools...")
-        # self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
-        # schools_result = {"Valid": len(self.valid_schools),
-        #                   "Invalid": len(self.invalid_schools),
-        #                   }
-        # logging.info(schools_result)
-        # self.validation_log['schools'] = schools_result
-        #
-        # logging.info("Now Validating Classes...")
-        # self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
-        # classes_result = {"Valid": len(self.valid_classes),
-        #                   "Invalid": len(self.invalid_classes),
-        #                   }
-        # logging.info(classes_result)
-        # self.validation_log['classes'] = classes_result
+        if settings.config['INSTANCE'] == 'ROAR':
+            logging.info("Now Validating Districts...")
+            self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
+            districts_result = {"Valid": len(self.valid_districts),
+                                "Invalid": len(self.invalid_districts),
+                                }
+            logging.info(districts_result)
+            self.validation_log['districts'] = districts_result
+
+            logging.info("Now Validating Schools...")
+            self.set_schools(schools=fs_admin.get_schools(lab_id=lab_id))
+            schools_result = {"Valid": len(self.valid_schools),
+                              "Invalid": len(self.invalid_schools),
+                              }
+            logging.info(schools_result)
+            self.validation_log['schools'] = schools_result
+
+            logging.info("Now Validating Classes...")
+            self.set_classes(classes=fs_admin.get_classes(lab_id=lab_id))
+            classes_result = {"Valid": len(self.valid_classes),
+                              "Invalid": len(self.invalid_classes),
+                              }
+            logging.info(classes_result)
+            self.validation_log['classes'] = classes_result
 
         logging.info("Now Validating Tasks and Variants...")
         self.set_tasks(tasks=fs_assessment.get_tasks())
@@ -107,11 +120,16 @@ class EntityController:
         self.validation_log['tasks'] = tasks_result
         logging.info(tasks_result)
 
-        # self.set_districts(districts=fs_admin.get_districts(lab_id=lab_id))
-
         # self.set_assignments(assignments=fs_admin.get_assignments())
+
         logging.info("Now Validating Users and UserGroups...")
-        self.set_users(users=fs_assessment.get_users(valid_group_ids=[group.group_id for group in self.valid_groups]))
+        if settings.config['INSTANCE'] == 'ROAR':
+            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+        elif settings.config['INSTANCE'] == 'LEVANTE':
+            self.set_users(users=fs_assessment.get_users_by_group_id_list(valid_group_ids=[group.group_id for group in self.valid_groups]))
+        else:
+            logging.info("Can't set users without specifying instance.")
+
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }
@@ -171,43 +189,43 @@ class EntityController:
             self.validation_log['trials'] = "No valid trials were found."
             logging.info("Trials result: No valid trials were found.")
 
-    def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
-        rs = RedivisServices(is_from_firestore=False)
-        rs.set_dataset(lab_id=lab_id)
+    # def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
+    #     rs = RedivisServices(is_from_firestore=False)
+    #     rs.set_dataset(lab_id=lab_id)
+    #
+    #     self.set_groups(groups=rs.get_tables(table_name="groups"))
+    #     self.set_districts(districts=rs.get_tables(table_name="districts"))
+    #     self.set_schools(schools=rs.get_tables(table_name="schools"))
+    #     self.set_classes(classes=rs.get_tables(table_name="classes"))
+    #     self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
+    #     self.set_variants(variants=rs.get_tables(table_name="variants"))
+    #     self.set_users(users=rs.get_tables(table_name="users"))
+    #     self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
+    #
+    #     runs_table = rs.get_tables(table_name="runs")
+    #     if self.valid_users:
+    #         for user in self.valid_users:
+    #             # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+    #             self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
+    #                                                                  spec_value=user.user_id))
+    #     else:
+    #         self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
+    #
+    #     trials_table = rs.get_tables(table_name="trials")
+    #     if self.valid_runs:
+    #         for run in self.valid_runs:
+    #             self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
+    #                                                                    spec_value=run.run_id))
+    #     else:
+    #         self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
 
-        self.set_groups(groups=rs.get_tables(table_name="groups"))
-        self.set_districts(districts=rs.get_tables(table_name="districts"))
-        self.set_schools(schools=rs.get_tables(table_name="schools"))
-        self.set_classes(classes=rs.get_tables(table_name="classes"))
-        self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
-        self.set_variants(variants=rs.get_tables(table_name="variants"))
-        self.set_users(users=rs.get_tables(table_name="users"))
-        self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
-
-        runs_table = rs.get_tables(table_name="runs")
-        if self.valid_users:
-            for user in self.valid_users:
-                # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
-                self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
-                                                                     spec_value=user.user_id))
-        else:
-            self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
-
-        trials_table = rs.get_tables(table_name="trials")
-        if self.valid_runs:
-            for run in self.valid_runs:
-                self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
-                                                                       spec_value=run.run_id))
-        else:
-            self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
-
-    def set_values_for_consolidate(self):
-        rs = RedivisServices(is_from_firestore=False)
-
-        lab_lists = rs.get_datasets_list()
-        logging.info(lab_lists)
-        for lab in lab_lists:
-            self.set_values_from_redivis(lab)
+    # def set_values_for_consolidate(self):
+    #     rs = RedivisServices(is_from_firestore=False)
+    #
+    #     lab_lists = rs.get_datasets_list()
+    #     logging.info(lab_lists)
+    #     for lab in lab_lists:
+    #         self.set_values_from_redivis(lab)
 
     def get_valid_data(self):
         valid_dict = {
@@ -259,7 +277,12 @@ class EntityController:
     def set_groups(self, groups: list):
         for group in groups:
             try:
-                group = core_models.LevanteGroup(**group)
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    group = core_models.LevanteGroup(**group)
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    group = core_models.RoarGroup(**group)
+                else:
+                    group = core_models.GroupBase(**group)
                 self.valid_groups.append(group)
 
             except ValidationError as e:
@@ -299,7 +322,12 @@ class EntityController:
     def set_tasks(self, tasks: list):
         for task in tasks:
             try:
-                task = core_models.TaskBase(**task)
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    task = core_models.TaskBase(**task)
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    task = core_models.RoarTask(**task)
+                else:
+                    task = core_models.TaskBase(**task)
                 self.valid_tasks.append(task)
             except ValidationError as e:
                 for error in e.errors():
@@ -308,7 +336,13 @@ class EntityController:
     def set_variants(self, variants: list, task_id: str):
         for variant in variants:
             try:
-                variant = core_models.LevanteVariant(**variant)
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    variant = core_models.LevanteVariant(**variant)
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    variant = core_models.VariantBase
+                else:
+                    variant = core_models.VariantBase
+
                 self.valid_variants.append(variant)
             except ValidationError as e:
                 for error in e.errors():
@@ -316,16 +350,17 @@ class EntityController:
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
     def set_users(self, users):
-        core_models.LevanteUser.set_valid_groups(self.valid_groups)
         for user in users:
             user_dict = user
             try:
-                # if self.source == "firestore" and not os.environ.get('guest_mode', None):
-                #     self.set_user_class(user)
-                #     self.set_user_assignment(user)
-                user = core_models.LevanteUser(**user)
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    core_models.LevanteUser.set_valid_groups(self.valid_groups)
+                    user = core_models.LevanteUser(**user)
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    user = core_models.UserBase(**user)
+                else:
+                    user = core_models.UserBase(**user)
                 self.valid_users.append(user)
-
                 self.set_user_group(user=user_dict)
 
             except ValidationError as e:
@@ -390,8 +425,7 @@ class EntityController:
     def set_assignments(self, assignments: list):
         for assignment in assignments:
             try:
-                if self.source == "firestore":
-                    self.set_assignment_task(assignment)
+                self.set_assignment_task(assignment)
                 assignment = core_models.Assignment(**assignment)
                 self.valid_assignments.append(assignment)
             except ValidationError as e:

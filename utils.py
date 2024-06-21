@@ -10,14 +10,11 @@ from firebase_admin import credentials
 from google.cloud import secretmanager
 
 
-def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
-                 prefix_name):
+def params_check(lab_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis):
     if not lab_id:
         return "Parameter 'lab_id' needs to be specified.", 400
     elif not isinstance(lab_id, str):
         return "Parameter 'lab_id' needs to be a valid string.", 400
-    if not isinstance(is_from_firestore, bool):
-        return "Parameter 'is_from_firestore' has to be a bool value.", 400
     if not isinstance(is_save_to_storage, bool):
         return "Parameter 'is_save_to_storage' has to be a bool value.", 400
     if not isinstance(is_upload_to_redivis, bool):

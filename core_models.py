@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator
-from typing import Optional, Union, List, Set
+from typing import Optional, Union, List, Set, Any
 from datetime import datetime
 
 
@@ -93,9 +93,6 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     last_updated: datetime
 
-    class Config:
-        extra = Extra.allow
-
 
 class RoarTask(TaskBase):
     game_config: Optional[dict] = None
@@ -108,9 +105,6 @@ class VariantBase(BaseModel):
     variant_id: str
     task_id: str
     last_updated: datetime
-
-    class Config:
-        extra = Extra.allow
 
 
 class LevanteVariant(VariantBase):
@@ -154,18 +148,18 @@ class LevanteUser(UserBase):
     def set_valid_groups(cls, groups: List[LevanteGroup]):
         cls._valid_group_ids = {group.group_id for group in groups}
 
-    @model_validator(mode='before')
-    def check_user_in_valid_groups(cls, values):
-        user_id = values.get('user_id', None)
-        group_info = values.get('groups', {})
-        current_group_ids = group_info.get('current', [])
-        if current_group_ids:
-            for group_id in current_group_ids:
-                if group_id not in cls._valid_group_ids:
-                    raise ValueError(f'{user_id} has current group_id {group_id} not in the list of valid groups.')
-        else:
-            raise ValueError(f'{user_id} do not have group information.')
-        return values
+    # @model_validator(mode='before')
+    # def check_user_in_valid_groups(cls, values):
+    #     user_id = values.get('user_id', None)
+    #     group_info = values.get('groups', {})
+    #     current_group_ids = group_info.get('current', [])
+    #     if current_group_ids:
+    #         for group_id in current_group_ids:
+    #             if group_id not in cls._valid_group_ids:
+    #                 raise ValueError(f'{user_id} has current group_id {group_id} not in the list of valid groups.')
+    #     else:
+    #         raise ValueError(f'{user_id} do not have group information.')
+    #     return values
 
     # @model_validator(mode='before')
     # def check_birth_year_for_students(cls, values):
@@ -217,7 +211,7 @@ class TrialBase(BaseModel):
     item: Optional[str] = None
     answer: Optional[Union[int, str, float]] = None
     response: Optional[Union[int, str, float]] = None
-    correct: Optional[int] = None
+    correct: Optional[bool] = None
 
     response_source: Optional[str] = None
 
@@ -225,7 +219,7 @@ class TrialBase(BaseModel):
     time_elapsed: Optional[int] = None
 
     # Time related fields
-    rt: Optional[Union[int, str]] = None
+    rt: Optional[Union[int, str, dict]] = None
     server_timestamp: datetime
 
 
@@ -245,8 +239,9 @@ class LevanteTrial(TrialBase):
     # For some roar tasks
     theta_estimate: Optional[float] = None
     theta_estimate2: Optional[float] = None
-    theta_SE: Optional[float] = None
-    theta_SE2: Optional[float] = None
+    theta_se: Optional[float] = None
+    theta_se2: Optional[float] = None
+
 
 
 class SurveyResponse(BaseModel):

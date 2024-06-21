@@ -14,8 +14,7 @@ class RedivisServices:
     dataset = None
     lab_id = None
 
-    def __init__(self, is_from_firestore: bool):
-        self.source = "firestore" if is_from_firestore else "redivis"
+    def __init__(self):
         self.organization = redivis.organization(settings.config['INSTANCE'])
         self.upload_to_redivis_log = []
 
@@ -39,7 +38,7 @@ class RedivisServices:
             table = (
                 self.dataset
                 .table(table_name)
-                .create(description=f"{table_name}_table from {self.source}",
+                .create(description=f"{table_name}_table",
                         upload_merge_strategy='replace')
             )
 

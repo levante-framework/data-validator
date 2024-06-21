@@ -4,10 +4,7 @@ import settings
 import requests
 import functions_framework
 from flask import Flask, request
-from secret_services import secret_services
-from storage_services import StorageServices
-from redivis_services import RedivisServices
-from entity_controller import EntityController
+
 from utils import *
 
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +13,12 @@ logging.basicConfig(level=logging.INFO)
 @functions_framework.http
 def data_validator(request):
     settings.initialize_env_securities()
-    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}")
+
+    from secret_services import secret_services
+    from storage_services import StorageServices
+    from redivis_services import RedivisServices
+    from entity_controller import EntityController
+    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}, instance: {settings.config['INSTANCE']}")
     os.environ["REDIVIS_API_TOKEN"] = secret_services.access_secret_version(secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
                                                                             version_id="latest")
 
@@ -35,38 +37,30 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_ids = request_json.get('lab_ids', [])
+            group_ids = None if not request_json.get('group_ids', None) else request_json.get('group_ids')
             is_from_guest = request_json.get('is_from_guest', False)
             if is_from_guest:
                 os.environ['guest_mode'] = "True"
 
-            is_from_firestore = request_json.get('is_from_firestore', False)
             is_save_to_storage = request_json.get('is_save_to_storage', False)
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
-            prefix_name = request_json.get('prefix_name', None)
-            start_date = request_json.get('start_date', None) # '04/01/2024'
-            end_date = request_json.get('end_date', None)  # '04/01/2024'
-            group_ids = request_json.get('group_ids', [])
+            prefix_name = None if not request_json.get('prefix_name', None) else request_json.get('prefix_name')
+            start_date = None if not request_json.get('start_date', None) else request_json.get('start_date')
+            end_date = None if not request_json.get('end_date', None) else request_json.get('end_date')
 
             results = []
             job = 1
             for lab_id in lab_ids:
                 logging.info(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
-                if params_check(lab_id, is_from_firestore, is_save_to_storage,
-                                is_upload_to_redivis, is_release_on_redivis,
-                                prefix_name):
-                    storage = StorageServices(lab_id=lab_id, is_from_firestore=is_from_firestore)
-                    ec = EntityController(is_from_firestore=is_from_firestore)
+                if params_check(lab_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis):
+                    storage = StorageServices(lab_id=lab_id)
+                    ec = EntityController()
                     if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
                         storage.storage_prefix = prefix_name
                     else:  # if no prefix_name specified, start validation process.
-                        if is_from_firestore:
-                            logging.info(f'Getting data from Firestore for lab_id: {lab_id}.')
-                            ec.set_values_from_firestore(lab_id=lab_id)
-                        elif lab_id != 'all':
-                            ec.set_values_for_consolidate()
-                        else:
-                            ec.set_values_from_redivis(lab_id=lab_id, is_consolidate=False)
+                        logging.info(f'Getting data from Firestore for lab_id: {lab_id}.')
+                        ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date, group_ids=group_ids)
                         logging.info(f"validation_log_list: {ec.validation_log}")
 
                         # GCP storage service
@@ -85,7 +79,7 @@ def data_validator(request):
                     # redivis service
                     if is_upload_to_redivis:
                         logging.info(f"Uploading data to Redivis for lab_id: {lab_id}.")
-                        rs = RedivisServices(is_from_firestore=is_from_firestore)
+                        rs = RedivisServices()
                         rs.set_dataset(lab_id=lab_id)
                         rs.create_dateset_version()
                         # rs.save_to_redivis_table(file_name="lab_guests_firestore_2024-03-11-19-23-32/trials.json")

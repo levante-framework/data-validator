@@ -20,7 +20,6 @@ def stringify_variables(variable):
     else:
         return f'Error converting to string: {variable}'
 
-
 class FirestoreServices:
     default_app = None
     db = None
@@ -51,37 +50,41 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f"Error in {app_name} FirestoreService init: {e}")
 
-    def get_all_groups(self):
-        result = []
+    def get_groups(self, lab_id: str):
+        # Does not need to be chunked since groups are unique
         try:
-            docs = self.db.collection('groups').get()
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict.update({
-                    'group_id': doc.id,
-                })
-                converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                result.append(converted_doc_dict)
-
+            doc = self.db.collection('groups').document(lab_id).get()
+            doc_dict = doc.to_dict()
+            doc_dict.update({
+                'group_id': doc.id,
+            })
+            # Convert camelCase to snake_case and handle NaN values
+            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+            # Return a list of dictionaries for EntityController functions to loop through
+            return [converted_doc_dict]
         except Exception as e:
-            print(f"Error in get_groups_by_group_id_list: {e}")
-        return result
+            logging.error(f"Error in get_groups: {e}")
+            return {}
 
-    def get_groups_by_group_name_list(self, group_ids: list):
+    def get_groups_by_group_name_list(self, group_name_list: list):
         result = []
         try:
-            docs = self.db.collection('groups').get()
+            docs = (self.db.collection('groups')
+                    .where('createdAt', '>=', self.start_date)
+                    .where('createdAt', '<=', self.end_date)
+                    .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 name = doc_dict.get('name', None)
-                if name in group_ids:
+                if not group_name_list or name in group_name_list:
                     doc_dict.update({
                         'group_id': doc.id,
                     })
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     result.append(converted_doc_dict)
+
         except Exception as e:
-            print(f"Error in get_groups_by_group_id_list: {e}")
+            print(f"Error in get_groups_by_group_name_list: {e}")
         return result
 
     def get_districts(self, lab_id: str):
@@ -100,20 +103,24 @@ class FirestoreServices:
             logging.error(f"Error in get_districts: {e}")
             return {}
 
-    def get_districts_by_district_id_list(self, district_ids: list):
+    def get_districts_by_district_name_list(self, district_name_list: list = None):
         result = []
         try:
-            docs = self.db.collection('districts').get()
+            docs = (self.db.collection('districts')
+                    .where('createdAt', '>=', self.start_date)
+                    .where('createdAt', '<=', self.end_date)
+                    .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                if doc.id in district_ids:
+                name = doc_dict.get('name', None)
+                if not district_name_list or name in district_name_list:
                     doc_dict.update({
                         'district_id': doc.id,
                     })
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     result.append(converted_doc_dict)
         except Exception as e:
-            print(f"Error in get_districts_by_district_id_list: {e}")
+            print(f"Error in get_districts_by_district_name_list: {e}")
         return result
 
     def get_schools(self, lab_id: str, chunk_size=100):
@@ -244,7 +251,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_users: {e}")
                 break
 
-    def get_users_by_group_name_list(self, valid_group_ids: list, chunk_size=100):
+    def get_users_by_group_id_list(self, valid_group_ids: list, chunk_size=100):
         last_doc = None
         total_docs = (self.db.collection('users')
                       .where('groups.current', 'array_contains_any', valid_group_ids)
@@ -260,6 +267,7 @@ class FirestoreServices:
                         docs = (self.db.collection('guests')
                                 .where('created', '>=', self.start_date)
                                 .where('created', '<=', self.end_date)
+                                .order_by('created')
                                 .limit(chunk_size)
                                 .start_after(last_doc)
                                 .get())
@@ -267,6 +275,7 @@ class FirestoreServices:
                         docs = (self.db.collection('guests')
                                 .where('created', '>=', self.start_date)
                                 .where('created', '<=', self.end_date)
+                                .order_by('created')
                                 .limit(chunk_size)
                                 .get())
                 else:
@@ -275,6 +284,7 @@ class FirestoreServices:
                                 .where('groups.current', 'array_contains_any', valid_group_ids)
                                 .where('lastUpdated', '>=', self.start_date)
                                 .where('lastUpdated', '<=', self.end_date)
+                                .order_by('lastUpdated')
                                 .limit(chunk_size)
                                 .start_after(last_doc)
                                 .get())
@@ -283,6 +293,7 @@ class FirestoreServices:
                                 .where('groups.current', 'array_contains_any', valid_group_ids)
                                 .where('lastUpdated', '>=', self.start_date)
                                 .where('lastUpdated', '<=', self.end_date)
+                                .order_by('lastUpdated')
                                 .limit(chunk_size)
                                 .get())
                 if not docs:
@@ -299,7 +310,7 @@ class FirestoreServices:
                     yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
-                logging.error(f"Error in get_users_by_group_name_list: {e}")
+                logging.error(f"Error in get_users_by_group_id_list: {e}")
                 break
 
     def get_runs(self, user_id: str, chunk_size=100):
@@ -345,14 +356,14 @@ class FirestoreServices:
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     test_comp_scores = doc_dict.get('scores', {}).get('raw', {}).get('composite', {}).get('test', {})
-                    doc_dict['num_attempted'] = test_comp_scores.get('numAttempted', None)
-                    doc_dict['num_correct'] = test_comp_scores.get('numCorrect', None)
-                    doc_dict['test_comp_theta_estimate'] = test_comp_scores.get('thetaEstimate', None)
-                    doc_dict['test_comp_theta_se'] = test_comp_scores.get('thetaSE', None)
 
                     doc_dict.update({
                         'run_id': doc.id,
-                        'user_id': user_id
+                        'user_id': user_id,
+                        'num_attempted': test_comp_scores.get('numAttempted', None),
+                        'num_correct': test_comp_scores.get('numCorrect', None),
+                        'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', None),
+                        'test_comp_theta_se': test_comp_scores.get('thetaSE', None)
                     })
                     # Convert camelCase to snake_case and handle NaN values
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
@@ -414,26 +425,39 @@ class FirestoreServices:
                     f"trial chunks of run {run_id} for user {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
-                    # Add identifiers to the dictionary
                     doc_dict.update({
                         'trial_id': doc.id,
                         'user_id': user_id,
                         'run_id': run_id,
                         'task_id': task_id,
-                        # Pop required Firekit attributes
-                        'correct': handle_nan(doc_dict.pop('correct', None)),
-                        'assessment_stage': handle_nan(doc_dict.pop('assessment_stage', None)),
-                        # Pop default jsPsych data attributes
-                        'trial_index': handle_nan(doc_dict.pop('trial_index', None)),
-                        'trial_type': handle_nan(doc_dict.pop('trial_type', None)),
-                        'time_elapsed': handle_nan(doc_dict.pop('time_elapsed', None)),
                     })
+                    # Add identifiers to the dictionary
+                    if settings.config['INSTANCE'] == 'ROAR':
+                        doc_dict.update({
+                            # Pop required Firekit attributes
+                            'correct': handle_nan(doc_dict.pop('correct', None)),
+                            'assessment_stage': handle_nan(doc_dict.pop('assessment_stage', None)),
+                            # Pop default jsPsych data attributes
+                            'trial_index': handle_nan(doc_dict.pop('trial_index', None)),
+                            'trial_type': handle_nan(doc_dict.pop('trial_type', None)),
+                            'time_elapsed': handle_nan(doc_dict.pop('time_elapsed', None)),
+                        })
 
-                    # Ignore keys which we do not want duplicated in trial_attributes
-                    ignore_keys = ['trial_id', 'user_id', 'run_id', 'task_id']
-                    # Process the remaining doc_dict keys
-                    doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
-                    yield doc_dict
+                        # Ignore keys which we do not want duplicated in trial_attributes
+                        ignore_keys = ['trial_id', 'user_id', 'run_id', 'task_id']
+                        # Process the remaining doc_dict keys
+                        doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
+                        converted_doc_dict = doc_dict
+                    else:
+                        doc_dict.update({
+                            'item': stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None,
+                            'distractors': stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None,
+                            'answer': doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None))),
+                            'response': stringify_variables(doc_dict.get('response', None)),
+                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                        })
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
                 logging.error(f"Error in get_trails: {e}")
@@ -578,71 +602,3 @@ class FirestoreServices:
             print(f"Error in get_survey_responses: {e}")
         return result
 
-    def get_trials_levante(self, user_id: str, run_id: str, task_id: str):
-        result = []
-        try:
-            if os.environ.get('guest_mode', None):
-                docs = (self.db.collection('guests').document(user_id).collection('runs').document(run_id).collection(
-                    'trials')
-                        .where('serverTimestamp', '>=', self.start_date)
-                        .where('serverTimestamp', '<=', self.end_date)
-                        .get())
-            else:
-                docs = (self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
-                    'trials')
-                        .where('serverTimestamp', '>=', self.start_date)
-                        .where('serverTimestamp', '<=', self.end_date)
-                        .get())
-
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                doc_dict['trial_id'] = doc.id
-                doc_dict['user_id'] = user_id
-                doc_dict['run_id'] = run_id
-                doc_dict['task_id'] = task_id
-
-                doc_dict['trial_index'] = doc_dict.get('trialIndex', doc_dict.get('trial_index', None))
-                doc_dict['is_correct'] = doc_dict.get('correct', None)
-                doc_dict['is_practice'] = doc_dict.get('isPracticeTrial', None)
-                doc_dict['corpus_trial_type'] = doc_dict.get('corpusTrialType', None)
-                doc_dict['assessment_stage'] = doc_dict.get('assessment_stage', None)
-                doc_dict['response_type'] = doc_dict.get('responseType', doc_dict.get('response_type', None))
-                doc_dict['response_source'] = doc_dict.get('responseSource', doc_dict.get('response_source', None))
-
-                doc_dict['time_elapsed'] = doc_dict.get('time_elapsed', None)
-                doc_dict['server_timestamp'] = doc_dict.get('serverTimestamp', None)
-
-                doc_dict['item'] = stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None
-                doc_dict['distract_options'] = stringify_variables(doc_dict['distractors']) if doc_dict.get(
-                    'distractors') is not None else None
-                doc_dict['expected_answer'] = stringify_variables(
-                    doc_dict.get('answer', doc_dict.get('sequence', None)))
-                doc_dict['response'] = stringify_variables(doc_dict.get('response', None))
-                doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
-
-                doc_dict['theta_estimate'] = doc_dict.get('thetaEstimate', None)
-                doc_dict['theta_estimate2'] = doc_dict.get('thetaEstimate2', None)
-                doc_dict['theta_SE'] = doc_dict.get('thetaSE', None)
-                doc_dict['theta_SE2'] = doc_dict.get('thetaSE2', None)
-
-                result.append(doc_dict)
-                # if isinstance(response_dict, dict) :
-                #     doc_dict['item'] = stringify_variables(doc_dict['sequence']) if doc_dict.get('sequence') is not None else None
-                #     rt_dict = doc_dict.get('rt', None)
-                #     expected_answer_dict = doc_dict.get('sequence', None)
-                #     for key, value in response_dict.items():
-                #         sub_trial_dict = {'sub_trial_id': int(key), **doc_dict}
-                #         sub_trial_dict['response'] = value
-                #         sub_trial_dict['expected_answer'] = expected_answer_dict[key] if expected_answer_dict else None
-                #         sub_trial_dict['rt'] = rt_dict[key] if rt_dict else None
-                #         if sub_trial_dict['expected_answer'] is not None:
-                #             sub_trial_dict['is_correct'] = True if sub_trial_dict['response'] == sub_trial_dict['expected_answer'] else False
-                #         result.append(sub_trial_dict)
-                # else:
-                #     doc_dict['response'] = stringify_variables(doc_dict['response']) if doc_dict.get('response') is not None else None
-                #     doc_dict['rt'] = stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
-                #     result.append(doc_dict)
-
-        except Exception as e:
-            print(f"Error in get_trails: {e}")
-        return result

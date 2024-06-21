@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 import os
 import json
-from secret_services import secret_services
 
 # Global configuration variables
 config = {
@@ -26,15 +25,16 @@ def initialize_env_securities():
     else:
         load_dotenv()
         os.environ['ENV'] = "local"
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
         with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
             os.environ['project_id'] = json.load(sa).get('project_id', None)
 
+    print(os.environ.get('project_id', None))
+
     if 'levante' in os.environ['project_id']:
         config['INSTANCE'] = 'LEVANTE'
-        config['CORE_DATA_BUCKET_NAME'] = 'firebase-redivis-pipeline'
-        config['EXTERNAL_DATA_BUCKET_NAME'] = 'firebase-redivis-pipeline-external'
-        admin_public_key_secret_id = 'adminPublicKey'
-        data_validator_url_secret_id = "dataValidatorUrl"
+        config['CORE_DATA_BUCKET_NAME'] = 'levante-roar-data-bucket-dev'
+        config['EXTERNAL_DATA_BUCKET_NAME'] = 'levante-external-data'
         config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID'] = 'assessmentServiceAccount'
         config['VALIDATOR_API_SECRET_ID'] = 'validatorApiKey'
 
