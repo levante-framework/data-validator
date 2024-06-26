@@ -20,6 +20,13 @@ def stringify_variables(variable):
     else:
         return f'Error converting to string: {variable}'
 
+
+# Helper function to split the list into chunks of max 30 items
+def chunked_list(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
 class FirestoreServices:
     default_app = None
     db = None
@@ -130,19 +137,15 @@ class FirestoreServices:
         current_chunk = 0
         while True:
             try:
+                query = (self.db.collection('schools')
+                         .where('districtId', '==', lab_id)
+                         .limit(chunk_size))
                 if last_doc:
-                    docs = (self.db.collection('schools')
-                            .where('districtId', '==', lab_id)
-                            .limit(chunk_size)
-                            .start_after(last_doc)
-                            .get())
-                else:
-                    docs = (self.db.collection('schools')
-                            .where('districtId', '==', lab_id)
-                            .limit(chunk_size)
-                            .get())
+                    query = query.start_after(last_doc)
+                docs = query.get()
                 if not docs:
                     break
+
                 current_chunk += 1
                 logging.info(f"Setting schools... processing chunk {current_chunk} of {total_chunks} school chunks.")
                 for doc in docs:
@@ -165,19 +168,15 @@ class FirestoreServices:
         current_chunk = 0
         while True:
             try:
+                query = (self.db.collection('classes')
+                         .where('districtId', '==', lab_id)
+                         .limit(chunk_size))
                 if last_doc:
-                    docs = (self.db.collection('classes')
-                            .where('districtId', '==', lab_id)
-                            .limit(chunk_size)
-                            .start_after(last_doc)
-                            .get())
-                else:
-                    docs = (self.db.collection('classes')
-                            .where('districtId', '==', lab_id)
-                            .limit(chunk_size)
-                            .get())
+                    query = query.start_after(last_doc)
+                docs = query.get()
                 if not docs:
                     break
+
                 current_chunk += 1
                 logging.info(f"Setting classes... processing chunk {current_chunk} of {total_chunks} class chunks.")
                 for doc in docs:
@@ -193,163 +192,76 @@ class FirestoreServices:
                 logging.error(f"Error in get_classes: {e}")
                 break
 
-    def get_users(self, lab_id: str, chunk_size=100):
-        last_doc = None
-        total_docs = (self.db.collection('users')
-                      .where('districts.current', 'array_contains', lab_id)
-                      .where('lastUpdated', '>=', self.start_date)
-                      .where('lastUpdated', '<=', self.end_date)
-                      .get())
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                if os.environ.get('guest_mode', None):
-                    if last_doc:
-                        docs = (self.db.collection('guests')
-                                .where('created', '>=', self.start_date)
-                                .where('created', '<=', self.end_date)
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('guests')
-                                .where('created', '>=', self.start_date)
-                                .where('created', '<=', self.end_date)
-                                .limit(chunk_size)
-                                .get())
-                else:
-                    if last_doc:
-                        docs = (self.db.collection('users')
-                                .where('districts.current', 'array_contains', lab_id)
-                                .where('lastUpdated', '>=', self.start_date)
-                                .where('lastUpdated', '<=', self.end_date)
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('users')
-                                .where('districts.current', 'array_contains', lab_id)
-                                .where('lastUpdated', '>=', self.start_date)
-                                .where('lastUpdated', '<=', self.end_date)
-                                .limit(chunk_size)
-                                .get())
-                if not docs:
-                    break
-                current_chunk += 1
-                logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'user_id': doc.id,
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_users: {e}")
-                break
+    def get_users(self, filter_list: list, filter_by: str, chunk_size=100):
+        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
+        date_field = 'created' if os.environ.get('guest_mode') else 'lastUpdated'
+        filter_field = None if os.environ.get('guest_mode') or filter_by is None else f'{filter_by}.current'
+        base_query = self.db.collection(collection_name)
 
-    def get_users_by_group_id_list(self, valid_group_ids: list, chunk_size=100):
-        last_doc = None
-        total_docs = (self.db.collection('users')
-                      .where('groups.current', 'array_contains_any', valid_group_ids)
-                      .where('lastUpdated', '>=', self.start_date)
-                      .where('lastUpdated', '<=', self.end_date)
-                      .get())
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                if os.environ.get('guest_mode', None):
+        # Apply the date range filters
+        base_query = base_query.where(date_field, '>=', self.start_date)
+        base_query = base_query.where(date_field, '<=', self.end_date)
+        base_query = base_query.order_by(date_field)
+
+        def process_docs(query):
+            last_doc = None
+            total_docs = query.get()
+            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+            current_chunk = 0
+
+            while True:
+                try:
+                    query = query.limit(chunk_size)
                     if last_doc:
-                        docs = (self.db.collection('guests')
-                                .where('created', '>=', self.start_date)
-                                .where('created', '<=', self.end_date)
-                                .order_by('created')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('guests')
-                                .where('created', '>=', self.start_date)
-                                .where('created', '<=', self.end_date)
-                                .order_by('created')
-                                .limit(chunk_size)
-                                .get())
-                else:
-                    if last_doc:
-                        docs = (self.db.collection('users')
-                                .where('groups.current', 'array_contains_any', valid_group_ids)
-                                .where('lastUpdated', '>=', self.start_date)
-                                .where('lastUpdated', '<=', self.end_date)
-                                .order_by('lastUpdated')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('users')
-                                .where('groups.current', 'array_contains_any', valid_group_ids)
-                                .where('lastUpdated', '>=', self.start_date)
-                                .where('lastUpdated', '<=', self.end_date)
-                                .order_by('lastUpdated')
-                                .limit(chunk_size)
-                                .get())
-                if not docs:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+                    if not docs:
+                        break
+                    current_chunk += 1
+                    logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        doc_dict.update({
+                            'user_id': doc.id,
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+                    last_doc = docs[-1]
+                except Exception as e:
+                    logging.error(f"Error in get_users: {e}")
                     break
-                current_chunk += 1
-                logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'user_id': doc.id,
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_users_by_group_id_list: {e}")
-                break
+
+        if filter_field:
+            org_chunks = chunked_list(filter_list, 30)
+            # Iterate over each chunk of organization IDs
+            for org_chunk in org_chunks:
+                print("Processing org chunk:", org_chunk)  # Print the current chunk
+                filtered_query = base_query.where(filter_field, 'array_contains_any', org_chunk)
+                yield from process_docs(query=filtered_query)
+        else:
+            yield from process_docs(query=base_query)
 
     def get_runs(self, user_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('users').document(user_id).collection('runs').get()
+        total_docs = (self.db.collection('users').document(user_id)
+                      .collection('runs')
+                      .get())
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
-                if os.environ.get('guest_mode', None):
-                    if last_doc:
-                        docs = (self.db.collection('guests')
-                                .document(user_id)
-                                .collection('runs')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('guests')
-                                .document(user_id)
-                                .collection('runs')
-                                .limit(chunk_size)
-                                .get())
-                else:
-                    if last_doc:
-                        docs = (self.db.collection('users')
-                                .document(user_id)
-                                .collection('runs')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('users')
-                                .document(user_id)
-                                .collection('runs')
-                                .limit(chunk_size)
-                                .get())
+                collection_root = 'guests' if os.environ.get('guest_mode') else 'users'
+                query = (self.db.collection(collection_root)
+                         .document(user_id)
+                         .collection('runs')
+                         .limit(chunk_size))
+                if last_doc:
+                    query = query.start_after(last_doc)
+                docs = query.get()
                 if not docs:
                     break
+
                 current_chunk += 1
                 logging.info(f"Setting runs... processing chunk {current_chunk} of {total_chunks} "
                              f"run chunks for user {user_id}.")
@@ -375,50 +287,27 @@ class FirestoreServices:
 
     def get_trials(self, user_id: str, run_id: str, task_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('users').document(user_id).collection('runs').document(run_id).collection(
-            'trials').get()
+        total_docs = (self.db.collection('users').document(user_id)
+                      .collection('runs').document(run_id)
+                      .collection('trials')
+                      .get())
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
-                if os.environ.get('guest_mode', None):
-                    if last_doc:
-                        docs = (self.db.collection('guests')
-                                .document(user_id)
-                                .collection('runs')
-                                .document(run_id)
-                                .collection('trials')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('guests')
-                                .document(user_id)
-                                .collection('runs')
-                                .document(run_id)
-                                .collection('trials')
-                                .limit(chunk_size)
-                                .get())
-                else:
-                    if last_doc:
-                        docs = (self.db.collection('users')
-                                .document(user_id)
-                                .collection('runs')
-                                .document(run_id)
-                                .collection('trials')
-                                .limit(chunk_size)
-                                .start_after(last_doc)
-                                .get())
-                    else:
-                        docs = (self.db.collection('users')
-                                .document(user_id)
-                                .collection('runs')
-                                .document(run_id)
-                                .collection('trials')
-                                .limit(chunk_size)
-                                .get())
+                base_collection = 'guests' if os.environ.get('guest_mode') else 'users'
+                query = (self.db.collection(base_collection)
+                         .document(user_id)
+                         .collection('runs')
+                         .document(run_id)
+                         .collection('trials')
+                         .limit(chunk_size))
+                if last_doc:
+                    query = query.start_after(last_doc)
+                docs = query.get()
                 if not docs:
                     break
+
                 current_chunk += 1
                 logging.info(
                     f"Setting trials... processing chunk {current_chunk} of {total_chunks} "
@@ -449,13 +338,16 @@ class FirestoreServices:
                         doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
                         converted_doc_dict = doc_dict
                     else:
+                        answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         doc_dict.update({
                             'item': stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None,
-                            'distractors': stringify_variables(doc_dict['distractors']) if doc_dict.get('distractors') is not None else None,
-                            'answer': doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None))),
+                            'distractors': stringify_variables(doc_dict['distractors']) if doc_dict.get(
+                                'distractors') is not None else None,
+                            'answer': answer if doc_dict.get('answer') is not None else None,
                             'response': stringify_variables(doc_dict.get('response', None)),
                             'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
                         })
+
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     yield converted_doc_dict
                 last_doc = docs[-1]
@@ -523,42 +415,43 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_assignments(self, lab_id: str, chunk_size=100):
-        last_doc = None
-        total_docs = self.db.collection('administrations').where('minimalOrgs.districts', 'array_contains',
-                                                                 lab_id).get()
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                if last_doc:
-                    docs = (self.db.collection('administrations')
-                            .where('minimalOrgs.districts', 'array_contains', lab_id)
-                            .limit(100)
-                            .start_after(last_doc)
-                            .get())
-                else:
-                    docs = (self.db.collection('administrations')
-                            .where('minimalOrgs.districts', 'array_contains', lab_id)
-                            .limit(100)
-                            .get())
-                if not docs:
+    def get_assignments(self, org_list: list, filter_by: str, chunk_size=100):
+        org_chunks = chunked_list(org_list, 30)
+        # Iterate over each chunk of organization IDs
+        for org_chunk in org_chunks:
+            print("Processing org chunk:", org_chunk)  # Print the current chunk
+            last_doc = None
+            while True:
+                try:
+                    # Construct the query for the current chunk of organization IDs
+                    query = (self.db.collection('administrations')
+                             .where(f'minimalOrgs.{filter_by}', 'array_contains_any', org_chunk)
+                             .limit(chunk_size))
+
+                    if last_doc:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+
+                    # Break the inner loop if no documents are found
+                    if not docs:
+                        break
+
+                    # Process and yield each document immediately
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        doc_dict.update({
+                            'assignment_id': doc.id,
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+
+                    # Update last_doc for pagination
+                    last_doc = docs[-1]
+
+                except Exception as e:
+                    logging.error(f"Error in get_assignments for chunk {org_chunk}: {e}")
                     break
-                current_chunk += 1
-                logging.info(f"Setting assignments... processing chunk {current_chunk} of {total_chunks} "
-                             f"assignment chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'assignment_id': doc.id,
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_assignments: {e}")
-                break
 
     def get_survey_responses(self, user_id: str):
         result = []
@@ -601,4 +494,3 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
         return result
-

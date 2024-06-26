@@ -29,17 +29,17 @@ class EntityController:
 
         self.valid_users = []
         self.invalid_users = []
-        self.valid_user_group = []
-        self.invalid_user_group = []
-        self.valid_user_class = []
-        self.invalid_user_class = []
-        self.valid_user_assignment = []
-        self.invalid_user_assignment = []
+        self.valid_user_groups = []
+        self.invalid_user_groups = []
+        self.valid_user_classes = []
+        self.invalid_user_classes = []
+        self.valid_user_assignments = []
+        self.invalid_user_assignments = []
 
         self.valid_assignments = []
         self.invalid_assignments = []
-        self.valid_assignment_task = []
-        self.invalid_assignment_task = []
+        self.valid_assignment_tasks = []
+        self.invalid_assignment_tasks = []
 
         self.valid_runs = []
         self.invalid_runs = []
@@ -54,7 +54,7 @@ class EntityController:
         # self.valid_variants_params = []
         # self.invalid_variants_params = []
 
-    def set_values_from_firestore(self, lab_id: str, start_date, end_date, group_ids):
+    def set_values_from_firestore(self, lab_id: str, start_date, end_date, filter_by, filter_list):
         fs_assessment = FirestoreServices(app_name='assessment_site', start_date=start_date, end_date=end_date)
         fs_admin = FirestoreServices(app_name='admin_site', start_date=start_date, end_date=end_date)
 
@@ -67,14 +67,14 @@ class EntityController:
         if settings.config['INSTANCE'] == 'ROAR':
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_name_list=group_ids))
+            self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_name_list=filter_list if filter_by=='groups' else None))
         else:
             logging.info("Can't set groups without specifying instance.")
 
         groups_result = {"Valid": len(self.valid_groups),
                          "Invalid": len(self.invalid_groups),
                          }
-        logging.info(groups_result)
+        logging.info(f"groups: {groups_result}")
         self.validation_log['groups'] = groups_result
 
         if settings.config['INSTANCE'] == 'ROAR':
@@ -114,36 +114,57 @@ class EntityController:
                                "Invalid": len(self.invalid_variants),
                                }
             self.validation_log['variants'] = variants_result
-            logging.info(variants_result)
+            logging.info(f"variants: {variants_result}")
         else:
             tasks_result = "No valid tasks were found."
         self.validation_log['tasks'] = tasks_result
-        logging.info(tasks_result)
+        logging.info(f"tasks: {tasks_result}")
 
-        # self.set_assignments(assignments=fs_admin.get_assignments())
+        logging.info("Now Validating Assignments and AssignmentTasks...")
+        if settings.config['INSTANCE'] == 'ROAR':
+            self.set_assignments(assignments=fs_admin.get_assignments(org_list=[lab_id], filter_by='districts'))
+        elif settings.config['INSTANCE'] == 'LEVANTE':
+            self.set_assignments(
+                assignments=fs_admin.get_assignments(org_list=[group.group_id for group in self.valid_groups],
+                                                     filter_by='groups'))
+        else:
+            logging.info("Can't set assignments without specifying instance.")
+
+        assignments_result = {"Valid": len(self.valid_assignments),
+                              "Invalid": len(self.invalid_assignments),
+                              }
+        logging.info(f"assignments: {assignments_result}")
+        self.validation_log['assignments'] = assignments_result
+
+        assignment_task_result = {"Valid": len(self.valid_assignment_tasks),
+                                  "Invalid": len(self.invalid_assignment_tasks),
+                                  }
+        logging.info(f"assignment_tasks: {assignment_task_result}")
+        self.validation_log['assignment_tasks'] = assignment_task_result
 
         logging.info("Now Validating Users and UserGroups...")
         if settings.config['INSTANCE'] == 'ROAR':
-            self.set_users(users=fs_assessment.get_users(lab_id=lab_id))
+            self.set_users(users=fs_admin.get_users(filter_list=[lab_id], filter_by='districts'))
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_users(users=fs_assessment.get_users_by_group_id_list(valid_group_ids=[group.group_id for group in self.valid_groups]))
+            self.set_users(users=fs_admin.get_users(filter_list=[group.group_id for group in self.valid_groups] if filter_by=='groups' else None,
+                                                    filter_by=filter_by))
         else:
             logging.info("Can't set users without specifying instance.")
 
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
                         }
-        logging.info(users_result)
+        logging.info(f"users: {users_result}")
         self.validation_log['users'] = users_result
 
-        user_group_result = {"Valid": len(self.valid_user_group),
-                             "Invalid": len(self.invalid_user_group),
+        user_group_result = {"Valid": len(self.valid_user_groups),
+                             "Invalid": len(self.invalid_user_groups),
                              }
-        logging.info(user_group_result)
-        self.validation_log['user_group'] = user_group_result
+        logging.info(f"user_groups: {user_group_result}")
+        self.validation_log['user_groups'] = user_group_result
 
-        logging.info("Now Validating SurveyResponses...")
         if self.valid_users:
+            logging.info("Now Validating SurveyResponses...")
             for user in self.valid_users:
                 self.set_survey_responses(user=user,
                                           survey_responses=fs_admin.get_survey_responses(user_id=user.user_id))
@@ -152,80 +173,46 @@ class EntityController:
                                        }
             logging.info(survey_responses_result)
             self.validation_log['survey_responses'] = survey_responses_result
-        else:
-            self.validation_log['users'] = "No valid users were found."
-            self.validation_log['runs'] = "No valid runs were found."
-            logging.info("Runs result: No valid users were found.")
 
-        logging.info("Now Validating Runs...")
-        if self.valid_users:
+            logging.info("Now Validating UserAssignments...")
+            survey_responses_result = {"Valid": len(self.valid_survey_responses),
+                                       "Invalid": len(self.invalid_survey_responses),
+                                       }
+            logging.info(f"survey_responses: {survey_responses_result}")
+            self.validation_log['survey_responses'] = survey_responses_result
+
+            logging.info("Now Validating Runs...")
             for user in self.valid_users:
                 self.set_runs(user_id=user.user_id, runs=fs_assessment.get_runs(user_id=user.user_id))
             runs_result = {"Valid": len(self.valid_runs),
                            "Invalid": len(self.invalid_runs),
                            }
-            logging.info(runs_result)
+            logging.info(f"runs: {runs_result}")
             self.validation_log['runs'] = runs_result
+
+            logging.info("Now Validating Trials...")
+            if self.valid_runs:
+                for run in self.valid_runs:
+                    self.set_trials(user_id=run.user_id,
+                                    run_id=run.run_id,
+                                    trials=fs_assessment.get_trials(user_id=run.user_id,
+                                                                    run_id=run.run_id,
+                                                                    task_id=run.task_id))
+                trials_result = {"Valid": len(self.valid_trials),
+                                 "Invalid": len(self.invalid_trials),
+                                 }
+                logging.info(f"trials: {trials_result}")
+                self.validation_log['trials'] = trials_result
+            else:
+                self.validation_log['runs'] = "No valid runs were found."
+                self.validation_log['trials'] = "No valid trials were found."
+                logging.info("Runs result: No valid runs were found.")
         else:
+            self.validation_log['survey_responses'] = "No valid survey_responses were found."
             self.validation_log['users'] = "No valid users were found."
             self.validation_log['runs'] = "No valid runs were found."
-            logging.info("Runs result: No valid users were found.")
-
-        logging.info("Now Validating Trials...")
-        if self.valid_runs:
-            for run in self.valid_runs:
-                self.set_trials(user_id=run.user_id,
-                                run_id=run.run_id,
-                                trials=fs_assessment.get_trials(user_id=run.user_id,
-                                                                run_id=run.run_id,
-                                                                task_id=run.task_id))
-            trials_result = {"Valid": len(self.valid_trials),
-                             "Invalid": len(self.invalid_trials),
-                             }
-            logging.info(trials_result)
-            self.validation_log['trials'] = trials_result
-        else:
-            self.validation_log['runs'] = "No valid runs were found."
             self.validation_log['trials'] = "No valid trials were found."
-            logging.info("Trials result: No valid trials were found.")
-
-    # def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
-    #     rs = RedivisServices(is_from_firestore=False)
-    #     rs.set_dataset(lab_id=lab_id)
-    #
-    #     self.set_groups(groups=rs.get_tables(table_name="groups"))
-    #     self.set_districts(districts=rs.get_tables(table_name="districts"))
-    #     self.set_schools(schools=rs.get_tables(table_name="schools"))
-    #     self.set_classes(classes=rs.get_tables(table_name="classes"))
-    #     self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
-    #     self.set_variants(variants=rs.get_tables(table_name="variants"))
-    #     self.set_users(users=rs.get_tables(table_name="users"))
-    #     self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
-    #
-    #     runs_table = rs.get_tables(table_name="runs")
-    #     if self.valid_users:
-    #         for user in self.valid_users:
-    #             # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
-    #             self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
-    #                                                                  spec_value=user.user_id))
-    #     else:
-    #         self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
-    #
-    #     trials_table = rs.get_tables(table_name="trials")
-    #     if self.valid_runs:
-    #         for run in self.valid_runs:
-    #             self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
-    #                                                                    spec_value=run.run_id))
-    #     else:
-    #         self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
-
-    # def set_values_for_consolidate(self):
-    #     rs = RedivisServices(is_from_firestore=False)
-    #
-    #     lab_lists = rs.get_datasets_list()
-    #     logging.info(lab_lists)
-    #     for lab in lab_lists:
-    #         self.set_values_from_redivis(lab)
+            logging.info("Users result: No valid users were found.")
 
     def get_valid_data(self):
         valid_dict = {
@@ -233,14 +220,16 @@ class EntityController:
             # 'schools': [obj.model_dump() for obj in self.valid_schools],
             # 'classes': [obj.model_dump() for obj in self.valid_classes],
             'groups': [obj.model_dump() for obj in self.valid_groups],
-            'users': [obj.model_dump() for obj in self.valid_users],
-            'user_groups': [obj.model_dump() for obj in self.valid_user_group],
-            'runs': [obj.model_dump() for obj in self.valid_runs],
-            'trials': [obj.model_dump() for obj in self.valid_trials],
-            'assignments': [obj.model_dump() for obj in self.valid_assignments],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
             'variants': [obj.model_dump() for obj in self.valid_variants],
-            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses]
+            'assignments': [obj.model_dump() for obj in self.valid_assignments],
+            'assignment_tasks': [obj.model_dump() for obj in self.valid_assignment_tasks],
+            'users': [obj.model_dump() for obj in self.valid_users],
+            'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
+            'user_assignments': [obj.model_dump() for obj in self.valid_user_assignments],
+            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
+            'runs': [obj.model_dump() for obj in self.valid_runs],
+            'trials': [obj.model_dump() for obj in self.valid_trials],
         }
         return valid_dict
 
@@ -249,14 +238,16 @@ class EntityController:
                         + [{**obj, "table_name": "districts"} for obj in self.invalid_districts]
                         + [{**obj, "table_name": "schools"} for obj in self.invalid_schools]
                         + [{**obj, "table_name": "classes"} for obj in self.invalid_classes]
-                        + [{**obj, "table_name": "users"} for obj in self.invalid_users]
-                        + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
-                        + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
-                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_assignments]
                         + [{**obj, "table_name": "tasks"} for obj in self.invalid_tasks]
                         + [{**obj, "table_name": "variants"} for obj in self.invalid_variants]
-                        + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_group]
+                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_assignments]
+                        + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_assignment_tasks]
+                        + [{**obj, "table_name": "users"} for obj in self.invalid_users]
+                        + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_groups]
+                        + [{**obj, "table_name": "user_assignments"} for obj in self.invalid_user_assignments]
                         + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
+                        + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
+                        + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
                         )
 
         for invalid_item in invalid_list:
@@ -362,6 +353,7 @@ class EntityController:
                     user = core_models.UserBase(**user)
                 self.valid_users.append(user)
                 self.set_user_group(user=user_dict)
+                self.set_user_assignment(user=user_dict)
 
             except ValidationError as e:
                 for error in e.errors():
@@ -383,13 +375,14 @@ class EntityController:
         current_groups = user_groups.get('current', [])
         for group_id in all_groups:
             try:
-                self.valid_user_group.append(core_models.UserGroup(
+                self.valid_user_groups.append(core_models.UserGroup(
                     user_id=user_id,
                     group_id=group_id,
                     is_active=True if group_id in current_groups else False))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_user_group.append({**error, 'id': f"user_id: {user['user_id']}, group_id: {group_id}"})
+                    self.invalid_user_groups.append(
+                        {**error, 'id': f"user_id: {user['user_id']}, group_id: {group_id}"})
 
     def set_user_class(self, user: dict):
         user_id = user.get('user_id', None)
@@ -398,13 +391,14 @@ class EntityController:
         current_classes = user_classes.get('current', [])
         for class_id in all_classes:
             try:
-                self.valid_user_class.append(core_models.UserClass(
+                self.valid_user_classes.append(core_models.UserClass(
                     user_id=user_id,
                     class_id=class_id,
                     is_active=True if class_id in current_classes else False))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_user_class.append({**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
+                    self.invalid_user_classes.append(
+                        {**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)
@@ -412,22 +406,28 @@ class EntityController:
         assignments_started = user.get('assignmentsStarted', {})
         for key, value in assignments_assigned.items():
             try:
-                self.valid_user_assignment.append(core_models.UserAssignment(
+                self.valid_user_assignments.append(core_models.UserAssignment(
                     user_id=user_id,
                     assignment_id=key,
-                    is_started=True if key in assignments_started.keys() else False,
+                    started=True if key in assignments_started.keys() else False,
                     date_time=value))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_user_assignment.append(
+                    self.invalid_user_assignments.append(
                         {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
 
     def set_assignments(self, assignments: list):
         for assignment in assignments:
+            assignment_dict = assignment
             try:
-                self.set_assignment_task(assignment)
-                assignment = core_models.Assignment(**assignment)
+                if settings.config['INSTANCE'] == 'LEVANTE':
+                    assignment = core_models.AssignmentBase(**assignment)
+                elif settings.config['INSTANCE'] == 'ROAR':
+                    assignment = core_models.RoarAssignment(**assignment)
+                else:
+                    assignment = core_models.AssignmentBase(**assignment)
                 self.valid_assignments.append(assignment)
+                self.set_assignment_task(assignment_dict)
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_assignments.append({**error, 'id': assignment['assignment_id']})
@@ -437,14 +437,15 @@ class EntityController:
         tasks = assignment.get('assessments', [])
         for task in tasks:
             task_id = task.get('taskId', None)
+            variant_id = task.get('variantId', None)
             try:
-                self.valid_assignment_task.append(core_models.AssignmentTask(
-                    assignment_id=assignment_id,
-                    task_id=task_id))
+                self.valid_assignment_tasks.append(core_models.AssignmentTask(assignment_id=assignment_id,
+                                                                              task_id=task_id,
+                                                                              variant_id=variant_id))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_assignment_task.append(
-                        {**error, 'id': f"a_id:{assignment['assignment_id']}, t_id:{task_id}"})
+                    self.invalid_assignment_tasks.append(
+                        {**error, 'id': f"assignment_id:{assignment['assignment_id']}, task_id:{task_id}"})
 
     def set_runs(self, user_id: str, runs: list):
         for run in runs:
@@ -471,8 +472,7 @@ class EntityController:
                     self.valid_trials.append(core_models.TrialBase(**trial))
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_trials.append({**error,
-                                                'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}"})
+                    self.invalid_trials.append({**error, 'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}"})
 
     # def set_score_details(self, run: dict):
     # run_id = run.get('id', None)
@@ -512,3 +512,41 @@ class EntityController:
     #     except ValidationError as e:
     #         print(f"score_detail error for run {run_id}, computed_scores {key}: {e}")
     #         self.invalid_score_details.append(f"{run_id},{key}")
+
+    # def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
+    #     rs = RedivisServices(is_from_firestore=False)
+    #     rs.set_dataset(lab_id=lab_id)
+    #
+    #     self.set_groups(groups=rs.get_tables(table_name="groups"))
+    #     self.set_districts(districts=rs.get_tables(table_name="districts"))
+    #     self.set_schools(schools=rs.get_tables(table_name="schools"))
+    #     self.set_classes(classes=rs.get_tables(table_name="classes"))
+    #     self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
+    #     self.set_variants(variants=rs.get_tables(table_name="variants"))
+    #     self.set_users(users=rs.get_tables(table_name="users"))
+    #     self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
+    #
+    #     runs_table = rs.get_tables(table_name="runs")
+    #     if self.valid_users:
+    #         for user in self.valid_users:
+    #             # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
+    #             self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
+    #                                                                  spec_value=user.user_id))
+    #     else:
+    #         self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
+    #
+    #     trials_table = rs.get_tables(table_name="trials")
+    #     if self.valid_runs:
+    #         for run in self.valid_runs:
+    #             self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
+    #                                                                    spec_value=run.run_id))
+    #     else:
+    #         self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
+
+    # def set_values_for_consolidate(self):
+    #     rs = RedivisServices(is_from_firestore=False)
+    #
+    #     lab_lists = rs.get_datasets_list()
+    #     logging.info(lab_lists)
+    #     for lab in lab_lists:
+    #         self.set_values_from_redivis(lab)

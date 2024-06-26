@@ -243,7 +243,6 @@ class LevanteTrial(TrialBase):
     theta_se2: Optional[float] = None
 
 
-
 class SurveyResponse(BaseModel):
     survey_response_id: str
     user_id: str
@@ -273,7 +272,7 @@ class SurveyResponse(BaseModel):
     created_at: datetime
 
 
-class Assignment(BaseModel):
+class AssignmentBase(BaseModel):
     assignment_id: str
     name: str
     public_name: Optional[str] = None
@@ -282,12 +281,27 @@ class Assignment(BaseModel):
     date_created: datetime
     date_closed: datetime
     date_opened: datetime
+
+
+class RoarAssignment(AssignmentBase):
     assessments: Optional[list] = None
     districts: Optional[list] = None
     schools: Optional[list] = None
     classes: Optional[list] = None
-    groups: Optional[list] = None
     families: Optional[list] = None
+
+
+class AssignmentTask(BaseModel):
+    assignment_id: str
+    task_id: str
+    variant_id: Optional[str] = None
+
+
+class UserAssignment(BaseModel):
+    user_id: str
+    assignment_id: str
+    started: bool
+    date_time: datetime
 
 
 class UserClass(BaseModel):
@@ -300,24 +314,3 @@ class UserGroup(BaseModel):
     user_id: str
     group_id: str
     is_active: bool
-
-
-class AssignmentTask(BaseModel):
-    assignment_id: str
-    task_id: str
-
-
-class UserAssignment(BaseModel):
-    assignment_id: str
-    user_id: str
-    started: bool
-    completed: bool
-    date_assigned: datetime
-    date_closed: datetime
-    date_opened: datetime
-    assessments: Optional[list] = None
-    progress: Optional[dict] = None
-    assigning_orgs: Optional[dict] = None
-    read_orgs: Optional[dict] = None
-    minimal_orgs: Optional[dict] = None
-    user_data: Optional[dict] = None

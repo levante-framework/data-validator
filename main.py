@@ -37,7 +37,8 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_ids = request_json.get('lab_ids', [])
-            group_ids = None if not request_json.get('group_ids', None) else request_json.get('group_ids')
+            filter_by = None if not request_json.get('filter_by', None) else request_json.get('filter_by')
+            filter_list = None if not request_json.get('filter_list', None) else request_json.get('filter_list')
             is_from_guest = request_json.get('is_from_guest', False)
             if is_from_guest:
                 os.environ['guest_mode'] = "True"
@@ -60,7 +61,11 @@ def data_validator(request):
                         storage.storage_prefix = prefix_name
                     else:  # if no prefix_name specified, start validation process.
                         logging.info(f'Getting data from Firestore for lab_id: {lab_id}.')
-                        ec.set_values_from_firestore(lab_id=lab_id, start_date=start_date, end_date=end_date, group_ids=group_ids)
+                        ec.set_values_from_firestore(lab_id=lab_id,
+                                                     start_date=start_date,
+                                                     end_date=end_date,
+                                                     filter_by=filter_by,
+                                                     filter_list=filter_list)
                         logging.info(f"validation_log_list: {ec.validation_log}")
 
                         # GCP storage service

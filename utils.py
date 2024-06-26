@@ -60,6 +60,17 @@ def handle_nan(value):
     return value
 
 
+def ids_to_names(id_list: list, obj_list):
+    # Create a dictionary to map ids to names for faster lookup
+    id_to_name_map = {obj.id: obj.name for obj in obj_list}
+
+    # Map each id in id_list to its corresponding name using the dictionary
+    # If an id is not found, append None to the result list
+    names = [id_to_name_map.get(id) for id in id_list]
+
+    return names
+
+
 # Get the Secret Manager client
 def get_secret_manager_client():
     if settings.ENV == 'local':
@@ -114,4 +125,3 @@ def get_lab_ids(_request, app):
         # This clause allows the function to run as a scheduled Cloud job
         logging.info("Running in scheduled mode with lab_ids from Firestore.")
         return get_lab_ids_from_firestore(app)
-
