@@ -4,7 +4,6 @@ import logging
 import core_models
 import settings
 from firestore_services import FirestoreServices, stringify_variables
-from redivis_services import RedivisServices
 
 logging.basicConfig(level=logging.INFO)
 
@@ -67,7 +66,7 @@ class EntityController:
         if settings.config['INSTANCE'] == 'ROAR':
             self.set_groups(groups=fs_admin.get_groups(lab_id=lab_id))
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_name_list=filter_list if filter_by=='groups' else None))
+            self.set_groups(groups=fs_admin.get_groups_by_group_name_list(group_name_list=filter_list if filter_by == 'groups' else None))
         else:
             logging.info("Can't set groups without specifying instance.")
 
@@ -122,11 +121,10 @@ class EntityController:
 
         logging.info("Now Validating Assignments and AssignmentTasks...")
         if settings.config['INSTANCE'] == 'ROAR':
-            self.set_assignments(assignments=fs_admin.get_assignments(org_list=[lab_id], filter_by='districts'))
+            self.set_assignments(assignments=fs_admin.get_assignments(filter_list=[lab_id], filter_by='districts'))
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_assignments(
-                assignments=fs_admin.get_assignments(org_list=[group.group_id for group in self.valid_groups],
-                                                     filter_by='groups'))
+            self.set_assignments(assignments=fs_admin.get_assignments(filter_list=[group.group_id for group in self.valid_groups] if filter_by == 'groups' else None,
+                                                                      filter_by=filter_by))
         else:
             logging.info("Can't set assignments without specifying instance.")
 
@@ -146,7 +144,7 @@ class EntityController:
         if settings.config['INSTANCE'] == 'ROAR':
             self.set_users(users=fs_admin.get_users(filter_list=[lab_id], filter_by='districts'))
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_users(users=fs_admin.get_users(filter_list=[group.group_id for group in self.valid_groups] if filter_by=='groups' else None,
+            self.set_users(users=fs_admin.get_users(filter_list=[group.group_id for group in self.valid_groups] if filter_by == 'groups' else None,
                                                     filter_by=filter_by))
         else:
             logging.info("Can't set users without specifying instance.")
@@ -172,13 +170,6 @@ class EntityController:
                                        "Invalid": len(self.invalid_survey_responses),
                                        }
             logging.info(survey_responses_result)
-            self.validation_log['survey_responses'] = survey_responses_result
-
-            logging.info("Now Validating UserAssignments...")
-            survey_responses_result = {"Valid": len(self.valid_survey_responses),
-                                       "Invalid": len(self.invalid_survey_responses),
-                                       }
-            logging.info(f"survey_responses: {survey_responses_result}")
             self.validation_log['survey_responses'] = survey_responses_result
 
             logging.info("Now Validating Runs...")
@@ -226,7 +217,6 @@ class EntityController:
             'assignment_tasks': [obj.model_dump() for obj in self.valid_assignment_tasks],
             'users': [obj.model_dump() for obj in self.valid_users],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            'user_assignments': [obj.model_dump() for obj in self.valid_user_assignments],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
             'runs': [obj.model_dump() for obj in self.valid_runs],
             'trials': [obj.model_dump() for obj in self.valid_trials],
@@ -244,7 +234,6 @@ class EntityController:
                         + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_assignment_tasks]
                         + [{**obj, "table_name": "users"} for obj in self.invalid_users]
                         + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_groups]
-                        + [{**obj, "table_name": "user_assignments"} for obj in self.invalid_user_assignments]
                         + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
                         + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
                         + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
@@ -353,7 +342,6 @@ class EntityController:
                     user = core_models.UserBase(**user)
                 self.valid_users.append(user)
                 self.set_user_group(user=user_dict)
-                self.set_user_assignment(user=user_dict)
 
             except ValidationError as e:
                 for error in e.errors():
@@ -399,22 +387,6 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_user_classes.append(
                         {**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
-
-    def set_user_assignment(self, user: dict):
-        user_id = user.get('user_id', None)
-        assignments_assigned = user.get('assignmentsAssigned', {})
-        assignments_started = user.get('assignmentsStarted', {})
-        for key, value in assignments_assigned.items():
-            try:
-                self.valid_user_assignments.append(core_models.UserAssignment(
-                    user_id=user_id,
-                    assignment_id=key,
-                    started=True if key in assignments_started.keys() else False,
-                    date_time=value))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_assignments.append(
-                        {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
 
     def set_assignments(self, assignments: list):
         for assignment in assignments:
@@ -473,6 +445,22 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append({**error, 'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}"})
+
+    def set_user_assignment(self, user: dict):
+        user_id = user.get('user_id', None)
+        assignments_assigned = user.get('assignmentsAssigned', {})
+        assignments_started = user.get('assignmentsStarted', {})
+        for key, value in assignments_assigned.items():
+            try:
+                self.valid_user_assignments.append(core_models.UserAssignment(
+                    user_id=user_id,
+                    assignment_id=key,
+                    started=True if key in assignments_started.keys() else False,
+                    date_time=value))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_user_assignments.append(
+                        {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
 
     # def set_score_details(self, run: dict):
     # run_id = run.get('id', None)

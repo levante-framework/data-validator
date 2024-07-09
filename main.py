@@ -81,6 +81,7 @@ def data_validator(request):
                                       'logs': ec.validation_log,
                                       'invalid_results': ec.get_invalid_data()}
                             results.append(output)
+
                     # redivis service
                     if is_upload_to_redivis:
                         logging.info(f"Uploading data to Redivis for lab_id: {lab_id}.")
@@ -104,13 +105,14 @@ def data_validator(request):
                                   'logs': storage.upload_to_GCP_log}
                         results.append(output)
                     else:
-                        return 'Error in parameters setup in the request body', 400
+                        pass
                 else:
                     return 'Error in parameters setup in the request body', 400
                 logging.info(f'Finished job {job} of {len(lab_ids)}.')
                 job += 1
-            logging.info(f'Finished all jobs.\n{results}')
-            return f'Finished all jobs.\n{results}', 200
+            response = {'status': 'success', 'logs': results}
+            logging.info(response)
+            return response, 200
         else:
             return 'Request body is not received properly', 500
     else:

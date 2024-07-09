@@ -192,6 +192,116 @@ class FirestoreServices:
                 logging.error(f"Error in get_classes: {e}")
                 break
 
+    def get_tasks(self, chunk_size=100):
+        last_doc = None
+        base_query = self.db.collection('tasks')
+        total_docs = base_query.get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+
+        while True:
+            try:
+                query = base_query.limit(chunk_size)
+                if last_doc:
+                    query = query.start_after(last_doc)
+                docs = query.get()
+                if not docs:
+                    break
+
+                current_chunk += 1
+                logging.info(f"Setting tasks... processing chunk {current_chunk} of {total_chunks} chunks.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'task_id': doc.id
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_tasks: {e}")
+                break
+
+    def get_variants(self, task_id: str, chunk_size=100):
+        last_doc = None
+        base_query = self.db.collection('tasks').document(task_id).collection('variants')
+        total_docs = base_query.get()
+        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        current_chunk = 0
+        while True:
+            try:
+                query = base_query.limit(chunk_size)
+                if last_doc:
+                    query = query.start_after(last_doc)
+                docs = query.get()
+                if not docs:
+                    break
+                current_chunk += 1
+                logging.info(f"Setting variants... processing chunk {current_chunk} of {total_chunks} "
+                             f"chunks for task {task_id}.")
+                for doc in docs:
+                    doc_dict = doc.to_dict()
+                    doc_dict.update({
+                        'variant_id': doc.id,
+                        'task_id': task_id
+                    })
+                    # Convert camelCase to snake_case and handle NaN values
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    yield converted_doc_dict
+                last_doc = docs[-1]
+            except Exception as e:
+                logging.error(f"Error in get_variants: {e}")
+                break
+
+    def get_assignments(self, filter_list: list, filter_by: str, chunk_size=100):
+        base_query = self.db.collection('administrations')
+
+        # Apply the date range filters
+        base_query = base_query.where('dateCreated', '>=', self.start_date)
+        base_query = base_query.where('dateCreated', '<=', self.end_date)
+        base_query = base_query.order_by('dateCreated')
+
+        def process_docs(query):
+            last_doc = None
+            total_docs = query.get()
+            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+            current_chunk = 0
+
+            while True:
+                try:
+                    query = query.limit(chunk_size)
+                    if last_doc:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+                    if not docs:
+                        break
+                    current_chunk += 1
+                    logging.info(
+                        f"Setting assignments... processing chunk {current_chunk} of {total_chunks} assignment chunks.")
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        doc_dict.update({
+                            'assignment_id': doc.id,
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+                    last_doc = docs[-1]
+                except Exception as e:
+                    logging.error(f"Error in get_users: {e}")
+                    break
+
+        if filter_by:
+            org_chunks = chunked_list(filter_list, 30)
+            # Iterate over each chunk of organization IDs
+            for org_chunk in org_chunks:
+                print("Processing org chunk:", org_chunk)  # Print the current chunk
+                filtered_query = base_query.where(f'minimalOrgs.{filter_by}', 'array_contains_any', org_chunk)
+                yield from process_docs(query=filtered_query)
+        else:
+            yield from process_docs(query=base_query)
+
     def get_users(self, filter_list: list, filter_by: str, chunk_size=100):
         collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
         date_field = 'created' if os.environ.get('guest_mode') else 'lastUpdated'
@@ -244,18 +354,16 @@ class FirestoreServices:
 
     def get_runs(self, user_id: str, chunk_size=100):
         last_doc = None
-        total_docs = (self.db.collection('users').document(user_id)
-                      .collection('runs')
-                      .get())
+        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
+        base_query = (self.db.collection(collection_name).document(user_id)
+                      .collection('runs'))
+        total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
+
         while True:
             try:
-                collection_root = 'guests' if os.environ.get('guest_mode') else 'users'
-                query = (self.db.collection(collection_root)
-                         .document(user_id)
-                         .collection('runs')
-                         .limit(chunk_size))
+                query = base_query.limit(chunk_size)
                 if last_doc:
                     query = query.start_after(last_doc)
                 docs = query.get()
@@ -287,21 +395,16 @@ class FirestoreServices:
 
     def get_trials(self, user_id: str, run_id: str, task_id: str, chunk_size=100):
         last_doc = None
-        total_docs = (self.db.collection('users').document(user_id)
+        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
+        base_query = (self.db.collection(collection_name).document(user_id)
                       .collection('runs').document(run_id)
-                      .collection('trials')
-                      .get())
+                      .collection('trials'))
+        total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
-                base_collection = 'guests' if os.environ.get('guest_mode') else 'users'
-                query = (self.db.collection(base_collection)
-                         .document(user_id)
-                         .collection('runs')
-                         .document(run_id)
-                         .collection('trials')
-                         .limit(chunk_size))
+                query = base_query.limit(chunk_size)
                 if last_doc:
                     query = query.start_after(last_doc)
                 docs = query.get()
@@ -355,104 +458,6 @@ class FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_tasks(self, chunk_size=100):
-        last_doc = None
-        total_docs = self.db.collection('tasks').get()
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                if last_doc:
-                    docs = self.db.collection('tasks').limit(chunk_size).start_after(last_doc).get()
-                else:
-                    docs = self.db.collection('tasks').limit(chunk_size).get()
-                if not docs:
-                    break
-                current_chunk += 1
-                logging.info(f"Setting tasks... processing chunk {current_chunk} of {total_chunks} chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'task_id': doc.id
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_tasks: {e}")
-                break
-
-    def get_variants(self, task_id: str, chunk_size=100):
-        last_doc = None
-        total_docs = self.db.collection('tasks').document(task_id).collection('variants').get()
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                if last_doc:
-                    docs = (self.db.collection('tasks').document(task_id).collection('variants')
-                            .limit(chunk_size).start_after(last_doc).get())
-                else:
-                    docs = (self.db.collection('tasks').document(task_id).collection('variants')
-                            .limit(chunk_size).get())
-                if not docs:
-                    break
-                current_chunk += 1
-                logging.info(f"Setting variants... processing chunk {current_chunk} of {total_chunks} "
-                             f"chunks for task {task_id}.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'variant_id': doc.id,
-                        'task_id': task_id
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_variants: {e}")
-                break
-
-    def get_assignments(self, org_list: list, filter_by: str, chunk_size=100):
-        org_chunks = chunked_list(org_list, 30)
-        # Iterate over each chunk of organization IDs
-        for org_chunk in org_chunks:
-            print("Processing org chunk:", org_chunk)  # Print the current chunk
-            last_doc = None
-            while True:
-                try:
-                    # Construct the query for the current chunk of organization IDs
-                    query = (self.db.collection('administrations')
-                             .where(f'minimalOrgs.{filter_by}', 'array_contains_any', org_chunk)
-                             .limit(chunk_size))
-
-                    if last_doc:
-                        query = query.start_after(last_doc)
-                    docs = query.get()
-
-                    # Break the inner loop if no documents are found
-                    if not docs:
-                        break
-
-                    # Process and yield each document immediately
-                    for doc in docs:
-                        doc_dict = doc.to_dict()
-                        doc_dict.update({
-                            'assignment_id': doc.id,
-                        })
-                        # Convert camelCase to snake_case and handle NaN values
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                        yield converted_doc_dict
-
-                    # Update last_doc for pagination
-                    last_doc = docs[-1]
-
-                except Exception as e:
-                    logging.error(f"Error in get_assignments for chunk {org_chunk}: {e}")
-                    break
-
     def get_survey_responses(self, user_id: str):
         result = []
         try:
@@ -494,3 +499,4 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
         return result
+

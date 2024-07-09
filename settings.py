@@ -29,8 +29,6 @@ def initialize_env_securities():
         with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
             os.environ['project_id'] = json.load(sa).get('project_id', None)
 
-    print(os.environ.get('project_id', None))
-
     if 'levante' in os.environ['project_id']:
         config['INSTANCE'] = 'LEVANTE'
         config['CORE_DATA_BUCKET_NAME'] = 'levante-roar-data-bucket-dev'
@@ -39,18 +37,6 @@ def initialize_env_securities():
         config['VALIDATOR_API_SECRET_ID'] = 'validatorApiKey'
 
 
-
-ENV = 'local'  # local, remote
-#
-# project_id =
-#
-# if "levante" in project_id:
-#     CORE_DATA_BUCKET_NAME = 'levante-roar-data-bucket-dev'
-#     EXTERNAL_DATA_BUCKET_NAME = 'levante-external-data-dev'
-# else:
-#     CORE_DATA_BUCKET_NAME = 'firebase-redivis-pipeline'
-#     EXTERNAL_DATA_BUCKET_NAME = 'firebase-redivis-pipeline-external'
-#
 # # Secret Manager secret ID for various API keys
 # admin_service_account_secret_id = "adminServiceAccount"
 # admin_public_key_secret_id = "adminPublicKey"

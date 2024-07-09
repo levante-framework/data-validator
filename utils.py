@@ -73,7 +73,7 @@ def ids_to_names(id_list: list, obj_list):
 
 # Get the Secret Manager client
 def get_secret_manager_client():
-    if settings.ENV == 'local':
+    if os.getenv('ENV') == 'local':
         logging.info("Running in local mode.")
         return secretmanager.SecretManagerServiceClient.from_service_account_json(settings.local_admin_service_account)
     else:
