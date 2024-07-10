@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
 import json
+import requests
 
 # Global configuration variables
 config = {
@@ -20,9 +21,17 @@ config = {
 
 def initialize_env_securities():
     global config
-    if os.environ.get('project_id', None):
-        os.environ['ENV'] = "remote"
-    else:
+    try:
+        response = requests.get(
+            "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+            headers={"Metadata-Flavor": "Google"},
+            timeout=2
+        )
+        if response.status_code == 200:
+            project_id = response.text
+            os.environ['project_id'] = project_id
+            os.environ['ENV'] = "remote"
+    except requests.exceptions.RequestException:
         load_dotenv()
         os.environ['ENV'] = "local"
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
@@ -35,6 +44,7 @@ def initialize_env_securities():
         config['EXTERNAL_DATA_BUCKET_NAME'] = 'levante-external-data'
         config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID'] = 'assessmentServiceAccount'
         config['VALIDATOR_API_SECRET_ID'] = 'validatorApiKey'
+
 
 
 # # Secret Manager secret ID for various API keys
