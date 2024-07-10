@@ -44,16 +44,19 @@ https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
 2. Include followings in json format. 
 ```
 {
-    "lab_ids":["test1-date"], #name list of datasets on redivis
-    "filter_by": "groups", #org name to filter data
-    "filter_list": ["Bund1_ColD_PilotoColombia"], #filter 
+    //Required
+    "lab_ids":["test1-date"], # *required, name list of datasets on redivis
     "is_from_guest": false,
     "is_save_to_storage": true,
-    // "prefix_name": "lab_columbia-pilot-Bund-ColA-ColC-ColD-V2-ColB_firestore_2024-06-18-16-30-57/",
-    "start_date": "06/10/2024",
-    "end_date": "06/18/2024",
     "is_upload_to_redivis": true,
     "is_release_to_redivis": true
+    
+    //Optional
+    // "prefix_name": "lab_columbia-pilot-Bund-ColA-ColC-ColD-V2-ColB_firestore_2024-06-18-16-30-57/",
+    "filter_by": "groups", #org name to filter data
+    "filter_list": ["Bund1_ColD_PilotoColombia"], #filter 
+    "start_date": "06/10/2024",
+    "end_date": "06/18/2024",
 }
 ```
 ### Debug and Deployment
