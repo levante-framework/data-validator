@@ -64,6 +64,8 @@ class SchoolBase(BaseModel):
 class RoarSchool(SchoolBase):
     abbreviation: Optional[str] = None
     clever: Optional[bool] = None
+    current_activation_code: Optional[str] = None
+    valid_activation_codes: Optional[list] = None
     mdr_number: Optional[str] = None
     nces_id: Optional[str] = None
     last_updated: Optional[datetime] = None
