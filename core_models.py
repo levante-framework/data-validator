@@ -131,7 +131,22 @@ class LevanteVariant(VariantBase):
     skip_instructions: Optional[bool] = None
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
-
+class RoarVariant(VariantBase):
+    variant_name: Optional[str] = None
+    age: Optional[int] = None
+    button_layout: Optional[str] = None
+    corpus: Optional[str] = None
+    key_helpers: Optional[bool] = None
+    language: Optional[str] = None
+    max_incorrect: Optional[int] = None
+    max_time: Optional[int] = None
+    num_of_practice_trials: Optional[int] = None
+    num_of_trials: Optional[int] = None
+    sequential_practice: Optional[bool] = None
+    sequential_stimulus: Optional[bool] = None
+    skip_instructions: Optional[bool] = None
+    stimulus_blocks: Optional[int] = None
+    store_item_id: Optional[bool] = None
 
 class UserBase(BaseModel):
     user_id: str
