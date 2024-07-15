@@ -40,7 +40,7 @@ def initialize_env_securities():
 
     if 'levante' in os.environ['project_id']:
         config['INSTANCE'] = 'LEVANTE'
-        config['CORE_DATA_BUCKET_NAME'] = 'levante-roar-data-bucket-dev'
+        config['CORE_DATA_BUCKET_NAME'] = f'levante-roar-data-bucket-{'dev' if 'dev' in os.environ['project_id'] else 'prod'}'
         config['EXTERNAL_DATA_BUCKET_NAME'] = 'levante-external-data'
         config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID'] = 'assessmentServiceAccount'
         config['VALIDATOR_API_SECRET_ID'] = 'validatorApiKey'
