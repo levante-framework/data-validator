@@ -87,6 +87,8 @@ class RoarClass(ClassBase):
     abbreviation: Optional[str] = None
     class_link: Optional[bool] = None
     class_link_app_id: Optional[str] = None
+    current_activation_code: Optional[str] = None
+    valid_activation_codes: Optional[list] = None
     grades: Optional[list] = None
     section_number: Optional[str] = None
     last_updated: Optional[datetime] = None
