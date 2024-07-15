@@ -158,7 +158,22 @@ class UserBase(BaseModel):
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 
-
+class RoarUser(UserBase):
+    archived: Optional[bool] = None
+    classes: Optional[dict] = None
+    districts: Optional[dict] = None
+    families: Optional[dict] = None
+    grade: Optional[str] = None
+    groups: Optional[dict] = None
+    lab_id: Optional[str] = None
+    name: Optional[dict] = None
+    schools: Optional[dict] = None
+    student_data: Optional[dict] = None
+    legal: Optional[dict] = None
+    school_level: Optional[str] = None
+    user_type: Optional[str] = None
+    username: Optional[str] = None
+    
 class LevanteUser(UserBase):
     parent_id: Optional[str] = None
     teacher_id: Optional[str] = None
