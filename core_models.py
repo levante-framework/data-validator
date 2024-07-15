@@ -32,6 +32,8 @@ class DistrictBase(BaseModel):
 class RoarDistrict(DistrictBase):
     abbreviation: Optional[str] = None
     clever: Optional[bool] = None
+    current_activation_code: Optional[str] = None
+    valid_activation_codes: Optional[list] = None
     portal_url: Optional[str] = None
     login_methods: Optional[list] = None
     mdr_number: Optional[str] = None
