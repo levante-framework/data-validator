@@ -2,17 +2,9 @@ import redivis
 import os
 import logging
 import settings
-from secret_services import SecretServices
+from secret_services import secret_services
 
 logging.basicConfig(level=logging.INFO)
-
-if 'local' in settings.ENV:
-    os.environ["REDIVIS_API_TOKEN"] = settings.redivis_api_token
-else:
-    sec = SecretServices()
-    os.environ["REDIVIS_API_TOKEN"] = sec.access_secret_version(secret_id=settings.redivis_api_token_secret_id,
-                                                                version_id="latest")
-    os.environ["REDIVIS_API_TOKEN"] = os.environ["REDIVIS_API_TOKEN"].strip()
 
 
 class RedivisServices:
@@ -22,9 +14,8 @@ class RedivisServices:
     dataset = None
     lab_id = None
 
-    def __init__(self, is_from_firestore: bool):
-        self.source = "firestore" if is_from_firestore else "redivis"
-        self.organization = redivis.organization("ROAR")
+    def __init__(self):
+        self.organization = redivis.organization(settings.config['INSTANCE'])
         self.upload_to_redivis_log = []
 
     def set_dataset(self, lab_id: str):
@@ -36,7 +27,6 @@ class RedivisServices:
         self.is_released = properties.get("version", {}).get("isReleased", None)
         self.is_deleted = properties.get("version", {}).get("isDeleted", None)
         self.version = properties.get("version", {}).get("tag", None)
-        # logging.info(f"Current DS, version:{self.version}, is_released:{self.is_released}, is_deleted:{self.is_deleted}")
 
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]
@@ -48,7 +38,7 @@ class RedivisServices:
             table = (
                 self.dataset
                 .table(table_name)
-                .create(description=f"{table_name}_table from {self.source}",
+                .create(description=f"{table_name}_table",
                         upload_merge_strategy='replace')
             )
 
@@ -57,8 +47,9 @@ class RedivisServices:
             upload.create(
                 transfer_specification={
                     "sourceType": "gcs",  # one of gcs, s3, bigQuery, url, redivis
-                    "sourcePath": f"{settings.CORE_DATA_BUCKET_NAME}/{file_name}",
-                    "identity": "kmontvil@stanford.edu",  # The email associated with the data source
+                    "sourcePath": f"{settings.config['CORE_DATA_BUCKET_NAME']}/{file_name}",
+                    "identity": secret_services.access_secret_version(secret_id=settings.config['REDIVIS_IDENTITY_ACCOUNT_SECRET_ID'],
+                                                                      version_id="latest"),  # The email associated with the data source
                 },
                 replace_on_conflict=True,
                 remove_on_fail=True,

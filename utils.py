@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import math
@@ -9,14 +10,11 @@ from firebase_admin import credentials
 from google.cloud import secretmanager
 
 
-def params_check(lab_id, is_from_firestore, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis,
-                 prefix_name):
+def params_check(lab_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis):
     if not lab_id:
         return "Parameter 'lab_id' needs to be specified.", 400
     elif not isinstance(lab_id, str):
         return "Parameter 'lab_id' needs to be a valid string.", 400
-    if not isinstance(is_from_firestore, bool):
-        return "Parameter 'is_from_firestore' has to be a bool value.", 400
     if not isinstance(is_save_to_storage, bool):
         return "Parameter 'is_save_to_storage' has to be a bool value.", 400
     if not isinstance(is_upload_to_redivis, bool):
@@ -52,7 +50,7 @@ def camel_to_snake(camel_str):
 
 def handle_nan(value):
     if isinstance(value, float) and math.isnan(value):
-        return "NaN"
+        return None if settings.config['INSTANCE'] == 'LEVANTE' else "NaN"
     elif isinstance(value, dict):
         # Recursively handle NaN values in nested dictionaries
         return {key: handle_nan(val) for key, val in value.items()}
@@ -62,9 +60,20 @@ def handle_nan(value):
     return value
 
 
+def ids_to_names(id_list: list, obj_list):
+    # Create a dictionary to map ids to names for faster lookup
+    id_to_name_map = {obj.id: obj.name for obj in obj_list}
+
+    # Map each id in id_list to its corresponding name using the dictionary
+    # If an id is not found, append None to the result list
+    names = [id_to_name_map.get(id) for id in id_list]
+
+    return names
+
+
 # Get the Secret Manager client
 def get_secret_manager_client():
-    if settings.ENV == 'local':
+    if os.getenv('ENV') == 'local':
         logging.info("Running in local mode.")
         return secretmanager.SecretManagerServiceClient.from_service_account_json(settings.local_admin_service_account)
     else:
@@ -116,4 +125,3 @@ def get_lab_ids(_request, app):
         # This clause allows the function to run as a scheduled Cloud job
         logging.info("Running in scheduled mode with lab_ids from Firestore.")
         return get_lab_ids_from_firestore(app)
-
