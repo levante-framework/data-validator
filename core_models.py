@@ -13,6 +13,8 @@ class GroupBase(BaseModel):
 class RoarGroup(GroupBase):
     last_updated: Optional[datetime] = None
     last_modified: Optional[datetime] = None
+    current_activation_code: Optional[str] = None
+    valid_activation_codes: Optional[list] = None
 
 
 class LevanteGroup(GroupBase):
