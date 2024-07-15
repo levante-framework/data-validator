@@ -112,10 +112,6 @@ class RoarTask(TaskBase):
 class VariantBase(BaseModel):
     variant_id: str
     task_id: str
-    last_updated: datetime
-
-
-class LevanteVariant(VariantBase):
     variant_name: Optional[str] = None
     age: Optional[int] = None
     button_layout: Optional[str] = None
@@ -131,22 +127,16 @@ class LevanteVariant(VariantBase):
     skip_instructions: Optional[bool] = None
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
+    last_updated: datetime
+
+
+class LevanteVariant(VariantBase):
+    pass
+
+
 class RoarVariant(VariantBase):
-    variant_name: Optional[str] = None
-    age: Optional[int] = None
-    button_layout: Optional[str] = None
-    corpus: Optional[str] = None
-    key_helpers: Optional[bool] = None
-    language: Optional[str] = None
-    max_incorrect: Optional[int] = None
-    max_time: Optional[int] = None
-    num_of_practice_trials: Optional[int] = None
-    num_of_trials: Optional[int] = None
-    sequential_practice: Optional[bool] = None
-    sequential_stimulus: Optional[bool] = None
-    skip_instructions: Optional[bool] = None
-    stimulus_blocks: Optional[int] = None
-    store_item_id: Optional[bool] = None
+    pass
+
 
 class UserBase(BaseModel):
     user_id: str
@@ -157,6 +147,7 @@ class UserBase(BaseModel):
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
+
 
 class RoarUser(UserBase):
     archived: Optional[bool] = None
@@ -173,7 +164,8 @@ class RoarUser(UserBase):
     school_level: Optional[str] = None
     user_type: Optional[str] = None
     username: Optional[str] = None
-    
+
+
 class LevanteUser(UserBase):
     parent_id: Optional[str] = None
     teacher_id: Optional[str] = None

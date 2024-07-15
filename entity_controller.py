@@ -317,11 +317,11 @@ class EntityController:
         for variant in variants:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
-                    variant = core_models.LevanteVariant(**variant)
+                    variant = core_models.VariantBase(**variant)
                 elif settings.config['INSTANCE'] == 'ROAR':
-                    variant = core_models.VariantBase
+                    variant = core_models.VariantBase(**variant)
                 else:
-                    variant = core_models.VariantBase
+                    variant = core_models.VariantBase(**variant)
 
                 self.valid_variants.append(variant)
             except ValidationError as e:
