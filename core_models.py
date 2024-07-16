@@ -112,7 +112,7 @@ class RoarTask(TaskBase):
 class VariantBase(BaseModel):
     variant_id: str
     task_id: str
-    variant_name: Optional[str] = None
+    name: Optional[str] = None
     age: Optional[int] = None
     button_layout: Optional[str] = None
     corpus: Optional[str] = None

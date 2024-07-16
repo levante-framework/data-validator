@@ -242,6 +242,8 @@ class FirestoreServices:
                              f"chunks for task {task_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
+                    param_dict = doc_dict.get('params', {})
+                    doc_dict.update(param_dict)
                     doc_dict.update({
                         'variant_id': doc.id,
                         'task_id': task_id
