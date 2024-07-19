@@ -36,16 +36,14 @@ jobs:
           if [ "${{ github.ref }}" == "refs/heads/dev" ]; then
             echo "Using Development Project"
             gcloud config set project hs-levante-admin-dev
-            FUNCTION_NAME="data-validator"
           elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "Using Production Project"
             gcloud config set project hs-levante-admin-prod
-            FUNCTION_NAME="data-validator"
           fi
 
       - name: Deploy to Google Cloud Functions
         run: |
-          gcloud functions deploy $FUNCTION_NAME \
+          gcloud functions deploy data-validator \
             --gen2 \
             --region us-central1 \
             --runtime python312 \
