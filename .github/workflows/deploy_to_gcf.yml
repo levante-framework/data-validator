@@ -5,34 +5,55 @@ name: Deploy to Google Cloud Functions
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - dev
+      - main
 
 jobs:
   deploy:
-
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Authenticate with Google Cloud
-      uses: google-github-actions/auth@v2.1.2
-      with:
-        credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GSE_ROAR_ADMIN }}
-        project_id: gse-roar-admin
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2.1.2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+          project_id: hs-levante-admin-dev
+        if: github.ref == 'refs/heads/dev'
 
-    - name: Deploy to Google Cloud Functions
-      run: | 
-        gcloud functions deploy data-validator \
-          --gen2 \
-          --region us-central1 \
-          --runtime python312 \
-          --trigger-http \
-          --memory=4GiB \
-          --timeout 3600s \
-          --allow-unauthenticated \
-          --entry-point data_validator
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2.1.2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+          project_id: hs-levante-admin-prod
+        if: github.ref == 'refs/heads/main'
+
+      - name: Set GCloud Project
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/dev" ]; then
+            echo "Using Development Project"
+            gcloud config set project hs-levante-admin-dev
+            FUNCTION_NAME="data-validator"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "Using Production Project"
+            gcloud config set project hs-levante-admin-prod
+            FUNCTION_NAME="data-validator"
+          fi
+
+      - name: Deploy to Google Cloud Functions
+        run: |
+          gcloud functions deploy $FUNCTION_NAME \
+            --gen2 \
+            --region us-central1 \
+            --runtime python312 \
+            --trigger-http \
+            --memory=4GiB \
+            --timeout 3600s \
+            --allow-unauthenticated \
+            --entry-point data_validator
 
     
     # - name: Set up Python 3.10
