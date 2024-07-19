@@ -98,11 +98,15 @@ def data_validator(request):
                             rs.release_dataset()
                         logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                         output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
-                                  'logs': rs.upload_to_redivis_log}
+                                  'redivis_logs': rs.upload_to_redivis_log,
+                                  'validation_logs': ec.validation_log,
+                                  }
                         results.append(output)
                     elif is_save_to_storage and not prefix_name:
                         output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
-                                  'logs': storage.upload_to_GCP_log}
+                                  'gcp_logs': storage.upload_to_GCP_log,
+                                  'validation_logs': ec.validation_log,
+                                  }
                         results.append(output)
                     else:
                         pass
