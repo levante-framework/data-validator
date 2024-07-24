@@ -18,9 +18,11 @@ def data_validator(request):
     from storage_services import StorageServices
     from redivis_services import RedivisServices
     from entity_controller import EntityController
-    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}, instance: {settings.config['INSTANCE']}")
-    os.environ["REDIVIS_API_TOKEN"] = secret_services.access_secret_version(secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
-                                                                            version_id="latest")
+    logging.info(
+        f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}, instance: {settings.config['INSTANCE']}")
+    os.environ["REDIVIS_API_TOKEN"] = secret_services.access_secret_version(
+        secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
+        version_id="latest")
 
     admin_api_key = secret_services.access_secret_version(secret_id=settings.config['VALIDATOR_API_SECRET_ID'],
                                                           version_id="latest")
@@ -37,24 +39,37 @@ def data_validator(request):
         request_json = request.get_json(silent=True)
         if request_json:
             lab_ids = request_json.get('lab_ids', [])
-            filter_by = None if not request_json.get('filter_by', None) else request_json.get('filter_by')
-            filter_list = None if not request_json.get('filter_list', None) else request_json.get('filter_list')
             is_from_guest = request_json.get('is_from_guest', False)
-            if is_from_guest:
-                os.environ['guest_mode'] = "True"
-
             is_save_to_storage = request_json.get('is_save_to_storage', False)
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
-            prefix_name = None if not request_json.get('prefix_name', None) else request_json.get('prefix_name')
+
+            filter_by = None if not request_json.get('filter_by', None) else request_json.get('filter_by')
+            filter_list = None if not request_json.get('filter_list', None) else request_json.get('filter_list')
             start_date = None if not request_json.get('start_date', None) else request_json.get('start_date')
             end_date = None if not request_json.get('end_date', None) else request_json.get('end_date')
+            prefix_name = None if not request_json.get('prefix_name', None) else request_json.get('prefix_name')
 
             results = []
             job = 1
-            for lab_id in lab_ids:
-                logging.info(f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
-                if params_check(lab_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis):
+            valid, error_message = params_check(lab_ids=lab_ids,
+                                                is_from_guest=is_from_guest,
+                                                is_save_to_storage=is_save_to_storage,
+                                                is_upload_to_redivis=is_upload_to_redivis,
+                                                is_release_on_redivis=is_release_on_redivis,
+                                                filter_by=filter_by,
+                                                filter_list=filter_list,
+                                                start_date=start_date,
+                                                end_date=end_date)
+            if not valid:
+                return error_message, 400
+            else:
+                for lab_id in lab_ids:
+                    logging.info(
+                        f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
+                    if is_from_guest:
+                        os.environ['guest_mode'] = "True"
+
                     storage = StorageServices(lab_id=lab_id)
                     ec = EntityController()
                     if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
@@ -97,10 +112,11 @@ def data_validator(request):
                         if is_release_on_redivis:
                             rs.release_dataset()
                         logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
-                        output = {'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
-                                  'redivis_logs': rs.upload_to_redivis_log,
-                                  'validation_logs': ec.validation_log,
-                                  }
+                        output = {
+                            'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
+                            'redivis_logs': rs.upload_to_redivis_log,
+                            'validation_logs': ec.validation_log,
+                        }
                         results.append(output)
                     elif is_save_to_storage and not prefix_name:
                         output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
@@ -110,8 +126,6 @@ def data_validator(request):
                         results.append(output)
                     else:
                         pass
-                else:
-                    return 'Error in parameters setup in the request body', 400
                 logging.info(f'Finished job {job} of {len(lab_ids)}.')
                 job += 1
             response = {'status': 'success', 'logs': results}

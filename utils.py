@@ -10,19 +10,45 @@ from firebase_admin import credentials
 from google.cloud import secretmanager
 
 
-def params_check(lab_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis):
-    if not lab_id:
-        return "Parameter 'lab_id' needs to be specified.", 400
-    elif not isinstance(lab_id, str):
-        return "Parameter 'lab_id' needs to be a valid string.", 400
-    if not isinstance(is_save_to_storage, bool):
-        return "Parameter 'is_save_to_storage' has to be a bool value.", 400
-    if not isinstance(is_upload_to_redivis, bool):
-        return "Parameter 'is_upload_to_redivis' has to be a bool value.", 400
-    if not isinstance(is_release_on_redivis, bool):
-        return "Parameter 'is_release_on_redivis' has to be a bool value.", 400
+def params_check(lab_ids, is_from_guest, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, filter_by,
+                 filter_list, start_date, end_date):
+    # Validate 'lab_ids'
+    if not lab_ids:
+        return False, "Parameter 'lab_ids' needs to be specified."
+    elif not isinstance(lab_ids, list):
+        return False, "Parameter 'lab_ids' needs to be a valid list."
+    else:
+        pattern = re.compile("^[a-zA-Z0-9-]+$")
+        for lab_id in lab_ids:
+            if not isinstance(lab_id, str) or not pattern.match(lab_id):
+                return False, "All elements in 'lab_ids' must be strings containing only letters, numbers, and hyphens."
 
-    return True
+    # Validate boolean parameters
+    if not isinstance(is_from_guest, bool):
+        return False, "Parameter 'is_from_guest' has to be a bool value."
+    if not isinstance(is_save_to_storage, bool):
+        return False, "Parameter 'is_save_to_storage' has to be a bool value."
+    if not isinstance(is_upload_to_redivis, bool):
+        return False, "Parameter 'is_upload_to_redivis' has to be a bool value."
+    if not isinstance(is_release_on_redivis, bool):
+        return False, "Parameter 'is_release_on_redivis' has to be a bool value."
+
+    # Validate 'filter_by' and 'filter_list'
+    if (filter_by is not None and filter_list is None) or (filter_by is None and filter_list is not None):
+        return False, "'filter_by' and 'filter_list' must either both be specified or not specified."
+    if filter_by is not None and filter_by not in ["groups", "districts", "schools"]:
+        return False, "Parameter 'filter_by' must be one of the following values: ['groups', 'districts', 'schools']."
+    if filter_list is not None and not all(isinstance(item, str) for item in filter_list):
+        return False, "All elements in 'filter_list' must be strings."
+
+    # Validate 'start_date' and 'end_date'
+    date_pattern = re.compile(r"^202\d-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+    if start_date is not None and not (isinstance(start_date, str) and date_pattern.match(start_date)):
+        return False, "Parameter 'start_date' should be a string in the format 'YYYY-MM-DD'."
+    if end_date is not None and not (isinstance(end_date, str) and date_pattern.match(end_date)):
+        return False, "Parameter 'end_date' should be a string in the format 'YYYY-MM-DD'."
+
+    return True, ""
 
 
 # Utility function for converting dictionaries to snake_case and handling NaN values

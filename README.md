@@ -52,11 +52,11 @@ https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
     "is_release_to_redivis": true
     
     //Optional
-    // "prefix_name": "lab_columbia-pilot-Bund-ColA-ColC-ColD-V2-ColB_firestore_2024-06-18-16-30-57/",
     "filter_by": "groups", #org name to filter data
     "filter_list": ["Bund1_ColD_PilotoColombia"], #filter 
     "start_date": "06/10/2024",
     "end_date": "06/18/2024",
+    // "prefix_name": "lab_columbia-pilot-Bund-ColA-ColC-ColD-V2-ColB_firestore_2024-06-18-16-30-57/",
 }
 ```
 ### Debug and Deployment

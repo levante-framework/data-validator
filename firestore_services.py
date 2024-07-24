@@ -48,10 +48,10 @@ class FirestoreServices:
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
             self.db = firestore.client(self.default_app)
 
-            self.start_date = (datetime.strptime(start_date, "%m/%d/%Y")
+            self.start_date = (datetime.strptime(start_date, "%Y-%m-%d")
                                .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1,
                                                                                                                 1)
-            self.end_date = (datetime.strptime(end_date, '%m/%d/%Y')
+            self.end_date = (datetime.strptime(end_date, '%Y-%m-%d')
                              .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
                 2050, 1, 1)
         except Exception as e:
