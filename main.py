@@ -38,96 +38,87 @@ def data_validator(request):
     if request.method == 'POST':
         request_json = request.get_json(silent=True)
         if request_json:
-            lab_ids = request_json.get('lab_ids', [])
-            is_from_guest = request_json.get('is_from_guest', False)
+            dataset_id = request_json.get('dataset_id', None)
             is_save_to_storage = request_json.get('is_save_to_storage', False)
             is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
             is_release_on_redivis = request_json.get('is_release_to_redivis', False)
-
-            filter_by = None if not request_json.get('filter_by', None) else request_json.get('filter_by')
-            filter_list = None if not request_json.get('filter_list', None) else request_json.get('filter_list')
-            start_date = None if not request_json.get('start_date', None) else request_json.get('start_date')
-            end_date = None if not request_json.get('end_date', None) else request_json.get('end_date')
             prefix_name = None if not request_json.get('prefix_name', None) else request_json.get('prefix_name')
 
+            orgs = request_json.get('orgs', [])
+
             results = []
-            job = 1
-            valid, error_message = params_check(lab_ids=lab_ids,
-                                                is_from_guest=is_from_guest,
+            valid, error_message = params_check(dataset_id=dataset_id,
                                                 is_save_to_storage=is_save_to_storage,
                                                 is_upload_to_redivis=is_upload_to_redivis,
                                                 is_release_on_redivis=is_release_on_redivis,
-                                                filter_by=filter_by,
-                                                filter_list=filter_list,
-                                                start_date=start_date,
-                                                end_date=end_date)
+                                                orgs=orgs)
             if not valid:
                 return error_message, 400
             else:
-                for lab_id in lab_ids:
-                    logging.info(
-                        f'Syncing data from Firestore to Redivis for lab_id: {lab_id}; job {job} of {len(lab_ids)}.')
-                    if is_from_guest:
-                        os.environ['guest_mode'] = "True"
+                logging.info(
+                    f'Syncing data from Firestore to Redivis for orgs: {orgs}.')
+                storage = StorageServices(dataset_id=dataset_id)
+                if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
+                    storage.storage_prefix = prefix_name
+                else:  # if no prefix_name specified, start validation process.
+                    valid_data = {}
+                    invalid_data = {}
+                    validation_logs = {}
+                    for org in orgs:
+                        logging.info(f'Getting data from Firestore for org_id: {org.get("org_id")}.')
+                        ec = EntityController(org=org)
 
-                    storage = StorageServices(lab_id=lab_id)
-                    ec = EntityController()
-                    if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
-                        storage.storage_prefix = prefix_name
-                    else:  # if no prefix_name specified, start validation process.
-                        logging.info(f'Getting data from Firestore for lab_id: {lab_id}.')
-                        ec.set_values_from_firestore(lab_id=lab_id,
-                                                     start_date=start_date,
-                                                     end_date=end_date,
-                                                     filter_by=filter_by,
-                                                     filter_list=filter_list)
+                        ec.set_values_from_firestore()
                         logging.info(f"validation_log_list: {ec.validation_log}")
+                        valid_data = merge_dictionaries(valid_data, ec.get_valid_data())
+                        invalid_data = merge_dictionaries(invalid_data, ec.get_invalid_data())
+                        validation_logs = merge_dictionaries(validation_logs, ec.validation_log)
 
-                        # GCP storage service
-                        if is_save_to_storage:
-                            logging.info(f"Saving data to GCP storage for lab_id: {lab_id}.")
-                            storage.process(valid_data=ec.get_valid_data(), invalid_data=ec.get_invalid_data())
-                            logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
-                        else:
-                            output = {'title': f'Function executed successfully!',
-                                      'valid_users_count': len(ec.valid_users),
-                                      'valid_runs_count': len(ec.valid_runs),
-                                      'valid_trials_count': len(ec.valid_trials),
-                                      'logs': ec.validation_log,
-                                      'invalid_results': ec.get_invalid_data()}
-                            results.append(output)
+                    # GCP storage service
+                    if is_save_to_storage:
+                        logging.info(f"Saving data to GCP storage for dataset_id: {dataset_id}.")
+
+                        storage.process(valid_data=valid_data, invalid_data=invalid_data)
+                        logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                    else:
+                        output = {'title': f'Function executed successfully!',
+                                  'valid_users_count': len(valid_data.get('users', [])),
+                                  'valid_runs_count': len(valid_data.get('runs', [])),
+                                  'valid_trials_count': len(valid_data.get('trials', [])),
+                                  'logs': validation_logs,
+                                  'invalid_results': invalid_data}
+                        results.append(output)
 
                     # redivis service
                     if is_upload_to_redivis:
-                        logging.info(f"Uploading data to Redivis for lab_id: {lab_id}.")
+                        logging.info(f"Uploading data to Redivis for dataset_id: {dataset_id}.")
                         rs = RedivisServices()
-                        rs.set_dataset(lab_id=lab_id)
-                        rs.create_dateset_version()
-                        # rs.save_to_redivis_table(file_name="lab_guests_firestore_2024-03-11-19-23-32/trials.json")
+                        rs.set_dataset(dataset_id=dataset_id)
+                        rs.create_dateset_version(params=orgs)
                         file_names = storage.list_blobs_with_prefix()
                         for file_name in file_names:
                             rs.save_to_redivis_table(file_name=file_name)
-                        if not ec.get_invalid_data():
+                        # Double check if validation_results is empty to make sure the release is going through
+                        if not invalid_data:
                             rs.delete_table(table_name='validation_results')
+
                         if is_release_on_redivis:
                             rs.release_dataset()
                         logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                         output = {
                             'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
                             'redivis_logs': rs.upload_to_redivis_log,
-                            'validation_logs': ec.validation_log,
+                            'validation_logs': validation_logs,
                         }
                         results.append(output)
                     elif is_save_to_storage and not prefix_name:
                         output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
                                   'gcp_logs': storage.upload_to_GCP_log,
-                                  'validation_logs': ec.validation_log,
+                                  'validation_logs': validation_logs,
                                   }
                         results.append(output)
                     else:
                         pass
-                logging.info(f'Finished job {job} of {len(lab_ids)}.')
-                job += 1
             response = {'status': 'success', 'logs': results}
             logging.info(response)
             return response, 200

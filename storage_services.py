@@ -37,10 +37,10 @@ def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_ty
 class StorageServices:
     storage_prefix = None
 
-    def __init__(self, lab_id: str):
-        self.lab_id = lab_id
+    def __init__(self, dataset_id: str):
+        self.dataset_id = dataset_id
         self.timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.storage_prefix = f"lab_{self.lab_id}_{self.timestamp}/"
+        self.storage_prefix = f"lab_{self.dataset_id}_{self.timestamp}/"
         self.upload_to_GCP_log = []
 
     def process(self, valid_data: dict, invalid_data: dict):
@@ -54,7 +54,7 @@ class StorageServices:
 
     def save_to_storage(self, table_name: str, data):
         data_json = json.dumps(data, cls=CustomJSONEncoder)
-        destination_blob_name = f"lab_{self.lab_id}_{self.timestamp}/{table_name}.json"
+        destination_blob_name = f"lab_{self.dataset_id}_{self.timestamp}/{table_name}.json"
         try:
             upload_blob_from_memory(bucket_name=settings.config['CORE_DATA_BUCKET_NAME'], data=data_json,
                                     destination_blob_name=destination_blob_name,
@@ -62,7 +62,7 @@ class StorageServices:
             self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
         except Exception as e:
             self.upload_to_GCP_log.append(
-                f"Failed to save data to cloud, {self.lab_id}, {table_name}, {e}")
+                f"Failed to save data to cloud, {self.dataset_id}, {table_name}, {e}")
 
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""

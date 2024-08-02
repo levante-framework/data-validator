@@ -12,15 +12,15 @@ class RedivisServices:
     is_deleted = None
     version = None
     dataset = None
-    lab_id = None
+    dataset_id = None
 
     def __init__(self):
         self.organization = redivis.organization(settings.config['INSTANCE'])
         self.upload_to_redivis_log = []
 
-    def set_dataset(self, lab_id: str):
-        self.lab_id = lab_id
-        self.dataset = self.organization.dataset(name=lab_id)
+    def set_dataset(self, dataset_id: str):
+        self.dataset_id = dataset_id
+        self.dataset = self.organization.dataset(name=dataset_id)
 
     def get_properties(self):
         properties = self.dataset.get().properties
@@ -64,12 +64,13 @@ class RedivisServices:
             # except Exception as e:
             #     self.upload_to_redivis_log.append(f"{table_name} failed to be deleted from redivis, {e}")
 
-    def create_dateset_version(self):
+    def create_dateset_version(self, params: dict):
         try:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
+                self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
             else:
-                self.dataset.create(description=f"This is a dataset for {self.lab_id}", public_access_level="overview")
+                self.dataset.create(description=f"This is a dataset for {self.dataset_id}, with API params: {params}", public_access_level="overview")
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
 

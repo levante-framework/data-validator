@@ -10,45 +10,102 @@ from firebase_admin import credentials
 from google.cloud import secretmanager
 
 
-def params_check(lab_ids, is_from_guest, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, filter_by,
-                 filter_list, start_date, end_date):
-    # Validate 'lab_ids'
-    if not lab_ids:
-        return False, "Parameter 'lab_ids' needs to be specified."
-    elif not isinstance(lab_ids, list):
-        return False, "Parameter 'lab_ids' needs to be a valid list."
-    else:
-        pattern = re.compile("^[a-zA-Z0-9-]+$")
-        for lab_id in lab_ids:
-            if not isinstance(lab_id, str) or not pattern.match(lab_id):
-                return False, "All elements in 'lab_ids' must be strings containing only letters, numbers, and hyphens."
+def params_check(dataset_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, orgs):
+    date_pattern = re.compile(r"^202\d-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
+    id_pattern = re.compile("^[a-zA-Z0-9-]+$")
+
+    # Validate 'dataset_id'
+    if not dataset_id:
+        return False, "Parameter 'dataset_id' needs to be specified."
+    if not isinstance(dataset_id, str) or not id_pattern.match(dataset_id):
+        return False, "'dataset_id' must be strings containing only letters, numbers, and hyphens."
 
     # Validate boolean parameters
-    if not isinstance(is_from_guest, bool):
-        return False, "Parameter 'is_from_guest' has to be a bool value."
     if not isinstance(is_save_to_storage, bool):
         return False, "Parameter 'is_save_to_storage' has to be a bool value."
     if not isinstance(is_upload_to_redivis, bool):
         return False, "Parameter 'is_upload_to_redivis' has to be a bool value."
     if not isinstance(is_release_on_redivis, bool):
         return False, "Parameter 'is_release_on_redivis' has to be a bool value."
+    if not isinstance(orgs, list):
+        return False, "Parameter 'orgs' and 'guests' have to be list values."
 
-    # Validate 'filter_by' and 'filter_list'
-    if (filter_by is not None and filter_list is None) or (filter_by is None and filter_list is not None):
-        return False, "'filter_by' and 'filter_list' must either both be specified or not specified."
-    if filter_by is not None and filter_by not in ["groups", "districts", "schools"]:
-        return False, "Parameter 'filter_by' must be one of the following values: ['groups', 'districts', 'schools']."
-    if filter_list is not None and not all(isinstance(item, str) for item in filter_list):
-        return False, "All elements in 'filter_list' must be strings."
+    # Helper function to validate orgs or guests
+    def validate_org(orgs):
+        for org in orgs:
+            if not isinstance(org, dict):
+                return False, "Each org in the orgs must be a dictionary."
 
-    # Validate 'start_date' and 'end_date'
-    date_pattern = re.compile(r"^202\d-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
-    if start_date is not None and not (isinstance(start_date, str) and date_pattern.match(start_date)):
-        return False, "Parameter 'start_date' should be a string in the format 'YYYY-MM-DD'."
-    if end_date is not None and not (isinstance(end_date, str) and date_pattern.match(end_date)):
-        return False, "Parameter 'end_date' should be a string in the format 'YYYY-MM-DD'."
+            # Extract information from item
+            org_id = org.get('org_id', None)
+            is_guest = org.get('is_guest', False)
+            start_date = org.get('start_date', None)
+            end_date = org.get('end_date', None)
+            filter_key = org.get('filter_key', None)
+            filter_operator = org.get('filter_operator', None)
+            filter_value = org.get('filter_value', None)
 
-    return True, ""
+            # Validate 'org_id'
+            if not org_id:
+                return False, "Parameter 'org_id' needs to be specified."
+            if not isinstance(org_id, str) or not id_pattern.match(org_id):
+                return False, "'org_id' must be strings containing only letters, numbers, and hyphens."
+
+            if not isinstance(is_guest, bool):
+                return False, "Parameter 'is_guest' has to be a bool value."
+
+            # Validate filtering parameters
+            if any([filter_operator, filter_key, filter_value]) and not all([filter_operator, filter_key, filter_value]):
+                return False, "Filter parameters must either all be provided or none should be provided."
+            if filter_key and not isinstance(filter_key, str):
+                return False, "'filter_key' must be a string."
+
+            # Specific filter rules
+            if filter_operator:
+                if filter_operator not in ["str_contains_str", "array_contains_str", "array_contains_any"]:
+                    return False, f"filter_operator must be in ['str_contains_str', 'array_contains_str', 'array_contains_any]"
+                if filter_operator in ["str_contains_str", "array_contains_str"] and not isinstance(filter_value, str):
+                    return False, f"'filter_value' must be a string for filter {filter_operator}."
+                elif filter_operator == "array_contains_any":
+                    if not isinstance(filter_value, list) or not all(isinstance(i, str) for i in filter_value):
+                        return False, "'filter_value' must be an array of strings for filter 'array_contains_any'."
+
+            # Date validations
+            if start_date is not None and not (isinstance(start_date, str) and date_pattern.match(start_date)):
+                return False, "Parameter 'start_date' should be a string in the format 'YYYY-MM-DD'."
+            if end_date is not None and not (isinstance(end_date, str) and date_pattern.match(end_date)):
+                return False, "Parameter 'end_date' should be a string in the format 'YYYY-MM-DD'."
+
+        return True, "Validation successful."
+
+    # Validate orgs and guests
+    valid_orgs = validate_org(orgs)
+    if not valid_orgs[0]:
+        return valid_orgs
+
+    return True, "All parameters are valid."
+
+
+def merge_dictionaries(dict1, dict2):
+    # Initialize the result dictionary
+    merged_dict = {}
+
+    # Get all keys from both dictionaries
+    all_keys = set(dict1.keys()).union(dict2.keys())
+
+    # Iterate over all keys
+    for key in all_keys:
+        # If key is in both dictionaries, concatenate the lists
+        if key in dict1 and key in dict2:
+            merged_dict[key] = dict1[key] + dict2[key]
+        # If key is only in the first dictionary, add it directly
+        elif key in dict1:
+            merged_dict[key] = dict1[key]
+        # If key is only in the second dictionary, add it directly
+        elif key in dict2:
+            merged_dict[key] = dict2[key]
+
+    return merged_dict
 
 
 # Utility function for converting dictionaries to snake_case and handling NaN values
@@ -151,3 +208,19 @@ def get_lab_ids(_request, app):
         # This clause allows the function to run as a scheduled Cloud job
         logging.info("Running in scheduled mode with lab_ids from Firestore.")
         return get_lab_ids_from_firestore(app)
+
+
+def generate_query_description(table_name, collection_source, date_field=None, start_date=None, end_date=None,
+                               filter_field=None, filter_list=None):
+    description = {
+        'table_name': table_name,
+        'collection_source': collection_source,
+        'date_field': date_field,
+        'Start Date': start_date,
+        'End Date': end_date
+    }
+    if filter_field and filter_list:
+        description['Filter Field'] = filter_field
+        description['Filter Values'] = filter_list
+
+    return description

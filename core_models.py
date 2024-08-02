@@ -302,8 +302,8 @@ class SurveyResponse(BaseModel):
     created_at: datetime
 
 
-class AssignmentBase(BaseModel):
-    assignment_id: str
+class AdministrationBase(BaseModel):
+    administration_id: str
     name: str
     public_name: Optional[str] = None
     sequential: bool
@@ -313,7 +313,7 @@ class AssignmentBase(BaseModel):
     date_opened: datetime
 
 
-class RoarAssignment(AssignmentBase):
+class RoarAdministration(AdministrationBase):
     assessments: Optional[list] = None
     districts: Optional[list] = None
     schools: Optional[list] = None
@@ -321,8 +321,8 @@ class RoarAssignment(AssignmentBase):
     families: Optional[list] = None
 
 
-class AssignmentTask(BaseModel):
-    assignment_id: str
+class AdministrationTask(BaseModel):
+    administration_id: str
     task_id: str
     variant_id: Optional[str] = None
 

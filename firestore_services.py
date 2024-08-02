@@ -73,7 +73,7 @@ class FirestoreServices:
             logging.error(f"Error in get_groups: {e}")
             return {}
 
-    def get_groups_by_group_name_list(self, group_name_list: list):
+    def get_groups_by_group_name_list(self, group_name_list: list = None):
         result = []
         try:
             docs = (self.db.collection('groups')
@@ -256,7 +256,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_assignments(self, filter_list: list, filter_by: str, chunk_size=100):
+    def get_administrations(self, filter_value: list, filter_key: str, filter_operator: str,  chunk_size=100):
         base_query = self.db.collection('administrations')
 
         # Apply the date range filters
@@ -294,20 +294,20 @@ class FirestoreServices:
                     logging.error(f"Error in get_users: {e}")
                     break
 
-        if filter_by:
-            org_chunks = chunked_list(filter_list, 30)
+        if filter_key:
+            org_chunks = chunked_list(filter_value, 30)
             # Iterate over each chunk of organization IDs
             for org_chunk in org_chunks:
                 print("Processing org chunk:", org_chunk)  # Print the current chunk
-                filtered_query = base_query.where(f'minimalOrgs.{filter_by}', 'array_contains_any', org_chunk)
+                filtered_query = base_query.where(f'minimalOrgs.{filter_key}', filter_operator, org_chunk)
                 yield from process_docs(query=filtered_query)
         else:
             yield from process_docs(query=base_query)
 
-    def get_users(self, filter_list: list, filter_by: str, chunk_size=100):
-        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
-        date_field = 'created' if os.environ.get('guest_mode') else 'lastUpdated'
-        filter_field = None if os.environ.get('guest_mode') or filter_by is None else f'{filter_by}.current'
+    def get_users(self, is_guest: bool = False, filter_list: list = None, filter_by: str = None, chunk_size=100):
+        collection_name = 'guests' if is_guest else 'users'
+        date_field = 'created' if is_guest else 'lastUpdated'
+        filter_field = None if is_guest or filter_by is None else f'{filter_by}.current'
         base_query = self.db.collection(collection_name)
 
         # Apply the date range filters
@@ -354,9 +354,9 @@ class FirestoreServices:
         else:
             yield from process_docs(query=base_query)
 
-    def get_runs(self, user_id: str, chunk_size=100):
+    def get_runs(self, user_id: str, is_guest: bool = False, chunk_size=100):
         last_doc = None
-        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
+        collection_name = 'guests' if is_guest else 'users'
         base_query = (self.db.collection(collection_name).document(user_id)
                       .collection('runs'))
         total_docs = base_query.get()
@@ -395,9 +395,9 @@ class FirestoreServices:
                 logging.error(f"Error in get_runs: {e}")
                 break
 
-    def get_trials(self, user_id: str, run_id: str, task_id: str, chunk_size=100):
+    def get_trials(self, user_id: str, run_id: str, task_id: str, is_guest: bool = False, chunk_size=100):
         last_doc = None
-        collection_name = 'guests' if os.environ.get('guest_mode') else 'users'
+        collection_name = 'guests' if is_guest else 'users'
         base_query = (self.db.collection(collection_name).document(user_id)
                       .collection('runs').document(run_id)
                       .collection('trials'))
@@ -501,4 +501,3 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
         return result
-
