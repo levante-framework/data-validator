@@ -256,7 +256,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, filter_value: list, filter_key: str, filter_operator: str,  chunk_size=100):
+    def get_administrations(self, filter_key: str, filter_operator: str, filter_value: list, chunk_size=100):
         base_query = self.db.collection('administrations')
 
         # Apply the date range filters
@@ -304,10 +304,11 @@ class FirestoreServices:
         else:
             yield from process_docs(query=base_query)
 
-    def get_users(self, is_guest: bool = False, filter_list: list = None, filter_by: str = None, chunk_size=100):
+    def get_users(self, is_guest: bool = False, filter_key: str = None, filter_operator: str = None, filter_value=None,
+                  chunk_size=100):
         collection_name = 'guests' if is_guest else 'users'
         date_field = 'created' if is_guest else 'lastUpdated'
-        filter_field = None if is_guest or filter_by is None else f'{filter_by}.current'
+        filter_field = f'{filter_key}.all' if not is_guest and isinstance(filter_value, list) else None
         base_query = self.db.collection(collection_name)
 
         # Apply the date range filters
@@ -333,9 +334,11 @@ class FirestoreServices:
                     logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict()
-                        doc_dict.update({
-                            'user_id': doc.id,
-                        })
+                        doc_dict['user_id'] = doc.id
+                        if is_guest and isinstance(filter_value, str):
+                            filter_value_firebase = doc_dict.get(filter_key, None)
+                            if filter_value not in filter_value_firebase:
+                                continue  # Skip this document if the filter condition is not met
                         # Convert camelCase to snake_case and handle NaN values
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                         yield converted_doc_dict
@@ -345,11 +348,11 @@ class FirestoreServices:
                     break
 
         if filter_field:
-            org_chunks = chunked_list(filter_list, 30)
+            org_chunks = chunked_list(filter_value, 30)
             # Iterate over each chunk of organization IDs
             for org_chunk in org_chunks:
                 print("Processing org chunk:", org_chunk)  # Print the current chunk
-                filtered_query = base_query.where(filter_field, 'array_contains_any', org_chunk)
+                filtered_query = base_query.where(filter_field, filter_operator, org_chunk)
                 yield from process_docs(query=filtered_query)
         else:
             yield from process_docs(query=base_query)

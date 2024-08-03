@@ -12,11 +12,13 @@ class EntityController:
     def __init__(self, org: dict):
         self.org_id = org.get("org_id", None)
         self.is_guest = org.get("is_guest", False)
-        self.filter_key = org.get("filter_key", None)
-        self.filter_operator = org.get("filter_operator", None)
-        self.filter_value = org.get("filter_value", None)
         self.start_date = org.get("start_date", None)
         self.end_date = org.get("end_date", None)
+        primary_filter = org.get("filters", {}).get("primary", {})
+
+        self.filter_key = primary_filter.get("key", None)
+        self.filter_operator = org.get("operator", None)
+        self.filter_value = org.get("value", None)
 
         self.validation_log = {}
 
@@ -65,9 +67,7 @@ class EntityController:
                                           start_date=self.start_date,
                                           end_date=self.end_date)
         # Determine whether it's using guest.
-        if self.is_guest:
-            self.process_users(fs=fs_assessment)
-        else:
+        if not self.is_guest:
             fs_admin = FirestoreServices(app_name='admin_site',
                                          start_date=self.start_date,
                                          end_date=self.end_date)
@@ -89,6 +89,8 @@ class EntityController:
             else:
                 self.validation_log['users'] = "No valid users were found."
                 self.validation_log['survey_responses'] = "No valid survey_responses were found."
+        else:
+            self.process_users(fs=fs_assessment)
 
         if self.valid_users:
             self.process_runs(fs=fs_assessment)
@@ -160,33 +162,36 @@ class EntityController:
     def process_administration(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Assignments and AssignmentTasks...")
         if settings.config['INSTANCE'] == 'ROAR':
-            administrations = fs_admin.get_administrations(filter_value=[self.org_id], filter_key='districts')
+            administrations = fs_admin.get_administrations(filter_key='districts',
+                                                           filter_operator=self.filter_operator,
+                                                           filter_value=[district.district_id for district in
+                                                                         self.valid_districts])
 
         elif settings.config['INSTANCE'] == 'LEVANTE':
             if self.filter_key == 'groups':
-                administrations = fs_admin.get_administrations(filter_key=self.filter_key,
-                                                               filter_operator=self.filter_operator,
-                                                               filter_value=[group.group_id for group in
-                                                                             self.valid_groups])
-            else:
-                administrations = []
+                ids = [group.group_id for group in self.valid_groups]
+            else:  #TODO apply other filter than groups
+                ids = []
+            administrations = fs_admin.get_administrations(filter_key=self.filter_key,
+                                                           filter_operator=self.filter_operator,
+                                                           filter_value=ids)
         else:
             logging.info("Can't set assignments without specifying instance.")
             administrations = []
 
         self.set_administrations(administrations=administrations)
 
-        assignments_result = {"Valid": len(self.valid_assignments),
-                              "Invalid": len(self.invalid_assignments),
-                              }
-        logging.info(f"assignments: {assignments_result}")
-        self.validation_log['assignments'] = assignments_result
-
-        assignment_task_result = {"Valid": len(self.valid_assignment_tasks),
-                                  "Invalid": len(self.invalid_assignment_tasks),
+        administrations_result = {"Valid": len(self.valid_administrations),
+                                  "Invalid": len(self.invalid_administrations),
                                   }
-        logging.info(f"assignment_tasks: {assignment_task_result}")
-        self.validation_log['assignment_tasks'] = assignment_task_result
+        logging.info(f"administrations: {administrations_result}")
+        self.validation_log['administrations'] = administrations_result
+
+        administrations_task_result = {"Valid": len(self.valid_administration_tasks),
+                                       "Invalid": len(self.invalid_administration_tasks),
+                                       }
+        logging.info(f"administration_tasks: {administrations_task_result}")
+        self.validation_log['administration_tasks'] = administrations_task_result
 
     def process_tasks_variants(self, fs_assessment: FirestoreServices):
         logging.info("Now Validating Tasks and Variants...")
@@ -211,14 +216,21 @@ class EntityController:
     def process_users(self, fs: FirestoreServices):
         logging.info("Now Validating Users and UserGroups...")
         if settings.config['INSTANCE'] == 'ROAR':
-            self.set_users(users=fs.get_users(filter_list=[self.lab_id], filter_by='districts'))
+            users = fs.get_users()
         elif settings.config['INSTANCE'] == 'LEVANTE':
-            self.set_users(users=fs.get_users(is_guest=self.is_guest,
-                                              filter_list=[group.group_id for group in
-                                                           self.valid_groups] if self.filter_by == 'groups' else None,
-                                              filter_by=self.filter_by))
+            if self.filter_key == 'groups':
+                ids = [group.group_id for group in self.valid_groups]
+            else:  #TODO apply other filter than groups
+                ids = []
+            users = fs.get_users(is_guest=self.is_guest,
+                                 filter_key=self.filter_key,
+                                 filter_operator=self.filter_operator,
+                                 filter_value=ids)
         else:
             logging.info("Can't set users without specifying instance.")
+            users = []
+
+        self.set_users(users=users)
 
         users_result = {"Valid": len(self.valid_users),
                         "Invalid": len(self.invalid_users),
@@ -277,8 +289,8 @@ class EntityController:
             'groups': [obj.model_dump() for obj in self.valid_groups],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
             'variants': [obj.model_dump() for obj in self.valid_variants],
-            'assignments': [obj.model_dump() for obj in self.valid_assignments],
-            'assignment_tasks': [obj.model_dump() for obj in self.valid_assignment_tasks],
+            'assignments': [obj.model_dump() for obj in self.valid_administrations],
+            'assignment_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
             'users': [obj.model_dump() for obj in self.valid_users],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
@@ -294,8 +306,8 @@ class EntityController:
                         + [{**obj, "table_name": "classes"} for obj in self.invalid_classes]
                         + [{**obj, "table_name": "tasks"} for obj in self.invalid_tasks]
                         + [{**obj, "table_name": "variants"} for obj in self.invalid_variants]
-                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_assignments]
-                        + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_assignment_tasks]
+                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_administrations]
+                        + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_administrations]
                         + [{**obj, "table_name": "users"} for obj in self.invalid_users]
                         + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_groups]
                         + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
@@ -393,7 +405,7 @@ class EntityController:
                     self.invalid_variants.append(
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
-    def set_users(self, users):
+    def set_users(self, users: dict):
         for user in users:
             user_dict = user
             try:
@@ -425,16 +437,24 @@ class EntityController:
         user_groups = user.get('groups', {})
         all_groups = user_groups.get('all', [])
         current_groups = user_groups.get('current', [])
-        for group_id in all_groups:
+
+        def append_to_groups(group_id, is_active):
             try:
                 self.valid_user_groups.append(core_models.UserGroup(
                     user_id=user_id,
                     group_id=group_id,
-                    is_active=True if group_id in current_groups else False))
+                    is_active=is_active))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_user_groups.append(
-                        {**error, 'id': f"user_id: {user['user_id']}, group_id: {group_id}"})
+                        {**error, 'id': f"user_id: {user_id}, group_id: {group_id}"})
+
+        if self.is_guest:
+            append_to_groups(self.org_id, True)  # Guest users are always active in their org group
+        else:
+            for group in all_groups:
+                append_to_groups(group,
+                                 group in current_groups)  # Set is_active based on presence in current_groups
 
     def set_user_class(self, user: dict):
         user_id = user.get('user_id', None)

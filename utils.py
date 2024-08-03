@@ -41,9 +41,10 @@ def params_check(dataset_id, is_save_to_storage, is_upload_to_redivis, is_releas
             is_guest = org.get('is_guest', False)
             start_date = org.get('start_date', None)
             end_date = org.get('end_date', None)
-            filter_key = org.get('filter_key', None)
-            filter_operator = org.get('filter_operator', None)
-            filter_value = org.get('filter_value', None)
+            primary_filter = org.get("filters", {}).get("primary", {})
+            filter_key = primary_filter.get('key', None)
+            filter_operator = primary_filter.get('operator', None)
+            filter_value = primary_filter.get('value', None)
 
             # Validate 'org_id'
             if not org_id:
