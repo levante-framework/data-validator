@@ -7,7 +7,7 @@ class GroupBase(BaseModel):
     group_id: str
     name: str
     abbreviation: Optional[str] = None
-    tags: Optional[list] = None
+    tags: Optional[str] = None
 
 
 class RoarGroup(GroupBase):
@@ -171,6 +171,8 @@ class LevanteUser(UserBase):
     teacher_id: Optional[str] = None
     birth_year: Optional[int] = None  #Field(None, ge=1900, le=datetime.now().year)
     birth_month: Optional[int] = None  #Field(None, ge=1, le=12)
+    sex: Optional[str] = None
+    grade: Optional[Union[str, int]] = None
 
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 

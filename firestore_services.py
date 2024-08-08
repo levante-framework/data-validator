@@ -46,34 +46,16 @@ class FirestoreServices:
                 cred = credentials.ApplicationDefault()
 
             self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
-            self.db = firestore.client(self.default_app)
+        self.db = firestore.client(self.default_app)
 
-            self.start_date = (datetime.strptime(start_date, "%Y-%m-%d")
-                               .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1,
-                                                                                                                1)
-            self.end_date = (datetime.strptime(end_date, '%Y-%m-%d')
-                             .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
-                2050, 1, 1)
-        except Exception as e:
-            logging.info(f"Error in {app_name} FirestoreService init: {e}")
+        self.start_date = (datetime.strptime(start_date, "%Y-%m-%d")
+                           .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1,
+                                                                                                            1)
+        self.end_date = (datetime.strptime(end_date, '%Y-%m-%d')
+                         .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
+            2050, 1, 1)
 
-    def get_groups(self, lab_id: str):
-        # Does not need to be chunked since groups are unique
-        try:
-            doc = self.db.collection('groups').document(lab_id).get()
-            doc_dict = doc.to_dict()
-            doc_dict.update({
-                'group_id': doc.id,
-            })
-            # Convert camelCase to snake_case and handle NaN values
-            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            # Return a list of dictionaries for EntityController functions to loop through
-            return [converted_doc_dict]
-        except Exception as e:
-            logging.error(f"Error in get_groups: {e}")
-            return {}
-
-    def get_groups_by_group_name_list(self, group_name_list: list = None):
+    def get_groups(self, group_filter=None):
         result = []
         try:
             docs = (self.db.collection('groups')
@@ -83,15 +65,16 @@ class FirestoreServices:
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 name = doc_dict.get('name', None)
-                if not group_name_list or name in group_name_list:
+                tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
+                if not group_filter or name in group_filter:
                     doc_dict.update({
                         'group_id': doc.id,
+                        'tags': tags
                     })
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     result.append(converted_doc_dict)
-
         except Exception as e:
-            print(f"Error in get_groups_by_group_name_list: {e}")
+            logging.error(f"Error in get_groups: {e}")
         return result
 
     def get_districts(self, lab_id: str):
@@ -192,7 +175,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_classes: {e}")
                 break
 
-    def get_tasks(self, chunk_size=100):
+    def get_tasks(self, task_filter: list = None, chunk_size=100):
         last_doc = None
         base_query = self.db.collection('tasks')
         total_docs = base_query.get()
@@ -211,19 +194,20 @@ class FirestoreServices:
                 current_chunk += 1
                 logging.info(f"Setting tasks... processing chunk {current_chunk} of {total_chunks} chunks.")
                 for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'task_id': doc.id
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
+                    doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                    if not task_filter or doc.id in task_filter:
+                        doc_dict.update({
+                            'task_id': doc.id
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
                 logging.error(f"Error in get_tasks: {e}")
                 break
 
-    def get_variants(self, task_id: str, chunk_size=100):
+    def get_variants(self, task_id: str, variant_filter: list = None, chunk_size=100):
         last_doc = None
         base_query = self.db.collection('tasks').document(task_id).collection('variants')
         total_docs = base_query.get()
@@ -243,20 +227,22 @@ class FirestoreServices:
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     param_dict = doc_dict.get('params', {})
-                    doc_dict.update(param_dict)
-                    doc_dict.update({
-                        'variant_id': doc.id,
-                        'task_id': task_id
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
+                    if not variant_filter or doc.id in variant_filter:
+                        doc_dict.update(param_dict)
+                        doc_dict.update({
+                            'variant_id': doc.id,
+                            'task_id': task_id
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, filter_key: str, filter_operator: str, filter_value: list, chunk_size=100):
+    def get_administrations(self, org_key: str = None, org_operator: str = None, org_value=None,
+                            admin_key: str = None, admin_operator: str = None, admin_value=None, chunk_size=100):
         base_query = self.db.collection('administrations')
 
         # Apply the date range filters
@@ -280,11 +266,19 @@ class FirestoreServices:
                         break
                     current_chunk += 1
                     logging.info(
-                        f"Setting assignments... processing chunk {current_chunk} of {total_chunks} assignment chunks.")
+                        f"Getting administrations... processing chunk {current_chunk} of {total_chunks} administration chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict()
+                        if org_key and org_operator and org_value:
+                            if org_operator == "array_contains_any":
+                                org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_key, [])
+                                if not org_value_firebase:
+                                    continue  # Skip this document if the filter condition is not met
+                                elif set(org_value).isdisjoint(org_value_firebase):
+                                    continue
+
                         doc_dict.update({
-                            'assignment_id': doc.id,
+                            'administration_id': doc.id,
                         })
                         # Convert camelCase to snake_case and handle NaN values
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
@@ -294,21 +288,12 @@ class FirestoreServices:
                     logging.error(f"Error in get_users: {e}")
                     break
 
-        if filter_key:
-            org_chunks = chunked_list(filter_value, 30)
-            # Iterate over each chunk of organization IDs
-            for org_chunk in org_chunks:
-                print("Processing org chunk:", org_chunk)  # Print the current chunk
-                filtered_query = base_query.where(f'minimalOrgs.{filter_key}', filter_operator, org_chunk)
-                yield from process_docs(query=filtered_query)
-        else:
-            yield from process_docs(query=base_query)
+        yield from process_docs(query=base_query)
 
-    def get_users(self, is_guest: bool = False, filter_key: str = None, filter_operator: str = None, filter_value=None,
-                  chunk_size=100):
+    def get_users(self, is_guest: bool = False, org_key: str = None, org_operator: str = None, org_value=None,
+                  user_key: str = None, user_operator: str = None, user_value=None, chunk_size=100):
         collection_name = 'guests' if is_guest else 'users'
-        date_field = 'created' if is_guest else 'lastUpdated'
-        filter_field = f'{filter_key}.all' if not is_guest and isinstance(filter_value, list) else None
+        date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         base_query = self.db.collection(collection_name)
 
         # Apply the date range filters
@@ -331,14 +316,31 @@ class FirestoreServices:
                     if not docs:
                         break
                     current_chunk += 1
-                    logging.info(f"Setting users... processing chunk {current_chunk} of {total_chunks} user chunks.")
+                    logging.info(
+                        f"Setting users... processing chunk {current_chunk} of {total_chunks} {collection_name} chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict()
+                        # Check if groups.all has any element in org_value
+                        if org_key and org_operator and org_value:
+                            if org_operator == "array_contains_any":
+                                org_value_firebase = doc_dict.get(org_key, {}).get("all", [])
+                                if not org_value_firebase:
+                                    continue  # Skip this document if the filter condition is not met
+                                elif set(org_value).isdisjoint(org_value_firebase):
+                                    continue
+
+                        # Check if user filter is being used
+                        if user_key and user_operator and user_value:
+                            if user_operator == "contains":
+                                user_value_firebase = doc_dict.get(user_key, None)
+                                if not user_value_firebase:
+                                    continue  # Skip this document if the filter condition is not met
+                                elif user_value not in user_value_firebase:
+                                    continue
                         doc_dict['user_id'] = doc.id
-                        if is_guest and isinstance(filter_value, str):
-                            filter_value_firebase = doc_dict.get(filter_key, None)
-                            if filter_value not in filter_value_firebase:
-                                continue  # Skip this document if the filter condition is not met
+
+                        if doc_dict.get('created', None):
+                            doc_dict['created_at'] = doc_dict.get('created')
                         # Convert camelCase to snake_case and handle NaN values
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                         yield converted_doc_dict
@@ -347,15 +349,7 @@ class FirestoreServices:
                     logging.error(f"Error in get_users: {e}")
                     break
 
-        if filter_field:
-            org_chunks = chunked_list(filter_value, 30)
-            # Iterate over each chunk of organization IDs
-            for org_chunk in org_chunks:
-                print("Processing org chunk:", org_chunk)  # Print the current chunk
-                filtered_query = base_query.where(filter_field, filter_operator, org_chunk)
-                yield from process_docs(query=filtered_query)
-        else:
-            yield from process_docs(query=base_query)
+        yield from process_docs(query=base_query)
 
     def get_runs(self, user_id: str, is_guest: bool = False, chunk_size=100):
         last_doc = None
@@ -377,7 +371,7 @@ class FirestoreServices:
 
                 current_chunk += 1
                 logging.info(f"Setting runs... processing chunk {current_chunk} of {total_chunks} "
-                             f"run chunks for user {user_id}.")
+                             f"run chunks for {collection_name} {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     test_comp_scores = doc_dict.get('scores', {}).get('raw', {}).get('composite', {}).get('test', {})

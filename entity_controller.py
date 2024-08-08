@@ -12,16 +12,22 @@ class EntityController:
     def __init__(self, org: dict):
         self.org_id = org.get("org_id", None)
         self.is_guest = org.get("is_guest", False)
-        self.start_date = org.get("start_date", None)
-        self.end_date = org.get("end_date", None)
-        primary_filter = org.get("filters", {}).get("primary", {})
 
-        self.filter_key = primary_filter.get("key", None)
-        self.filter_operator = org.get("operator", None)
-        self.filter_value = org.get("value", None)
+        date_filter = org.get("filters", {}).get("date_filter", {})
+        self.start_date = date_filter.get("start_date", None)
+        self.end_date = date_filter.get("end_date", None)
 
-        self.validation_log = {}
+        org_filter = org.get("filters", {}).get("org_filter", {})
+        self.org_key = org_filter.get("key", None)
+        self.org_operator = org_filter.get("operator", None)
+        self.org_value = org_filter.get("value", None)
 
+        user_filter = org.get("filters", {}).get("user_filter", {})
+        self.user_key = user_filter.get("key", None)
+        self.user_operator = user_filter.get("operator", None)
+        self.user_value = user_filter.get("value", None)
+
+        self.validation_log = {"org_info": org}
         self.valid_groups = []
         self.invalid_groups = []
         self.valid_districts = []
@@ -80,7 +86,7 @@ class EntityController:
 
             self.process_administration(fs_admin)
 
-            self.process_tasks_variants(fs_admin)
+            self.process_tasks_variants(fs_assessment)
 
             self.process_users(fs=fs_admin)
 
@@ -109,17 +115,8 @@ class EntityController:
 
     def process_groups(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Groups...")
-        if settings.config['INSTANCE'] == 'ROAR':
-            groups = fs_admin.get_groups(lab_id=self.org_id)
-        elif settings.config['INSTANCE'] == 'LEVANTE':
-            if self.filter_key == 'groups':
-                groups = fs_admin.get_groups_by_group_name_list(group_name_list=self.filter_value)
-            else:
-                #TODO if use other filter, apply filter to groups, for now just pull all groups
-                groups = fs_admin.get_groups_by_group_name_list()
-        else:
-            logging.info("Can't set groups without specifying instance.")
-            groups = []
+
+        groups = fs_admin.get_groups(group_filter=self.org_value if self.org_key == "groups" else None)
 
         self.set_groups(groups=groups)
 
@@ -160,24 +157,16 @@ class EntityController:
         self.validation_log['classes'] = classes_result
 
     def process_administration(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Assignments and AssignmentTasks...")
-        if settings.config['INSTANCE'] == 'ROAR':
-            administrations = fs_admin.get_administrations(filter_key='districts',
-                                                           filter_operator=self.filter_operator,
-                                                           filter_value=[district.district_id for district in
-                                                                         self.valid_districts])
+        logging.info("Now Validating Administration and AdministrationTasks...")
 
-        elif settings.config['INSTANCE'] == 'LEVANTE':
-            if self.filter_key == 'groups':
-                ids = [group.group_id for group in self.valid_groups]
-            else:  #TODO apply other filter than groups
-                ids = []
-            administrations = fs_admin.get_administrations(filter_key=self.filter_key,
-                                                           filter_operator=self.filter_operator,
-                                                           filter_value=ids)
+        if self.org_key == 'groups':
+            org_ids = [group.group_id for group in self.valid_groups]
         else:
-            logging.info("Can't set assignments without specifying instance.")
-            administrations = []
+            # TODO: Add district or other orgs later.
+            org_ids = []
+        administrations = fs_admin.get_administrations(org_key=self.org_key,
+                                                       org_operator=self.org_operator,
+                                                       org_value=org_ids)
 
         self.set_administrations(administrations=administrations)
 
@@ -195,14 +184,23 @@ class EntityController:
 
     def process_tasks_variants(self, fs_assessment: FirestoreServices):
         logging.info("Now Validating Tasks and Variants...")
-        self.set_tasks(tasks=fs_assessment.get_tasks())
-
+        task_variants = {}
+        if self.valid_administration_tasks:
+            for item in self.valid_administration_tasks:
+                if item.task_id not in task_variants:
+                    task_variants[item.task_id] = []
+                if item.variant_id and item.variant_id not in task_variants[item.task_id]:  # Only add non-None non-exists variant_id
+                    task_variants[item.task_id].append(item.variant_id)
+        tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
+        self.set_tasks(tasks=tasks)
         tasks_result = {"Valid": len(self.valid_tasks),
                         "Invalid": len(self.invalid_tasks),
                         }
+
         if self.valid_tasks:
             for task in self.valid_tasks:
-                self.set_variants(variants=fs_assessment.get_variants(task.task_id), task_id=task.task_id)
+                variants = fs_assessment.get_variants(task_id=task.task_id, variant_filter=task_variants.get(task.task_id, []))
+                self.set_variants(variants=variants, task_id=task.task_id)
             variants_result = {"Valid": len(self.valid_variants),
                                "Invalid": len(self.invalid_variants),
                                }
@@ -215,20 +213,15 @@ class EntityController:
 
     def process_users(self, fs: FirestoreServices):
         logging.info("Now Validating Users and UserGroups...")
-        if settings.config['INSTANCE'] == 'ROAR':
-            users = fs.get_users()
-        elif settings.config['INSTANCE'] == 'LEVANTE':
-            if self.filter_key == 'groups':
-                ids = [group.group_id for group in self.valid_groups]
-            else:  #TODO apply other filter than groups
-                ids = []
-            users = fs.get_users(is_guest=self.is_guest,
-                                 filter_key=self.filter_key,
-                                 filter_operator=self.filter_operator,
-                                 filter_value=ids)
+        if self.org_key == 'groups':
+            org_ids = [group.group_id for group in self.valid_groups]
         else:
-            logging.info("Can't set users without specifying instance.")
-            users = []
+            # TODO apply other filter than groups
+            org_ids = []
+
+        users = fs.get_users(is_guest=self.is_guest,
+                             org_key=self.org_key, org_operator=self.org_operator, org_value=org_ids,
+                             user_key=self.user_key, user_operator=self.user_operator, user_value=self.user_value)
 
         self.set_users(users=users)
 
@@ -405,7 +398,7 @@ class EntityController:
                     self.invalid_variants.append(
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
-    def set_users(self, users: dict):
+    def set_users(self, users):
         for user in users:
             user_dict = user
             try:
@@ -489,7 +482,7 @@ class EntityController:
                     self.invalid_administrations.append({**error, 'id': administration['assignment_id']})
 
     def set_administration_task(self, administration: dict):
-        administration_id = administration.get('assignment_id', None)
+        administration_id = administration.get('administration_id', None)
         tasks = administration.get('assessments', [])
         for task in tasks:
             task_id = task.get('taskId', None)
@@ -502,7 +495,7 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_administration_tasks.append(
-                        {**error, 'id': f"administration_id:{administration['assignment_id']}, task_id:{task_id}"})
+                        {**error, 'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})
 
     def set_runs(self, user_id: str, runs: list):
         for run in runs:

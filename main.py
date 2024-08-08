@@ -55,15 +55,16 @@ def data_validator(request):
             if not valid:
                 return error_message, 400
             else:
-                logging.info(
-                    f'Syncing data from Firestore to Redivis for orgs: {orgs}.')
                 storage = StorageServices(dataset_id=dataset_id)
+
+                valid_data = {}
+                invalid_data = []
+                validation_logs = []
                 if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
                     storage.storage_prefix = prefix_name
                 else:  # if no prefix_name specified, start validation process.
-                    valid_data = {}
-                    invalid_data = {}
-                    validation_logs = {}
+                    logging.info(
+                        f'Syncing data from Firestore to Redivis for orgs: {orgs}.')
                     for org in orgs:
                         logging.info(f'Getting data from Firestore for org_id: {org.get("org_id")}.')
                         ec = EntityController(org=org)
@@ -71,8 +72,8 @@ def data_validator(request):
                         ec.set_values_from_firestore()
                         logging.info(f"validation_log_list: {ec.validation_log}")
                         valid_data = merge_dictionaries(valid_data, ec.get_valid_data())
-                        invalid_data = merge_dictionaries(invalid_data, ec.get_invalid_data())
-                        validation_logs = merge_dictionaries(validation_logs, ec.validation_log)
+                        invalid_data = invalid_data + ec.get_invalid_data()
+                        validation_logs.append(ec.validation_log)
 
                     # GCP storage service
                     if is_save_to_storage:
@@ -89,36 +90,36 @@ def data_validator(request):
                                   'invalid_results': invalid_data}
                         results.append(output)
 
-                    # redivis service
-                    if is_upload_to_redivis:
-                        logging.info(f"Uploading data to Redivis for dataset_id: {dataset_id}.")
-                        rs = RedivisServices()
-                        rs.set_dataset(dataset_id=dataset_id)
-                        rs.create_dateset_version(params=orgs)
-                        file_names = storage.list_blobs_with_prefix()
-                        for file_name in file_names:
-                            rs.save_to_redivis_table(file_name=file_name)
-                        # Double check if validation_results is empty to make sure the release is going through
-                        if not invalid_data:
-                            rs.delete_table(table_name='validation_results')
+                # redivis service
+                if is_upload_to_redivis:
+                    logging.info(f"Uploading data to Redivis for dataset_id: {dataset_id}.")
+                    rs = RedivisServices()
+                    rs.set_dataset(dataset_id=dataset_id)
+                    rs.create_dateset_version(params=orgs)
+                    file_names = storage.list_blobs_with_prefix()
+                    for file_name in file_names:
+                        rs.save_to_redivis_table(file_name=file_name)
+                    # Double check if validation_results is empty to make sure the release is going through
+                    if 'validation_results.json' not in file_names:
+                        rs.delete_table(table_name='validation_results')
 
-                        if is_release_on_redivis:
-                            rs.release_dataset()
-                        logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
-                        output = {
-                            'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
-                            'redivis_logs': rs.upload_to_redivis_log,
-                            'validation_logs': validation_logs,
-                        }
-                        results.append(output)
-                    elif is_save_to_storage and not prefix_name:
-                        output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
-                                  'gcp_logs': storage.upload_to_GCP_log,
-                                  'validation_logs': validation_logs,
-                                  }
-                        results.append(output)
-                    else:
-                        pass
+                    if is_release_on_redivis:
+                        rs.release_dataset(params=orgs)
+                    logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
+                    output = {
+                        'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
+                        'redivis_logs': rs.upload_to_redivis_log,
+                        'validation_logs': validation_logs,
+                    }
+                    results.append(output)
+                elif is_save_to_storage and not prefix_name:
+                    output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
+                              'gcp_logs': storage.upload_to_GCP_log,
+                              'validation_logs': validation_logs,
+                              }
+                    results.append(output)
+                else:
+                    pass
             response = {'status': 'success', 'logs': results}
             logging.info(response)
             return response, 200

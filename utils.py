@@ -63,9 +63,9 @@ def params_check(dataset_id, is_save_to_storage, is_upload_to_redivis, is_releas
 
             # Specific filter rules
             if filter_operator:
-                if filter_operator not in ["str_contains_str", "array_contains_str", "array_contains_any"]:
-                    return False, f"filter_operator must be in ['str_contains_str', 'array_contains_str', 'array_contains_any]"
-                if filter_operator in ["str_contains_str", "array_contains_str"] and not isinstance(filter_value, str):
+                if filter_operator not in ["contains", "array_contains_str", "array_contains_any"]:
+                    return False, f"filter_operator must be in ['contains', 'array_contains_str', 'array_contains_any]"
+                if filter_operator in ["contains", "array_contains_str"] and not isinstance(filter_value, str):
                     return False, f"'filter_value' must be a string for filter {filter_operator}."
                 elif filter_operator == "array_contains_any":
                     if not isinstance(filter_value, list) or not all(isinstance(i, str) for i in filter_value):

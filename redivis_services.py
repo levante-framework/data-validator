@@ -41,7 +41,7 @@ class RedivisServices:
                 .create(description=f"{table_name}_table",
                         upload_merge_strategy='replace')
             )
-
+        logging.info(f"Uploading {table_name} to Redivis.")
         upload = table.upload(name=upload_name)
         try:
             upload.create(
@@ -56,26 +56,24 @@ class RedivisServices:
                 raise_on_fail=False
             )
             self.upload_to_redivis_log.append(f"{file_name} has been uploaded to redivis table")
+            logging.info(f"{file_name} has been uploaded to redivis table")
         except Exception as e:
             self.upload_to_redivis_log.append(f"{file_name} failed to upload to redivis table, {e}")
-            # try:
-            #     self.dataset.table(table_name).delete()
-            #     self.upload_to_redivis_log.append(f"{table_name} has been deleted from redivis.")
-            # except Exception as e:
-            #     self.upload_to_redivis_log.append(f"{table_name} failed to be deleted from redivis, {e}")
+            logging.info(f"{file_name} failed to upload to redivis table, {e}")
 
     def create_dateset_version(self, params: dict):
         try:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
-                self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
             else:
                 self.dataset.create(description=f"This is a dataset for {self.dataset_id}, with API params: {params}", public_access_level="overview")
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
+            logging.info(f"Failed on create_dateset_version: {e}")
 
-    def release_dataset(self):
+    def release_dataset(self, params: dict):
         try:
+            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
             self.dataset.release()
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on release_dataset: {e}")
