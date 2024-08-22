@@ -277,6 +277,15 @@ class FirestoreServices:
                                 elif set(org_value).isdisjoint(org_value_firebase):
                                     continue
 
+                        # Check if admin filter is being used
+                        if admin_key and admin_operator and admin_value:
+                            if admin_operator == "contains":
+                                user_value_firebase = doc_dict.get(admin_key, None)
+                                if not user_value_firebase:
+                                    continue  # Skip this document if the filter condition is not met
+                                elif admin_value not in user_value_firebase:
+                                    continue
+
                         doc_dict.update({
                             'administration_id': doc.id,
                         })
@@ -320,6 +329,15 @@ class FirestoreServices:
                         f"Setting users... processing chunk {current_chunk} of {total_chunks} {collection_name} chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict()
+                        # Discard users without any assignment.
+                        if is_guest:
+                            runs = doc.reference.collection('runs').limit(1).get()
+                            if not runs:  # Check if there are no documents in the runs subcollection
+                                continue
+                        else:
+                            if not doc_dict.get('assignmentsStarted', False):
+                                continue
+
                         # Check if groups.all has any element in org_value
                         if org_key and org_operator and org_value:
                             if org_operator == "array_contains_any":
@@ -337,6 +355,7 @@ class FirestoreServices:
                                     continue  # Skip this document if the filter condition is not met
                                 elif user_value not in user_value_firebase:
                                     continue
+
                         doc_dict['user_id'] = doc.id
 
                         if doc_dict.get('created', None):
@@ -379,6 +398,7 @@ class FirestoreServices:
                     doc_dict.update({
                         'run_id': doc.id,
                         'user_id': user_id,
+                        'administration_id': doc_dict.get('assignmentId', None),
                         'num_attempted': test_comp_scores.get('numAttempted', None),
                         'num_correct': test_comp_scores.get('numCorrect', None),
                         'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', None),

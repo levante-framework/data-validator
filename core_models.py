@@ -208,7 +208,7 @@ class RunBase(BaseModel):
     user_id: str
     task_id: str
     variant_id: str
-    assignment_id: Optional[str] = None
+    administration_id: Optional[str] = None
     reliable: Optional[bool] = None
     completed: Optional[bool] = None
     best_run: Optional[bool] = None
@@ -228,7 +228,7 @@ class LevanteRun(RunBase):
     num_attempted: Optional[int] = None
     num_correct: Optional[int] = None
     test_comp_theta_estimate: Optional[float] = None
-    test_comp_theta_SE: Optional[float] = None
+    test_comp_theta_se: Optional[float] = None
 
 
 class TrialBase(BaseModel):

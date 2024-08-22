@@ -237,7 +237,7 @@ class EntityController:
         logging.info(f"user_groups: {user_group_result}")
         self.validation_log['user_groups'] = user_group_result
 
-    def process_survey_response(self, fs_admin: FirestoreServices, ):
+    def process_survey_response(self, fs_admin: FirestoreServices):
         logging.info("Now Validating SurveyResponses...")
         for user in self.valid_users:
             self.set_survey_responses(user=user,
@@ -282,8 +282,8 @@ class EntityController:
             'groups': [obj.model_dump() for obj in self.valid_groups],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
             'variants': [obj.model_dump() for obj in self.valid_variants],
-            'assignments': [obj.model_dump() for obj in self.valid_administrations],
-            'assignment_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
+            'administration': [obj.model_dump() for obj in self.valid_administrations],
+            'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
             'users': [obj.model_dump() for obj in self.valid_users],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
