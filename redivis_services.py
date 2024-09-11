@@ -1,5 +1,4 @@
 import redivis
-import os
 import logging
 import settings
 from secret_services import secret_services
@@ -61,7 +60,7 @@ class RedivisServices:
             self.upload_to_redivis_log.append(f"{file_name} failed to upload to redivis table, {e}")
             logging.info(f"{file_name} failed to upload to redivis table, {e}")
 
-    def create_dateset_version(self, params: dict):
+    def create_dateset_version(self, params: list):
         try:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
@@ -71,7 +70,7 @@ class RedivisServices:
             self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
             logging.info(f"Failed on create_dateset_version: {e}")
 
-    def release_dataset(self, params: dict):
+    def release_dataset(self, params: list):
         try:
             self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
             self.dataset.release()

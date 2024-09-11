@@ -1,11 +1,13 @@
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
-import os
+
 import logging
 from datetime import datetime
 import json
-from utils import process_doc_dict, handle_nan
+
+import utils
+from utils import process_doc_dict, handle_nan, Filters
 from secret_services import secret_services
 import settings
 
@@ -113,15 +115,15 @@ class FirestoreServices:
             print(f"Error in get_districts_by_district_name_list: {e}")
         return result
 
-    def get_schools(self, lab_id: str, chunk_size=100):
+    def get_schools(self, district_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('schools').where('districtId', '==', lab_id).get()
+        total_docs = self.db.collection('schools').where('districtId', '==', district_id).get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
                 query = (self.db.collection('schools')
-                         .where('districtId', '==', lab_id)
+                         .where('districtId', '==', district_id)
                          .limit(chunk_size))
                 if last_doc:
                     query = query.start_after(last_doc)
@@ -144,15 +146,15 @@ class FirestoreServices:
                 logging.error(f"Error in get_schools: {e}")
                 break
 
-    def get_classes(self, lab_id: str, chunk_size=100):
+    def get_classes(self, district_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('classes').where('districtId', '==', lab_id).get()
+        total_docs = self.db.collection('classes').where('districtId', '==', district_id).get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
                 query = (self.db.collection('classes')
-                         .where('districtId', '==', lab_id)
+                         .where('districtId', '==', district_id)
                          .limit(chunk_size))
                 if last_doc:
                     query = query.start_after(last_doc)
@@ -241,8 +243,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, org_key: str = None, org_operator: str = None, org_value=None,
-                            admin_key: str = None, admin_operator: str = None, admin_value=None, chunk_size=100):
+    def get_administrations(self, org_key: str = None, org_operator: str = None, org_value=None, chunk_size=100):
         base_query = self.db.collection('administrations')
 
         # Apply the date range filters
@@ -275,15 +276,6 @@ class FirestoreServices:
                                 if not org_value_firebase:
                                     continue  # Skip this document if the filter condition is not met
                                 elif set(org_value).isdisjoint(org_value_firebase):
-                                    continue
-
-                        # Check if admin filter is being used
-                        if admin_key and admin_operator and admin_value:
-                            if admin_operator == "contains":
-                                user_value_firebase = doc_dict.get(admin_key, None)
-                                if not user_value_firebase:
-                                    continue  # Skip this document if the filter condition is not met
-                                elif admin_value not in user_value_firebase:
                                     continue
 
                         doc_dict.update({

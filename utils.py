@@ -9,82 +9,100 @@ from firebase_admin import firestore
 from firebase_admin import credentials
 from google.cloud import secretmanager
 
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import List, Union, Optional
+from datetime import datetime
 
-def params_check(dataset_id, is_save_to_storage, is_upload_to_redivis, is_release_on_redivis, orgs):
-    date_pattern = re.compile(r"^202\d-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
-    id_pattern = re.compile("^[a-zA-Z0-9-]+$")
 
-    # Validate 'dataset_id'
-    if not dataset_id:
-        return False, "Parameter 'dataset_id' needs to be specified."
-    if not isinstance(dataset_id, str) or not id_pattern.match(dataset_id):
-        return False, "'dataset_id' must be strings containing only letters, numbers, and hyphens."
+class DateFilter(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
-    # Validate boolean parameters
-    if not isinstance(is_save_to_storage, bool):
-        return False, "Parameter 'is_save_to_storage' has to be a bool value."
-    if not isinstance(is_upload_to_redivis, bool):
-        return False, "Parameter 'is_upload_to_redivis' has to be a bool value."
-    if not isinstance(is_release_on_redivis, bool):
-        return False, "Parameter 'is_release_on_redivis' has to be a bool value."
-    if not isinstance(orgs, list):
-        return False, "Parameter 'orgs' and 'guests' have to be list values."
+    @field_validator('start_date', 'end_date')
+    def check_date_format(cls, v: str):
+        if v is not None:
+            try:
+                datetime.strptime(v, '%Y-%m-%d')
+                return v
+            except ValueError:
+                raise ValueError("Date must be in format YYYY-MM-DD")
+        return v
 
-    # Helper function to validate orgs or guests
-    def validate_org(orgs):
-        for org in orgs:
-            if not isinstance(org, dict):
-                return False, "Each org in the orgs must be a dictionary."
 
-            # Extract information from item
-            org_id = org.get('org_id', None)
-            is_guest = org.get('is_guest', False)
-            start_date = org.get('start_date', None)
-            end_date = org.get('end_date', None)
-            primary_filter = org.get("filters", {}).get("primary", {})
-            filter_key = primary_filter.get('key', None)
-            filter_operator = primary_filter.get('operator', None)
-            filter_value = primary_filter.get('value', None)
+class UserFilter(BaseModel):
+    key: Optional[str] = Field(default=None)
+    operator: Optional[str] = Field(default=None, pattern="^(contains|<=|>=|==)$")
+    value: Optional[Union[int, str]] = Field(default=None)
 
-            # Validate 'org_id'
-            if not org_id:
-                return False, "Parameter 'org_id' needs to be specified."
-            if not isinstance(org_id, str) or not id_pattern.match(org_id):
-                return False, "'org_id' must be strings containing only letters, numbers, and hyphens."
+    @model_validator(mode='before')
+    def validate_value(cls, data):
+        if 'operator' in data:
+            if data['operator'] == 'contains' and not isinstance(data['value'], str):
+                raise TypeError("Value must be a string when operator is 'contains'")
+            elif data['operator'] in ['<=', '>=', '=='] and not isinstance(data['value'], int):
+                raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
+        return data
 
-            if not isinstance(is_guest, bool):
-                return False, "Parameter 'is_guest' has to be a bool value."
+    @model_validator(mode='before')
+    def check_all_or_none(cls, values):
+        fields = ['key', 'operator', 'value']
+        all_none = all(values.get(f) is None for f in fields)
+        all_set = all(values.get(f) is not None for f in fields)
 
-            # Validate filtering parameters
-            if any([filter_operator, filter_key, filter_value]) and not all([filter_operator, filter_key, filter_value]):
-                return False, "Filter parameters must either all be provided or none should be provided."
-            if filter_key and not isinstance(filter_key, str):
-                return False, "'filter_key' must be a string."
+        if not (all_none or all_set):
+            raise ValueError("All of 'key', 'operator', and 'value' must be set or all must be None")
+        return values
 
-            # Specific filter rules
-            if filter_operator:
-                if filter_operator not in ["contains", "array_contains_str", "array_contains_any"]:
-                    return False, f"filter_operator must be in ['contains', 'array_contains_str', 'array_contains_any]"
-                if filter_operator in ["contains", "array_contains_str"] and not isinstance(filter_value, str):
-                    return False, f"'filter_value' must be a string for filter {filter_operator}."
-                elif filter_operator == "array_contains_any":
-                    if not isinstance(filter_value, list) or not all(isinstance(i, str) for i in filter_value):
-                        return False, "'filter_value' must be an array of strings for filter 'array_contains_any'."
 
-            # Date validations
-            if start_date is not None and not (isinstance(start_date, str) and date_pattern.match(start_date)):
-                return False, "Parameter 'start_date' should be a string in the format 'YYYY-MM-DD'."
-            if end_date is not None and not (isinstance(end_date, str) and date_pattern.match(end_date)):
-                return False, "Parameter 'end_date' should be a string in the format 'YYYY-MM-DD'."
+class OrgFilter(BaseModel):
+    key: Optional[str] = Field(default=None, pattern="^(groups|administrations|districts|schools|classes)$")
+    operator: Optional[str] = Field(default=None, pattern="^array_contains_any$")
+    value: Optional[List[str]] = None
 
-        return True, "Validation successful."
+    @field_validator('value')
+    def check_value_type(cls, v):
+        if not all(isinstance(element, str) for element in v):
+            raise ValueError("Each item in value must be a string")
+        return v
 
-    # Validate orgs and guests
-    valid_orgs = validate_org(orgs)
-    if not valid_orgs[0]:
-        return valid_orgs
+    @model_validator(mode='before')
+    def check_all_or_none(cls, values):
+        fields = ['key', 'operator', 'value']
+        all_none = all(values.get(f) is None for f in fields)
+        all_set = all(values.get(f) is not None for f in fields)
 
-    return True, "All parameters are valid."
+        if not (all_none or all_set):
+            raise ValueError("All of 'key', 'operator', and 'value' must be set or all must be None")
+        return values
+
+
+class Filters(BaseModel):
+    date_filter: Optional[DateFilter] = Field(default_factory=DateFilter)
+    user_filter: Optional[UserFilter] = Field(default_factory=UserFilter)
+    org_filter: Optional[OrgFilter] = Field(default_factory=OrgFilter)
+
+    @model_validator(mode='before')
+    def check_allowed_fields(cls, values):
+        allowed_fields = {'date_filter', 'user_filter', 'org_filter'}
+        extra_fields = set(values) - allowed_fields
+        if extra_fields:
+            raise ValueError(f"Invalid fields passed: {extra_fields}")
+        return values
+
+
+class Organization(BaseModel):
+    org_id: str = Field()
+    is_guest: bool = Field()
+    filters: Optional[Filters] = Field(default_factory=Filters)
+
+
+class DatasetParameters(BaseModel):
+    dataset_id: str = Field()
+    is_save_to_storage: bool = Field()
+    is_upload_to_redivis: bool = Field()
+    is_release_to_redivis: bool = Field()
+    prefix: Optional[str] = None
+    orgs: List[Organization] = Field()
 
 
 def merge_dictionaries(dict1, dict2):
@@ -142,17 +160,6 @@ def handle_nan(value):
         # Recursively handle NaN values in nested lists
         return [handle_nan(val) for val in value]
     return value
-
-
-def ids_to_names(id_list: list, obj_list):
-    # Create a dictionary to map ids to names for faster lookup
-    id_to_name_map = {obj.id: obj.name for obj in obj_list}
-
-    # Map each id in id_list to its corresponding name using the dictionary
-    # If an id is not found, append None to the result list
-    names = [id_to_name_map.get(id) for id in id_list]
-
-    return names
 
 
 # Get the Secret Manager client

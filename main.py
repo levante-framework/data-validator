@@ -5,6 +5,7 @@ import requests
 import functions_framework
 from flask import Flask, request
 
+import utils
 from utils import *
 
 logging.basicConfig(level=logging.INFO)
@@ -38,35 +39,27 @@ def data_validator(request):
     if request.method == 'POST':
         request_json = request.get_json(silent=True)
         if request_json:
-            dataset_id = request_json.get('dataset_id', None)
-            is_save_to_storage = request_json.get('is_save_to_storage', False)
-            is_upload_to_redivis = request_json.get('is_upload_to_redivis', False)
-            is_release_on_redivis = request_json.get('is_release_to_redivis', False)
-            prefix_name = None if not request_json.get('prefix_name', None) else request_json.get('prefix_name')
 
-            orgs = request_json.get('orgs', [])
+            try:
+                dataset_parameters = utils.DatasetParameters(**request_json)
+            except Exception as e:
+                return str(e), 400
 
             results = []
-            valid, error_message = params_check(dataset_id=dataset_id,
-                                                is_save_to_storage=is_save_to_storage,
-                                                is_upload_to_redivis=is_upload_to_redivis,
-                                                is_release_on_redivis=is_release_on_redivis,
-                                                orgs=orgs)
-            if not valid:
-                return error_message, 400
-            else:
-                storage = StorageServices(dataset_id=dataset_id)
+
+            if dataset_parameters:
+                storage = StorageServices(dataset_id=dataset_parameters.dataset_id)
 
                 valid_data = {}
                 invalid_data = []
                 validation_logs = []
-                if prefix_name:  # if prefix_name specified, go to uploading_to_redivis process.
-                    storage.storage_prefix = prefix_name
+                if dataset_parameters.prefix:  # if prefix_name specified, go to uploading_to_redivis process.
+                    storage.storage_prefix = dataset_parameters.prefix
                 else:  # if no prefix_name specified, start validation process.
                     logging.info(
-                        f'Syncing data from Firestore to Redivis for orgs: {orgs}.')
-                    for org in orgs:
-                        logging.info(f'Getting data from Firestore for org_id: {org.get("org_id")}.')
+                        f'Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.')
+                    for org in dataset_parameters.orgs:
+                        logging.info(f'Getting data from Firestore for org_id: {org.org_id}.')
                         ec = EntityController(org=org)
 
                         ec.set_values_from_firestore()
@@ -76,8 +69,8 @@ def data_validator(request):
                         validation_logs.append(ec.validation_log)
 
                     # GCP storage service
-                    if is_save_to_storage:
-                        logging.info(f"Saving data to GCP storage for dataset_id: {dataset_id}.")
+                    if dataset_parameters.is_save_to_storage:
+                        logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
 
                         storage.process(valid_data=valid_data, invalid_data=invalid_data)
                         logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
@@ -91,11 +84,11 @@ def data_validator(request):
                         results.append(output)
 
                 # redivis service
-                if is_upload_to_redivis:
-                    logging.info(f"Uploading data to Redivis for dataset_id: {dataset_id}.")
+                if dataset_parameters.is_upload_to_redivis:
+                    logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
                     rs = RedivisServices()
-                    rs.set_dataset(dataset_id=dataset_id)
-                    rs.create_dateset_version(params=orgs)
+                    rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
+                    rs.create_dateset_version(params=dataset_parameters.orgs)
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
@@ -103,8 +96,8 @@ def data_validator(request):
                     if 'validation_results.json' not in file_names:
                         rs.delete_table(table_name='validation_results')
 
-                    if is_release_on_redivis:
-                        rs.release_dataset(params=orgs)
+                    if dataset_parameters.is_release_to_redivis:
+                        rs.release_dataset(params=dataset_parameters.orgs)
                     logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                     output = {
                         'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
@@ -112,7 +105,7 @@ def data_validator(request):
                         'validation_logs': validation_logs,
                     }
                     results.append(output)
-                elif is_save_to_storage and not prefix_name:
+                elif dataset_parameters.is_save_to_storage and not dataset_parameters.prefix:
                     output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
                               'gcp_logs': storage.upload_to_GCP_log,
                               'validation_logs': validation_logs,
@@ -121,8 +114,8 @@ def data_validator(request):
                 else:
                     pass
             response = {'status': 'success', 'logs': results}
-            logging.info(response)
-            return response, 200
+            logging.info(json.dumps(response))
+            return json.dumps(response), 200
         else:
             return 'Request body is not received properly', 500
     else:

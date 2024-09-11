@@ -3,31 +3,16 @@ import logging
 import core_models
 import settings
 from firestore_services import FirestoreServices, stringify_variables
-
+from utils import Organization
 logging.basicConfig(level=logging.INFO)
 
 
 class EntityController:
 
-    def __init__(self, org: dict):
-        self.org_id = org.get("org_id", None)
-        self.is_guest = org.get("is_guest", False)
+    def __init__(self, org: Organization):
+        self.org = org
 
-        date_filter = org.get("filters", {}).get("date_filter", {})
-        self.start_date = date_filter.get("start_date", None)
-        self.end_date = date_filter.get("end_date", None)
-
-        org_filter = org.get("filters", {}).get("org_filter", {})
-        self.org_key = org_filter.get("key", None)
-        self.org_operator = org_filter.get("operator", None)
-        self.org_value = org_filter.get("value", None)
-
-        user_filter = org.get("filters", {}).get("user_filter", {})
-        self.user_key = user_filter.get("key", None)
-        self.user_operator = user_filter.get("operator", None)
-        self.user_value = user_filter.get("value", None)
-
-        self.validation_log = {"org_info": org}
+        self.validation_log = {"org_info": str(org)}
         self.valid_groups = []
         self.invalid_groups = []
         self.valid_districts = []
@@ -70,19 +55,20 @@ class EntityController:
 
     def set_values_from_firestore(self):
         fs_assessment = FirestoreServices(app_name='assessment_site',
-                                          start_date=self.start_date,
-                                          end_date=self.end_date)
+                                          start_date=self.org.filters.date_filter.start_date,
+                                          end_date=self.org.filters.date_filter.end_date)
         # Determine whether it's using guest.
-        if not self.is_guest:
+        if not self.org.is_guest:
             fs_admin = FirestoreServices(app_name='admin_site',
-                                         start_date=self.start_date,
-                                         end_date=self.end_date)
-            self.process_groups(fs_admin)
+                                         start_date=self.org.filters.date_filter.start_date,
+                                         end_date=self.org.filters.date_filter.end_date)
 
-            if settings.config['INSTANCE'] == 'ROAR':
+            if self.org.filters.org_filter.key == 'districts':
                 self.process_districts(fs_admin)
                 self.process_schools(fs_admin)
                 self.process_classes(fs_admin)
+            elif self.org.filters.org_filter.key == 'groups' or not self.org.filters.org_filter:
+                self.process_groups(fs_admin)
 
             self.process_administration(fs_admin)
 
@@ -116,7 +102,7 @@ class EntityController:
     def process_groups(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Groups...")
 
-        groups = fs_admin.get_groups(group_filter=self.org_value if self.org_key == "groups" else None)
+        groups = fs_admin.get_groups(group_filter=self.org.filters.org_filter.value)
 
         self.set_groups(groups=groups)
 
@@ -128,7 +114,10 @@ class EntityController:
 
     def process_districts(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Districts...")
-        self.set_districts(districts=fs_admin.get_districts(lab_id=self.org_id))
+
+        districts = fs_admin.get_districts_by_district_name_list(district_name_list=self.org.filters.org_filter.value)
+
+        self.set_districts(districts=districts)
 
         districts_result = {"Valid": len(self.valid_districts),
                             "Invalid": len(self.invalid_districts),
@@ -138,7 +127,10 @@ class EntityController:
 
     def process_schools(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Schools...")
-        self.set_schools(schools=fs_admin.get_schools(lab_id=self.org_id))
+
+        schools = fs_admin.get_schools(district_id=self.valid_districts[0].district_id)
+
+        self.set_schools(schools=schools)
 
         schools_result = {"Valid": len(self.valid_schools),
                           "Invalid": len(self.invalid_schools),
@@ -148,7 +140,10 @@ class EntityController:
 
     def process_classes(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Classes...")
-        self.set_classes(classes=fs_admin.get_classes(lab_id=self.org_id))
+
+        classes = fs_admin.get_classes(district_id=self.valid_districts[0].district_id)
+
+        self.set_classes(classes=classes)
 
         classes_result = {"Valid": len(self.valid_classes),
                           "Invalid": len(self.invalid_classes),
@@ -159,13 +154,14 @@ class EntityController:
     def process_administration(self, fs_admin: FirestoreServices):
         logging.info("Now Validating Administration and AdministrationTasks...")
 
-        if self.org_key == 'groups':
+        if self.org.filters.org_filter.key == 'groups':
             org_ids = [group.group_id for group in self.valid_groups]
+        elif self.org.filters.org_filter.key == 'districts':
+            org_ids = [district.district_id for district in self.valid_districts]
         else:
-            # TODO: Add district or other orgs later.
             org_ids = []
-        administrations = fs_admin.get_administrations(org_key=self.org_key,
-                                                       org_operator=self.org_operator,
+        administrations = fs_admin.get_administrations(org_key=self.org.filters.org_filter.key,
+                                                       org_operator=self.org.filters.org_filter.operator,
                                                        org_value=org_ids)
 
         self.set_administrations(administrations=administrations)
@@ -213,15 +209,17 @@ class EntityController:
 
     def process_users(self, fs: FirestoreServices):
         logging.info("Now Validating Users and UserGroups...")
-        if self.org_key == 'groups':
+
+        if self.org.filters.org_filter.key == 'groups':
             org_ids = [group.group_id for group in self.valid_groups]
+        elif self.org.filters.org_filter.key == 'districts':
+            org_ids = [district.district_id for district in self.valid_districts]
         else:
-            # TODO apply other filter than groups
             org_ids = []
 
-        users = fs.get_users(is_guest=self.is_guest,
-                             org_key=self.org_key, org_operator=self.org_operator, org_value=org_ids,
-                             user_key=self.user_key, user_operator=self.user_operator, user_value=self.user_value)
+        users = fs.get_users(is_guest=self.org.is_guest,
+                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator, org_value=org_ids,
+                             user_key=self.org.filters.user_filter.key, user_operator=self.org.filters.user_filter.operator, user_value=self.org.filters.user_filter.value)
 
         self.set_users(users=users)
 
@@ -252,7 +250,7 @@ class EntityController:
         logging.info("Now Validating Runs...")
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
-                                                                 is_guest=self.is_guest))
+                                                                 is_guest=self.org.is_guest))
         runs_result = {"Valid": len(self.valid_runs),
                        "Invalid": len(self.invalid_runs),
                        }
@@ -267,7 +265,7 @@ class EntityController:
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,
                                                  task_id=run.task_id,
-                                                 is_guest=self.is_guest))
+                                                 is_guest=self.org.is_guest))
         trials_result = {"Valid": len(self.valid_trials),
                          "Invalid": len(self.invalid_trials),
                          }
@@ -442,8 +440,8 @@ class EntityController:
                     self.invalid_user_groups.append(
                         {**error, 'id': f"user_id: {user_id}, group_id: {group_id}"})
 
-        if self.is_guest:
-            append_to_groups(self.org_id, True)  # Guest users are always active in their org group
+        if self.org.is_guest:
+            append_to_groups(self.org.org_id, True)  # Guest users are always active in their org group
         else:
             for group in all_groups:
                 append_to_groups(group,
