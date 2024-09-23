@@ -71,7 +71,7 @@ deploy data-validator to cloud:
 ```
 gcloud config set project gse-roar-admin/gcloud config set project hs-levante-admin-dev
 
-gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=4GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=32GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
 ```
 Then send request to
 ```

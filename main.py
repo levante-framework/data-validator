@@ -93,7 +93,7 @@ def data_validator(request):
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
                     # Double check if validation_results is empty to make sure the release is going through
-                    if 'validation_results.json' not in file_names:
+                    if all('validation_results.json' not in element for element in file_names):
                         rs.delete_table(table_name='validation_results')
 
                     if dataset_parameters.is_release_to_redivis:

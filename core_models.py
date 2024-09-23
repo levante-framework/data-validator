@@ -6,8 +6,8 @@ from datetime import datetime
 class GroupBase(BaseModel):
     group_id: str
     name: str
-    abbreviation: Optional[str] = None
-    tags: Optional[str] = None
+    abbreviation: Optional[str] = ""
+    tags: Optional[str] = ""
 
 
 class RoarGroup(GroupBase):
@@ -141,7 +141,7 @@ class RoarVariant(VariantBase):
 class UserBase(BaseModel):
     user_id: str
     user_type: str
-    assessment_pid: Optional[str] = None
+    assessment_pid: Optional[str] = ""
     assessment_uid: Optional[str] = None
     email: Optional[str] = None
     email_verified: Optional[bool] = None
@@ -167,12 +167,12 @@ class RoarUser(UserBase):
 
 
 class LevanteUser(UserBase):
-    parent_id: Optional[str] = None
-    teacher_id: Optional[str] = None
+    parent_id: Optional[str] = ""
+    teacher_id: Optional[str] = ""
     birth_year: Optional[int] = None  #Field(None, ge=1900, le=datetime.now().year)
     birth_month: Optional[int] = None  #Field(None, ge=1, le=12)
-    sex: Optional[str] = None
-    grade: Optional[Union[str, int]] = None
+    sex: Optional[str] = ""
+    grade: Optional[Union[str, int]] = ""
 
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 
@@ -227,8 +227,8 @@ class RoarRun(RunBase):
 class LevanteRun(RunBase):
     num_attempted: Optional[int] = None
     num_correct: Optional[int] = None
-    test_comp_theta_estimate: Optional[float] = None
-    test_comp_theta_se: Optional[float] = None
+    test_comp_theta_estimate: Optional[float] = ""
+    test_comp_theta_se: Optional[float] = ""
 
 
 class TrialBase(BaseModel):
@@ -263,16 +263,16 @@ class RoarTrial(TrialBase):
 
 class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
-    test_data: Optional[bool] = None
-    corpus_trial_type: Optional[str] = None
-    response_type: Optional[str] = None
-    distractors: Optional[str] = None
+    test_data: Optional[Union[bool, str]] = ""
+    corpus_trial_type: Optional[Union[str, int]] = ""
+    response_type: Optional[str] = ""
+    distractors: Optional[str] = ""
 
     # For some roar tasks
-    theta_estimate: Optional[float] = None
-    theta_estimate2: Optional[float] = None
-    theta_se: Optional[float] = None
-    theta_se2: Optional[float] = None
+    theta_estimate: Optional[Union[float, str]] = ""
+    theta_estimate2: Optional[Union[float, str]] = ""
+    theta_se: Optional[Union[float, str]] = ""
+    theta_se2: Optional[Union[float, str]] = ""
 
 
 class SurveyResponse(BaseModel):

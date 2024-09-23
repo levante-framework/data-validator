@@ -521,7 +521,7 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append(
-                        {**error, 'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}"})
+                        {**error, 'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}, task_id:{trial.get('task_id', None)}"})
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)

@@ -393,8 +393,8 @@ class FirestoreServices:
                         'administration_id': doc_dict.get('assignmentId', None),
                         'num_attempted': test_comp_scores.get('numAttempted', None),
                         'num_correct': test_comp_scores.get('numCorrect', None),
-                        'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', None),
-                        'test_comp_theta_se': test_comp_scores.get('thetaSE', None)
+                        'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', ""),
+                        'test_comp_theta_se': test_comp_scores.get('thetaSE', "")
                     })
                     # Convert camelCase to snake_case and handle NaN values
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
@@ -454,12 +454,12 @@ class FirestoreServices:
                     else:
                         answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         doc_dict.update({
-                            'item': stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else None,
+                            'item': stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else "",
                             'distractors': stringify_variables(doc_dict['distractors']) if doc_dict.get(
-                                'distractors') is not None else None,
-                            'answer': answer if doc_dict.get('answer') is not None else None,
-                            'response': stringify_variables(doc_dict.get('response', None)),
-                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                                'distractors') is not None else "",
+                            'answer': stringify_variables(answer) if answer is not None else "",
+                            'response': stringify_variables(doc_dict.get('response', "")),
+                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else ""
                         })
 
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
