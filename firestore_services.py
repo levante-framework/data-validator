@@ -393,8 +393,8 @@ class FirestoreServices:
                         'administration_id': doc_dict.get('assignmentId', None),
                         'num_attempted': test_comp_scores.get('numAttempted', None),
                         'num_correct': test_comp_scores.get('numCorrect', None),
-                        'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', ""),
-                        'test_comp_theta_se': test_comp_scores.get('thetaSE', "")
+                        'test_comp_theta_estimate': test_comp_scores['thetaEstimate'] if test_comp_scores.get('thetaEstimate', None) else "",
+                        'test_comp_theta_se': test_comp_scores['thetaSE'] if test_comp_scores.get('thetaSE', None) else ""
                     })
                     # Convert camelCase to snake_case and handle NaN values
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)

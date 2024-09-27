@@ -227,8 +227,8 @@ class RoarRun(RunBase):
 class LevanteRun(RunBase):
     num_attempted: Optional[int] = None
     num_correct: Optional[int] = None
-    test_comp_theta_estimate: Optional[float] = ""
-    test_comp_theta_se: Optional[float] = ""
+    test_comp_theta_estimate: Optional[Union[float, str]] = ""
+    test_comp_theta_se: Optional[Union[float, str]] = ""
 
 
 class TrialBase(BaseModel):
