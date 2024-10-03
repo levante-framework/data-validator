@@ -71,7 +71,6 @@ def data_validator(request):
                     # GCP storage service
                     if dataset_parameters.is_save_to_storage:
                         logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
-
                         storage.process(valid_data=valid_data, invalid_data=invalid_data)
                         logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                     else:
@@ -79,7 +78,7 @@ def data_validator(request):
                                   'valid_users_count': len(valid_data.get('users', [])),
                                   'valid_runs_count': len(valid_data.get('runs', [])),
                                   'valid_trials_count': len(valid_data.get('trials', [])),
-                                  'logs': validation_logs,
+                                  'validation_logs': validation_logs,
                                   'invalid_results': invalid_data}
                         results.append(output)
 
@@ -92,9 +91,6 @@ def data_validator(request):
                     file_names = storage.list_blobs_with_prefix()
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
-                    # Double check if validation_results is empty to make sure the release is going through
-                    if all('validation_results.json' not in element for element in file_names):
-                        rs.delete_table(table_name='validation_results')
 
                     if dataset_parameters.is_release_to_redivis:
                         rs.release_dataset(params=dataset_parameters.orgs)
