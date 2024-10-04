@@ -7,9 +7,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 class RedivisServices:
-    is_released = None
-    is_deleted = None
-    version = None
     dataset = None
     dataset_id = None
 
@@ -23,9 +20,12 @@ class RedivisServices:
 
     def get_properties(self):
         properties = self.dataset.get().properties
-        self.is_released = properties.get("version", {}).get("isReleased", None)
-        self.is_deleted = properties.get("version", {}).get("isDeleted", None)
-        self.version = properties.get("version", {}).get("tag", None)
+        properties_value = {
+            'is_released': properties.get("version", {}).get("isReleased", None),
+            'is_deleted': properties.get("version", {}).get("isDeleted", None),
+            'version': properties.get("version", {}).get("tag", None)
+        }
+        logging.info(properties_value)
 
     def save_to_redivis_table(self, file_name: str):
         upload_name = file_name.split("/")[1]
@@ -76,7 +76,8 @@ class RedivisServices:
             self.dataset.release()
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on release_dataset: {e}")
-        self.get_properties()
+            self.get_properties()
+            logging.info(f"Failed on release_dataset: {e}")
 
     def count_tables(self):
         return len(self.dataset.list_tables())
