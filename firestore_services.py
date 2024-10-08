@@ -18,7 +18,7 @@ def stringify_variables(variable):
     if isinstance(variable, (dict, list, tuple, int, float, bool, str)):
         return str(variable)
     elif variable is None or variable == 'nan':
-        return None
+        return ""
     else:
         return f'Error converting to string: {variable}'
 

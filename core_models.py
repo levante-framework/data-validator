@@ -240,18 +240,18 @@ class TrialBase(BaseModel):
 
     assessment_stage: str
     trial_index: Optional[int] = None
-    item: Optional[str] = None
-    answer: Optional[Union[int, str, float]] = None
-    response: Optional[Union[int, str, float]] = None
+    item: Optional[str] = ""
+    answer: Optional[Union[int, str, float]] = ""
+    response: Optional[Union[int, str, float]] = ""
     correct: Optional[bool] = None
 
-    response_source: Optional[str] = None
+    response_source: Optional[str] = ""
 
     # Default jsPsych data attributes
     time_elapsed: Optional[int] = None
 
     # Time related fields
-    rt: Optional[Union[int, str, dict]] = None
+    rt: Optional[Union[int, str, dict]] = ""
     server_timestamp: datetime
 
 
@@ -263,7 +263,7 @@ class RoarTrial(TrialBase):
 
 class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
-    test_data: Optional[Union[bool, str]] = ""
+    test_data: Optional[bool] = None
     corpus_trial_type: Optional[Union[str, int]] = ""
     response_type: Optional[str] = ""
     distractors: Optional[str] = ""

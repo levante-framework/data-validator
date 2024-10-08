@@ -71,7 +71,9 @@ def data_validator(request):
                     # GCP storage service
                     if dataset_parameters.is_save_to_storage:
                         logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
-                        storage.process(valid_data=valid_data, invalid_data=invalid_data)
+                        storage.process(valid_data=valid_data,
+                                        invalid_data=invalid_data,
+                                        validation_logs=utils.stringify_values_in_dicts(validation_logs))
                         logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                     else:
                         output = {'title': f'Function executed successfully!',
@@ -89,6 +91,7 @@ def data_validator(request):
                     rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
                     rs.create_dateset_version(params=dataset_parameters.orgs)
                     file_names = storage.list_blobs_with_prefix()
+                    logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
                     for file_name in file_names:
                         rs.save_to_redivis_table(file_name=file_name)
 

@@ -1,6 +1,6 @@
 from google.cloud import storage
 from google.oauth2 import service_account
-from datetime import datetime
+import datetime
 import json
 import os
 
@@ -39,11 +39,10 @@ class StorageServices:
 
     def __init__(self, dataset_id: str):
         self.dataset_id = dataset_id
-        self.timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.storage_prefix = f"lab_{self.dataset_id}/"
+        self.storage_prefix = f"{self.dataset_id}/"
         self.upload_to_GCP_log = []
 
-    def process(self, valid_data: dict, invalid_data: list):
+    def process(self, valid_data: dict, invalid_data: list, validation_logs: list):
         for key, value in valid_data.items():
             if value:
                 self.save_to_storage(table_name=key, data=value)
@@ -51,7 +50,8 @@ class StorageServices:
         if invalid_data:
             self.save_to_storage(table_name="validation_results", data=invalid_data)
         else:
-            self.save_to_storage(table_name="validation_results", data=[{'msg': 'All data are valid.'}])
+            [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC")}) for dct in validation_logs]
+            self.save_to_storage(table_name="validation_results", data=validation_logs)
 
     def save_to_storage(self, table_name: str, data):
         data_json = json.dumps(data, cls=CustomJSONEncoder)
@@ -69,11 +69,11 @@ class StorageServices:
         """Lists all the blobs in the bucket that begin with the prefix."""
         blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix, delimiter=delimiter)
 
-        return [blob.name for blob in blobs if 'log' not in blob.name]
+        return [blob.name for blob in blobs]
 
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, datetime.datetime):
             return obj.isoformat()
         return json.JSONEncoder.default(self, obj)

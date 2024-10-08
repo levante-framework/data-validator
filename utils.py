@@ -232,3 +232,17 @@ def generate_query_description(table_name, collection_source, date_field=None, s
         description['Filter Values'] = filter_list
 
     return description
+
+
+def stringify_values_in_dicts(dict_list: list):
+    """
+    This function takes a list of dictionaries and converts each value in the dictionaries to a string.
+
+    :param dict_list: List of dictionaries where values need to be converted to strings.
+    :return: None; the function modifies the list of dictionaries in-place.
+    """
+    for dct in dict_list:
+        for key in dct.keys():
+            dct[key] = str(dct[key])
+
+    return dict_list
