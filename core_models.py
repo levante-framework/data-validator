@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Extra, Field, field_validator, model_validator
+from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any
 from datetime import datetime
 
@@ -139,6 +139,7 @@ class RoarVariant(VariantBase):
 
 
 class UserBase(BaseModel):
+    validation_err_msg: Optional[str] = ""
     user_id: str
     user_type: str
     assessment_pid: Optional[str] = ""
@@ -170,7 +171,7 @@ class LevanteUser(UserBase):
     parent_id: Optional[str] = ""
     teacher_id: Optional[str] = ""
     birth_year: Optional[int] = None  #Field(None, ge=1900, le=datetime.now().year)
-    birth_month: Optional[int] = None  #Field(None, ge=1, le=12)
+    birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
     sex: Optional[str] = ""
     grade: Optional[Union[str, int]] = ""
 
@@ -193,17 +194,29 @@ class LevanteUser(UserBase):
     #         raise ValueError(f'{user_id} do not have group information.')
     #     return values
 
-    # @model_validator(mode='before')
-    # def check_birth_year_for_students(cls, values):
-    #     birth_year = values.get('birth_year', None)
-    #     user_type = values.get('user_type', None)
-    #     if birth_year and user_type == 'student':
-    #         if birth_year < 2000:
-    #             raise ValueError("Students must be born in or after 2000.")
-    #     return values
+    @model_validator(mode='after')
+    def check_birth_year_month(self):
+        birth_year_month_err = []
+
+        if self.birth_year <= 1934:
+            birth_year_month_err.append("Birth Year must be greater than 1934.")
+        if self.birth_month not in range(1, 13):
+            birth_year_month_err.append("Birth Month must be between 1 and 12.")
+        if self.birth_year and self.user_type == 'student':
+            if self.birth_year < 2000:
+                birth_year_month_err.append("Students must be born in or after 2000.")
+
+        if birth_year_month_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(birth_year_month_err)}"
+            else:
+                self.validation_err_msg = str(birth_year_month_err)
+
+        return self
 
 
 class RunBase(BaseModel):
+    validation_err_msg: Optional[str] = ""
     run_id: str
     user_id: str
     task_id: str
@@ -232,6 +245,7 @@ class LevanteRun(RunBase):
 
 
 class TrialBase(BaseModel):
+    validation_err_msg: Optional[str] = ""
     # IDs
     trial_id: str
     user_id: str
@@ -239,10 +253,11 @@ class TrialBase(BaseModel):
     task_id: str
 
     assessment_stage: str
-    trial_index: Optional[int] = None
-    item: Optional[str] = ""
-    answer: Optional[Union[int, str, float]] = ""
-    response: Optional[Union[int, str, float]] = ""
+    trial_index: Optional[Any] = None
+    item: Optional[Any] = None
+    item_id: Optional[str] = ""
+    answer: Optional[Any] = None
+    response: Optional[Any] = None
     correct: Optional[bool] = None
 
     response_source: Optional[str] = ""
@@ -251,7 +266,7 @@ class TrialBase(BaseModel):
     time_elapsed: Optional[int] = None
 
     # Time related fields
-    rt: Optional[Union[int, str, dict]] = ""
+    rt: Optional[Any] = None  # Optional[Union[int, str]] = None
     server_timestamp: datetime
 
 
@@ -263,7 +278,7 @@ class RoarTrial(TrialBase):
 
 class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
-    test_data: Optional[bool] = None
+    test_data: Optional[Union[bool, str]] = ""
     corpus_trial_type: Optional[Union[str, int]] = ""
     response_type: Optional[str] = ""
     distractors: Optional[str] = ""
@@ -273,6 +288,46 @@ class LevanteTrial(TrialBase):
     theta_estimate2: Optional[Union[float, str]] = ""
     theta_se: Optional[Union[float, str]] = ""
     theta_se2: Optional[Union[float, str]] = ""
+
+    @model_validator(mode='after')
+    def check_rt(self):
+        rt_err = []
+
+        if self.assessment_stage != 'instructions':
+            if self.rt:
+                if isinstance(self.rt, (str, int)):
+                    if isinstance(self.rt, int) and self.rt < 300:
+                        rt_err.append("rt is too short")
+                else:
+                    rt_err.append("rt is of an invalid type")
+            else:
+                rt_err.append("rt is missing.")
+
+        if rt_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(rt_err)}"
+            else:
+                self.validation_err_msg = str(rt_err)
+
+        return self
+
+    @model_validator(mode='after')
+    def check_trial_index(self):
+        trial_index_err = []
+
+        if self.trial_index:
+            if not isinstance(self.trial_index, int):
+                trial_index_err.append("trial_index needs to be int type.")
+        else:
+            trial_index_err.append("trial_index is missing.")
+
+        if trial_index_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(trial_index_err)}"
+            else:
+                self.validation_err_msg = str(trial_index_err)
+
+        return self
 
 
 class SurveyResponse(BaseModel):

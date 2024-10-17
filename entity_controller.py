@@ -4,6 +4,7 @@ import core_models
 import settings
 from firestore_services import FirestoreServices, stringify_variables
 from utils import Organization
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -185,7 +186,8 @@ class EntityController:
             for item in self.valid_administration_tasks:
                 if item.task_id not in task_variants:
                     task_variants[item.task_id] = []
-                if item.variant_id and item.variant_id not in task_variants[item.task_id]:  # Only add non-None non-exists variant_id
+                if item.variant_id and item.variant_id not in task_variants[
+                    item.task_id]:  # Only add non-None non-exists variant_id
                     task_variants[item.task_id].append(item.variant_id)
         tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
         self.set_tasks(tasks=tasks)
@@ -195,7 +197,8 @@ class EntityController:
 
         if self.valid_tasks:
             for task in self.valid_tasks:
-                variants = fs_assessment.get_variants(task_id=task.task_id, variant_filter=task_variants.get(task.task_id, []))
+                variants = fs_assessment.get_variants(task_id=task.task_id,
+                                                      variant_filter=task_variants.get(task.task_id, []))
                 self.set_variants(variants=variants, task_id=task.task_id)
             variants_result = {"Valid": len(self.valid_variants),
                                "Invalid": len(self.invalid_variants),
@@ -218,13 +221,18 @@ class EntityController:
             org_ids = []
 
         users = fs.get_users(is_guest=self.org.is_guest,
-                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator, org_value=org_ids,
-                             user_key=self.org.filters.user_filter.key, user_operator=self.org.filters.user_filter.operator, user_value=self.org.filters.user_filter.value)
+                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator,
+                             org_value=org_ids,
+                             user_key=self.org.filters.user_filter.key,
+                             user_operator=self.org.filters.user_filter.operator,
+                             user_value=self.org.filters.user_filter.value)
 
         self.set_users(users=users)
 
-        users_result = {"Valid": len(self.valid_users),
-                        "Invalid": len(self.invalid_users),
+        users_result = {"Valid": sum(1 for user in self.valid_users if user.validation_err_msg in (None, "")),
+                        "Invalid": sum(
+                            1 for user in self.valid_users if user.validation_err_msg not in (None, "")) + len(
+                            self.invalid_users),
                         }
         logging.info(f"users: {users_result}")
         self.validation_log['users'] = users_result
@@ -266,8 +274,9 @@ class EntityController:
                                                  run_id=run.run_id,
                                                  task_id=run.task_id,
                                                  is_guest=self.org.is_guest))
-        trials_result = {"Valid": len(self.valid_trials),
-                         "Invalid": len(self.invalid_trials),
+        trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.validation_err_msg in (None, "")),
+                         "Invalid": sum(1 for trial in self.valid_trials if trial.validation_err_msg not in (None, ""))
+                                    + len(self.invalid_trials),
                          }
         logging.info(f"trials: {trials_result}")
         self.validation_log['trials'] = trials_result
@@ -493,7 +502,8 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_administration_tasks.append(
-                        {**error, 'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})
+                        {**error,
+                         'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})
 
     def set_runs(self, user_id: str, runs: list):
         for run in runs:
@@ -521,7 +531,8 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append(
-                        {**error, 'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}, task_id:{trial.get('task_id', None)}"})
+                        {**error,
+                         'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}, task_id:{trial.get('task_id', None)}"})
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)

@@ -4,6 +4,7 @@ import settings
 import requests
 import functions_framework
 from flask import Flask, request
+import time
 
 import utils
 from utils import *
@@ -13,6 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 @functions_framework.http
 def data_validator(request):
+    start_time = time.time()
     settings.initialize_env_securities()
 
     from secret_services import secret_services
@@ -112,7 +114,9 @@ def data_validator(request):
                     results.append(output)
                 else:
                     pass
-            response = {'status': 'success', 'logs': results}
+
+            elapsed_time = time.time() - start_time
+            response = {'status': 'success', 'logs': results, 'elapsed_time': elapsed_time}
             logging.info(json.dumps(response))
             return json.dumps(response), 200
         else:

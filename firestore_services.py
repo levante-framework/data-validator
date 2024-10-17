@@ -15,8 +15,10 @@ logging.basicConfig(level=logging.INFO)
 
 
 def stringify_variables(variable):
-    if isinstance(variable, (dict, list, tuple, int, float, bool, str)):
+    if isinstance(variable, (dict, list, tuple, bool, str)):
         return str(variable)
+    elif isinstance(variable, (float, int)):
+        return variable
     elif variable is None or variable == 'nan':
         return ""
     else:
@@ -459,7 +461,7 @@ class FirestoreServices:
                                 'distractors') is not None else "",
                             'answer': stringify_variables(answer) if answer is not None else "",
                             'response': stringify_variables(doc_dict.get('response', "")),
-                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else ""
+                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
                         })
 
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
