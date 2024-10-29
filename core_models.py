@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any
 from datetime import datetime
+import ast
 
 
 class GroupBase(BaseModel):
@@ -138,6 +139,176 @@ class RoarVariant(VariantBase):
     pass
 
 
+class TrialBase(BaseModel):
+    validation_err_msg: Optional[str] = ""
+    # IDs
+    trial_id: str
+    user_id: str
+    run_id: str
+    task_id: str
+
+    assessment_stage: str
+    trial_index: Optional[Any] = None
+    item: Optional[Any] = None
+    item_id: Optional[str] = ""
+    answer: Optional[Any] = None
+    response: Optional[Any] = None
+    correct: Optional[bool] = None
+
+    response_source: Optional[str] = ""
+
+    # Default jsPsych data attributes
+    time_elapsed: Optional[int] = None
+
+    # Time related fields
+    rt: Optional[Union[int, str]] = None
+    _rt_sum: Optional[int] = None
+    server_timestamp: datetime
+
+
+class RoarTrial(TrialBase):
+    trial_type: Optional[str] = None
+    # All other trial level data attributes
+    trial_attributes: Optional[dict] = None
+
+
+class LevanteTrial(TrialBase):
+    is_practice_trial: Optional[bool] = None
+    test_data: Optional[Union[bool, str]] = ""
+    corpus_trial_type: Optional[Union[str, int]] = ""
+    response_type: Optional[str] = ""
+    response_location: Optional[str] = ""
+    distractors: Optional[str] = ""
+
+    # For some roar tasks
+    theta_estimate: Optional[Union[float, str]] = ""
+    theta_estimate2: Optional[Union[float, str]] = ""
+    theta_se: Optional[Union[float, str]] = ""
+    theta_se2: Optional[Union[float, str]] = ""
+
+    @model_validator(mode='after')
+    def check_rt(self):
+        rt_err = []
+        rt_min = 100
+        rt_max = 10000
+
+        if self.assessment_stage not in ['instructions', 'practice_response']:
+            if self.rt:
+                if isinstance(self.rt, int):
+                    if self.task_id in ['matrix-reasoning']:
+                        rt_min = 300
+                        rt_max = 60000
+                    elif self.task_id in ['egma-math']:
+                        rt_min = 300
+
+                    if self.rt < rt_min:
+                        rt_err.append(f"rt less than {rt_min/1000}s.")
+                    elif self.rt > rt_max:
+                        rt_err.append(f"rt exceeds {rt_max/1000}s.")
+                elif isinstance(self.rt, str):
+                    try:
+                        rt_dict = ast.literal_eval(self.rt)
+                        if not all([value > rt_min for value in rt_dict.values()]):
+                            rt_err.append(f"rt less than {rt_min / 1000}s.")
+                        if not all([value < rt_max for value in rt_dict.values()]):
+                            rt_err.append(f"rt exceeds {rt_max / 1000}s.")
+                    except Exception as e:
+                        rt_err.append(f"rt string converted to dict failed. {e}")
+
+            else:
+                rt_err.append("rt is missing.")
+
+        if rt_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(rt_err)}"
+            else:
+                self.validation_err_msg = str(rt_err)
+
+        return self
+
+    @model_validator(mode='after')
+    def check_trial_index(self):
+        trial_index_err = []
+
+        if self.trial_index:
+            if not isinstance(self.trial_index, int):
+                trial_index_err.append("trial_index needs to be int type.")
+        else:
+            trial_index_err.append("trial_index is missing.")
+
+        if trial_index_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(trial_index_err)}"
+            else:
+                self.validation_err_msg = str(trial_index_err)
+
+        return self
+
+
+class RunBase(BaseModel):
+    validation_err_msg: Optional[str] = ""
+    run_id: str
+    user_id: str
+    task_id: str
+    variant_id: str
+    administration_id: Optional[str] = None
+    reliable: Optional[bool] = None
+    completed: Optional[bool] = None
+    best_run: Optional[bool] = None
+    task_version: Optional[str] = None
+    time_started: Optional[datetime] = None
+    time_finished: Optional[datetime] = None
+
+
+class RoarRun(RunBase):
+    scores: Optional[dict] = None
+    user_data: Optional[dict] = None
+    read_orgs: Optional[dict] = None
+    tags: Optional[list] = None
+
+
+class LevanteRun(RunBase):
+    num_attempted: Optional[int] = None
+    num_correct: Optional[int] = None
+    test_comp_theta_estimate: Optional[Union[float, str]] = ""
+    test_comp_theta_se: Optional[Union[float, str]] = ""
+
+    _trials: Optional[list[LevanteTrial]] = []
+
+    def add_levante_trial(self, trial: LevanteTrial):
+        self._trials.append(trial)
+
+    def check_trials_count(self):
+        trials_count_err = []
+
+        if len(self._trials) < 3:
+            trials_count_err.append("Less than 3 trials in this run.")
+
+        if trials_count_err:
+            if self.validation_err_msg:
+                self.validation_err_msg = f"{self.validation_err_msg}, {str(trials_count_err)}"
+            else:
+                self.validation_err_msg = str(trials_count_err)
+
+    def check_straight_line_trials(self):
+        def sort_key(trial):
+            index = trial.trial_index
+            # Check if index is None or not an integer
+            if index is None or not isinstance(index, int):
+                # Handle None or non-integer by setting them to a high value or other logic
+                return False, float('inf')  # Sorting None or invalid to the end
+            return True, index  # Proper integers sorted normally
+
+        self._trials.sort(key=sort_key)
+        trial_indices = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
+
+        self.validation_err_msg = f"trial_indices are {str(trial_indices)}, {self.validation_err_msg}"
+
+    def validate_trials_in_run(self):
+        self.check_trials_count()
+        self.check_straight_line_trials()
+
+
 class UserBase(BaseModel):
     validation_err_msg: Optional[str] = ""
     user_id: str
@@ -211,121 +382,6 @@ class LevanteUser(UserBase):
                 self.validation_err_msg = f"{self.validation_err_msg}, {str(birth_year_month_err)}"
             else:
                 self.validation_err_msg = str(birth_year_month_err)
-
-        return self
-
-
-class RunBase(BaseModel):
-    validation_err_msg: Optional[str] = ""
-    run_id: str
-    user_id: str
-    task_id: str
-    variant_id: str
-    administration_id: Optional[str] = None
-    reliable: Optional[bool] = None
-    completed: Optional[bool] = None
-    best_run: Optional[bool] = None
-    task_version: Optional[str] = None
-    time_started: Optional[datetime] = None
-    time_finished: Optional[datetime] = None
-
-
-class RoarRun(RunBase):
-    scores: Optional[dict] = None
-    user_data: Optional[dict] = None
-    read_orgs: Optional[dict] = None
-    tags: Optional[list] = None
-
-
-class LevanteRun(RunBase):
-    num_attempted: Optional[int] = None
-    num_correct: Optional[int] = None
-    test_comp_theta_estimate: Optional[Union[float, str]] = ""
-    test_comp_theta_se: Optional[Union[float, str]] = ""
-
-
-class TrialBase(BaseModel):
-    validation_err_msg: Optional[str] = ""
-    # IDs
-    trial_id: str
-    user_id: str
-    run_id: str
-    task_id: str
-
-    assessment_stage: str
-    trial_index: Optional[Any] = None
-    item: Optional[Any] = None
-    item_id: Optional[str] = ""
-    answer: Optional[Any] = None
-    response: Optional[Any] = None
-    correct: Optional[bool] = None
-
-    response_source: Optional[str] = ""
-
-    # Default jsPsych data attributes
-    time_elapsed: Optional[int] = None
-
-    # Time related fields
-    rt: Optional[Any] = None  # Optional[Union[int, str]] = None
-    server_timestamp: datetime
-
-
-class RoarTrial(TrialBase):
-    trial_type: Optional[str] = None
-    # All other trial level data attributes
-    trial_attributes: Optional[dict] = None
-
-
-class LevanteTrial(TrialBase):
-    is_practice_trial: Optional[bool] = None
-    test_data: Optional[Union[bool, str]] = ""
-    corpus_trial_type: Optional[Union[str, int]] = ""
-    response_type: Optional[str] = ""
-    distractors: Optional[str] = ""
-
-    # For some roar tasks
-    theta_estimate: Optional[Union[float, str]] = ""
-    theta_estimate2: Optional[Union[float, str]] = ""
-    theta_se: Optional[Union[float, str]] = ""
-    theta_se2: Optional[Union[float, str]] = ""
-
-    @model_validator(mode='after')
-    def check_rt(self):
-        rt_err = []
-
-        if self.assessment_stage != 'instructions':
-            if self.rt:
-                if isinstance(self.rt, (str, int)):
-                    if isinstance(self.rt, int) and self.rt < 300:
-                        rt_err.append("rt is too short")
-                else:
-                    rt_err.append("rt is of an invalid type")
-            else:
-                rt_err.append("rt is missing.")
-
-        if rt_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(rt_err)}"
-            else:
-                self.validation_err_msg = str(rt_err)
-
-        return self
-
-    @model_validator(mode='after')
-    def check_trial_index(self):
-        trial_index_err = []
-
-        if self.trial_index:
-            if not isinstance(self.trial_index, int):
-                trial_index_err.append("trial_index needs to be int type.")
-        else:
-            trial_index_err.append("trial_index is missing.")
-
-        if trial_index_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(trial_index_err)}"
-            else:
-                self.validation_err_msg = str(trial_index_err)
 
         return self
 

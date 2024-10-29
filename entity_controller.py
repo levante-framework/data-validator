@@ -268,12 +268,12 @@ class EntityController:
     def process_trials(self, fs: FirestoreServices):
         logging.info("Now Validating Trials...")
         for run in self.valid_runs:
-            self.set_trials(user_id=run.user_id,
-                            run_id=run.run_id,
+            self.set_trials(run=run,
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,
                                                  task_id=run.task_id,
                                                  is_guest=self.org.is_guest))
+            run.validate_trials_in_run()
         trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.validation_err_msg in (None, "")),
                          "Invalid": sum(1 for trial in self.valid_trials if trial.validation_err_msg not in (None, ""))
                                     + len(self.invalid_trials),
@@ -519,20 +519,27 @@ class EntityController:
                     self.invalid_runs.append(
                         {**error, 'id': f"run_id: {run['run_id']}, user_id: {user_id}"})
 
-    def set_trials(self, user_id: str, run_id: str, trials: list):
+    def set_trials(self, run: core_models.RunBase, trials: list):
+        # valid_trials_in_current_run = []
+        # invalid_trials_in_current_run = []
         for trial in trials:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
-                    self.valid_trials.append(core_models.LevanteTrial(**trial))
+                    trial_model = core_models.LevanteTrial(**trial)
+                    run.add_levante_trial(trial_model)  # Use the public method to add the trial
                 elif settings.config['INSTANCE'] == 'ROAR':
-                    self.valid_trials.append(core_models.RoarTrial(**trial))
+                    trial_model = core_models.RoarTrial(**trial)
                 else:
-                    self.valid_trials.append(core_models.TrialBase(**trial))
+                    trial_model = core_models.TrialBase(**trial)
+                self.valid_trials.append(trial_model)
+
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_trials.append(
                         {**error,
-                         'id': f"trial_id: {trial['trial_id']}, run_id: {run_id}, user_id: {user_id}, task_id:{trial.get('task_id', None)}"})
+                         'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}, task_id:{trial.get('task_id', None)}"})
+        # self.valid_trials.extend(valid_trials_in_current_run)
+        # self.invalid_trials.extend(invalid_trials_in_current_run)
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)
