@@ -456,14 +456,13 @@ class FirestoreServices:
                     else:
                         answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         doc_dict.update({
-                            'item': stringify_variables(doc_dict['item']) if doc_dict.get('item') is not None else "",
-                            'distractors': stringify_variables(doc_dict['distractors']) if doc_dict.get(
-                                'distractors') is not None else "",
+                            'item': stringify_variables(doc_dict.get('item', '')),
+                            'distractors': stringify_variables(doc_dict.get('distractors', '')),
                             'answer': stringify_variables(answer) if answer is not None else "",
-                            'response': stringify_variables(doc_dict.get('response', "")),
-                            'rt': stringify_variables(doc_dict['rt']) if doc_dict.get('rt') is not None else None
+                            'response': stringify_variables(doc_dict.get('response', '')),
+                            'rt': stringify_variables(doc_dict.get('rt', '')),
+                            'response_location': stringify_variables(doc_dict.get('responseLocation', '')),
                         })
-
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     yield converted_doc_dict
                 last_doc = docs[-1]

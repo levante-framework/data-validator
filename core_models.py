@@ -161,8 +161,7 @@ class TrialBase(BaseModel):
     time_elapsed: Optional[int] = None
 
     # Time related fields
-    rt: Optional[Union[int, str]] = None
-    _rt_sum: Optional[int] = None
+    rt: Optional[Union[int, str]] = ""
     server_timestamp: datetime
 
 
@@ -173,11 +172,11 @@ class RoarTrial(TrialBase):
 
 
 class LevanteTrial(TrialBase):
-    is_practice_trial: Optional[bool] = None
+    is_practice_trial: Optional[bool] = ""
     test_data: Optional[Union[bool, str]] = ""
     corpus_trial_type: Optional[Union[str, int]] = ""
     response_type: Optional[str] = ""
-    response_location: Optional[str] = ""
+    response_location: Optional[Union[int, str]] = ""
     distractors: Optional[str] = ""
 
     # For some roar tasks
@@ -193,13 +192,13 @@ class LevanteTrial(TrialBase):
         rt_max = 10000
 
         if self.assessment_stage not in ['instructions', 'practice_response']:
-            if self.rt:
+            if self.rt not in ["", "{}", "0", 0]:
                 if isinstance(self.rt, int):
                     if self.task_id in ['matrix-reasoning']:
                         rt_min = 300
                         rt_max = 60000
                     elif self.task_id in ['egma-math']:
-                        rt_min = 300
+                        rt_max = 60000
 
                     if self.rt < rt_min:
                         rt_err.append(f"rt less than {rt_min/1000}s.")
@@ -300,9 +299,9 @@ class LevanteRun(RunBase):
             return True, index  # Proper integers sorted normally
 
         self._trials.sort(key=sort_key)
-        trial_indices = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
+        response_location = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
 
-        self.validation_err_msg = f"trial_indices are {str(trial_indices)}, {self.validation_err_msg}"
+        self.validation_err_msg = f"response_locations are {str(response_location)}, {self.validation_err_msg}"
 
     def validate_trials_in_run(self):
         self.check_trials_count()
