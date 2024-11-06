@@ -65,7 +65,7 @@ class RedivisServices:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
             else:
-                self.dataset.create(description=f"This is a dataset for {self.dataset_id}, with API params: {params}", public_access_level="overview")
+                self.dataset.create(description=f"This is a dataset for {self.dataset_id}, with API params: {params}, version: {settings.config['VERSION']}", public_access_level="overview")
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
             logging.info(f"Failed on create_dateset_version: {e}")

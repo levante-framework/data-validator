@@ -180,10 +180,10 @@ class LevanteTrial(TrialBase):
     distractors: Optional[str] = ""
 
     # For some roar tasks
-    theta_estimate: Optional[Union[float, str]] = ""
-    theta_estimate2: Optional[Union[float, str]] = ""
-    theta_se: Optional[Union[float, str]] = ""
-    theta_se2: Optional[Union[float, str]] = ""
+    theta_estimate: Optional[float] = None  # Union[float, str]
+    theta_estimate2: Optional[float] = None
+    theta_se: Optional[float] = None
+    theta_se2: Optional[float] = None
 
     @model_validator(mode='after')
     def check_rt(self):
@@ -201,9 +201,9 @@ class LevanteTrial(TrialBase):
                         rt_max = 60000
 
                     if self.rt < rt_min:
-                        rt_err.append(f"rt less than {rt_min/1000}s.")
+                        rt_err.append(f"rt less than {rt_min / 1000}s.")
                     elif self.rt > rt_max:
-                        rt_err.append(f"rt exceeds {rt_max/1000}s.")
+                        rt_err.append(f"rt exceeds {rt_max / 1000}s.")
                 elif isinstance(self.rt, str):
                     try:
                         rt_dict = ast.literal_eval(self.rt)
@@ -269,8 +269,8 @@ class RoarRun(RunBase):
 class LevanteRun(RunBase):
     num_attempted: Optional[int] = None
     num_correct: Optional[int] = None
-    test_comp_theta_estimate: Optional[Union[float, str]] = ""
-    test_comp_theta_se: Optional[Union[float, str]] = ""
+    test_comp_theta_estimate: Optional[float] = None
+    test_comp_theta_se: Optional[float] = None
 
     _trials: Optional[list[LevanteTrial]] = []
 
@@ -298,10 +298,24 @@ class LevanteRun(RunBase):
                 return False, float('inf')  # Sorting None or invalid to the end
             return True, index  # Proper integers sorted normally
 
+        def has_consecutive_identical(lst, n):
+            # Check if the list has fewer than n elements
+            if len(lst) < n:
+                return False
+
+            # Loop through the list, stopping at the nth-to-last element
+            for i in range(len(lst) - n + 1):
+                # Check if the n elements starting from index i are all the same
+                if all(lst[i] == lst[j] for j in range(i, i + n)):
+                    return True
+            return False
+
         self._trials.sort(key=sort_key)
         response_location = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
 
-        self.validation_err_msg = f"response_locations are {str(response_location)}, {self.validation_err_msg}"
+        self.validation_err_msg = (f"response_locations are {str(response_location)}, "
+                                   f"has consecutive response_location of 5: {has_consecutive_identical(response_location, 5)}, "
+                                   f"{self.validation_err_msg}")
 
     def validate_trials_in_run(self):
         self.check_trials_count()
@@ -313,8 +327,8 @@ class UserBase(BaseModel):
     user_id: str
     user_type: str
     assessment_pid: Optional[str] = ""
-    assessment_uid: Optional[str] = None
-    email: Optional[str] = None
+    assessment_uid: Optional[str] = ""
+    email: Optional[str] = ""
     email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
@@ -388,30 +402,56 @@ class LevanteUser(UserBase):
 class SurveyResponse(BaseModel):
     survey_response_id: str
     user_id: str
-    class_friends: Optional[str] = None
-    class_help: Optional[str] = None
-    class_nice: Optional[str] = None
-    class_play: Optional[str] = None
-    example1_comic: Optional[str] = None
-    example2_neat: Optional[str] = None
-    growth_mind_math: Optional[str] = None
-    growth_mind_read: Optional[str] = None
-    growth_mind_smart: Optional[str] = None
-    learning_good: Optional[str] = None
-    lonely_school: Optional[str] = None
-    math_enjoy: Optional[str] = None
-    math_good: Optional[str] = None
-    reading_enjoy: Optional[str] = None
-    reading_good: Optional[str] = None
-    school_enjoy: Optional[str] = None
-    school_fun: Optional[str] = None
-    school_give_up: Optional[str] = None
-    school_happy: Optional[str] = None
-    school_safe: Optional[str] = None
-    teacher_like: Optional[str] = None
-    teacher_listen: Optional[str] = None
-    teacher_nice: Optional[str] = None
     created_at: datetime
+
+
+class StudentSurveyResponse(SurveyResponse):
+    class_friends: Optional[str] = ""
+    class_help: Optional[str] = ""
+    class_nice: Optional[str] = ""
+    class_play: Optional[str] = ""
+    example1_comic: Optional[str] = ""
+    example2_neat: Optional[str] = ""
+    growth_mind_math: Optional[str] = ""
+    growth_mind_read: Optional[str] = ""
+    growth_mind_smart: Optional[str] = ""
+    learning_good: Optional[str] = ""
+    lonely_school: Optional[str] = ""
+    math_enjoy: Optional[str] = ""
+    math_good: Optional[str] = ""
+    reading_enjoy: Optional[str] = ""
+    reading_good: Optional[str] = ""
+    school_enjoy: Optional[str] = ""
+    school_fun: Optional[str] = ""
+    school_give_up: Optional[str] = ""
+    school_happy: Optional[str] = ""
+    school_safe: Optional[str] = ""
+    teacher_like: Optional[str] = ""
+    teacher_listen: Optional[str] = ""
+    teacher_nice: Optional[str] = ""
+
+
+class TeacherSurveyResponse(SurveyResponse):
+    teacher_age: Optional[str] = ""
+    teacher_belief_teach_items_influence: Optional[str] = ""
+    teacher_belief_teach_items_well: Optional[str] = ""
+    teacher_climate_items: Optional[str] = ""
+    teacher_education: Optional[str] = ""
+    teacher_feel_job_items: Optional[str] = ""
+    teacher_gender: Optional[str] = ""
+    teacher_grad: Optional[str] = ""
+    teacher_grad_non_ed: Optional[str] = ""
+    teacher_grad_other: Optional[str] = ""
+    teacher_grad_other_ed: Optional[str] = ""
+    teacher_ideas_children_items: Optional[str] = ""
+    teacher_intro_part_a: Optional[str] = ""
+    teacher_survey_intro: Optional[str] = ""
+    teacher_undergrad: Optional[str] = ""
+    teacher_undergrad_non_ed: Optional[str] = ""
+    teacher_undergrad_other: Optional[str] = ""
+    teacher_undergrad_other_ed: Optional[str] = ""
+    teacher_years: Optional[str] = ""
+    teacher_years_school: Optional[str] = ""
 
 
 class AdministrationBase(BaseModel):

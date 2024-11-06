@@ -50,7 +50,8 @@ class StorageServices:
         if invalid_data:
             self.save_to_storage(table_name="validation_results", data=invalid_data)
         else:
-            [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC")}) for dct in validation_logs]
+            [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC"),
+                         'api_version': settings.config['VERSION']}) for dct in validation_logs]
             self.save_to_storage(table_name="validation_results", data=validation_logs)
 
     def save_to_storage(self, table_name: str, data):

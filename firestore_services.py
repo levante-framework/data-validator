@@ -395,8 +395,8 @@ class FirestoreServices:
                         'administration_id': doc_dict.get('assignmentId', None),
                         'num_attempted': test_comp_scores.get('numAttempted', None),
                         'num_correct': test_comp_scores.get('numCorrect', None),
-                        'test_comp_theta_estimate': test_comp_scores['thetaEstimate'] if test_comp_scores.get('thetaEstimate', None) else "",
-                        'test_comp_theta_se': test_comp_scores['thetaSE'] if test_comp_scores.get('thetaSE', None) else ""
+                        'test_comp_theta_estimate': test_comp_scores.get('thetaEstimate', ''),
+                        'test_comp_theta_se': test_comp_scores.get('thetaSE', '')
                     })
                     # Convert camelCase to snake_case and handle NaN values
                     converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
@@ -470,7 +470,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_survey_responses(self, user_id: str):
+    def get_survey_responses(self, user_id: str, user_type: str):
         result = []
         try:
             docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
@@ -481,32 +481,62 @@ class FirestoreServices:
             for doc in docs:
                 doc_dict = doc.to_dict()
                 survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
+
+                if not survey_responses_dict:
+                    general = doc_dict.get('general', {})
+                    if general:
+                        doc_dict['is_completed'] = general.get('isComplete', None)
+                        survey_responses_dict = general.get('responses', {})
+
                 doc_dict['survey_response_id'] = doc.id
                 doc_dict['user_id'] = user_id
                 doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                doc_dict['class_friends'] = survey_responses_dict.get('ClassFriends', None)
-                doc_dict['class_help'] = survey_responses_dict.get('ClassHelp', None)
-                doc_dict['class_nice'] = survey_responses_dict.get('ClassNice', None)
-                doc_dict['class_play'] = survey_responses_dict.get('ClassPlay', None)
-                doc_dict['example1_comic'] = survey_responses_dict.get('Example1Comic', None)
-                doc_dict['example2_neat'] = survey_responses_dict.get('Example2Neat', None)
-                doc_dict['growth_mind_math'] = survey_responses_dict.get('GrowthMindMath', None)
-                doc_dict['growth_mind_read'] = survey_responses_dict.get('GrowthMindRead', None)
-                doc_dict['growth_mind_smart'] = survey_responses_dict.get('GrowthMindSmart', None)
-                doc_dict['learning_good'] = survey_responses_dict.get('LearningGood', None)
-                doc_dict['lonely_school'] = survey_responses_dict.get('LonelySchool', None)
-                doc_dict['math_enjoy'] = survey_responses_dict.get('MathEnjoy', None)
-                doc_dict['math_good'] = survey_responses_dict.get('MathGood', None)
-                doc_dict['reading_enjoy'] = survey_responses_dict.get('ReadingEnjoy', None)
-                doc_dict['reading_good'] = survey_responses_dict.get('ReadingGood', None)
-                doc_dict['school_enjoy'] = survey_responses_dict.get('SchoolEnjoy', None)
-                doc_dict['school_fun'] = survey_responses_dict.get('SchoolFun', None)
-                doc_dict['school_give_up'] = survey_responses_dict.get('SchoolGiveUp', None)
-                doc_dict['school_happy'] = survey_responses_dict.get('SchoolHappy', None)
-                doc_dict['school_safe'] = survey_responses_dict.get('SchoolSafe', None)
-                doc_dict['teacher_like'] = survey_responses_dict.get('TeacherLike', None)
-                doc_dict['teacher_listen'] = survey_responses_dict.get('TeacherListen', None)
-                doc_dict['teacher_nice'] = survey_responses_dict.get('TeacherNice', None)
+
+                if user_type == "student":
+                    doc_dict['class_friends'] = survey_responses_dict.get('ClassFriends', None)
+                    doc_dict['class_help'] = survey_responses_dict.get('ClassHelp', None)
+                    doc_dict['class_nice'] = survey_responses_dict.get('ClassNice', None)
+                    doc_dict['class_play'] = survey_responses_dict.get('ClassPlay', None)
+                    doc_dict['example1_comic'] = survey_responses_dict.get('Example1Comic', None)
+                    doc_dict['example2_neat'] = survey_responses_dict.get('Example2Neat', None)
+                    doc_dict['growth_mind_math'] = survey_responses_dict.get('GrowthMindMath', None)
+                    doc_dict['growth_mind_read'] = survey_responses_dict.get('GrowthMindRead', None)
+                    doc_dict['growth_mind_smart'] = survey_responses_dict.get('GrowthMindSmart', None)
+                    doc_dict['learning_good'] = survey_responses_dict.get('LearningGood', None)
+                    doc_dict['lonely_school'] = survey_responses_dict.get('LonelySchool', None)
+                    doc_dict['math_enjoy'] = survey_responses_dict.get('MathEnjoy', None)
+                    doc_dict['math_good'] = survey_responses_dict.get('MathGood', None)
+                    doc_dict['reading_enjoy'] = survey_responses_dict.get('ReadingEnjoy', None)
+                    doc_dict['reading_good'] = survey_responses_dict.get('ReadingGood', None)
+                    doc_dict['school_enjoy'] = survey_responses_dict.get('SchoolEnjoy', None)
+                    doc_dict['school_fun'] = survey_responses_dict.get('SchoolFun', None)
+                    doc_dict['school_give_up'] = survey_responses_dict.get('SchoolGiveUp', None)
+                    doc_dict['school_happy'] = survey_responses_dict.get('SchoolHappy', None)
+                    doc_dict['school_safe'] = survey_responses_dict.get('SchoolSafe', None)
+                    doc_dict['teacher_like'] = survey_responses_dict.get('TeacherLike', None)
+                    doc_dict['teacher_listen'] = survey_responses_dict.get('TeacherListen', None)
+                    doc_dict['teacher_nice'] = survey_responses_dict.get('TeacherNice', None)
+                elif user_type == "teacher":
+                    doc_dict['teacher_age'] = survey_responses_dict.get('TeacherAge', None)
+                    doc_dict['teacher_belief_teach_items_influence'] = survey_responses_dict.get('TeacherBeliefTeachItemsInfluence', None)
+                    doc_dict['teacher_belief_teach_items_well'] = survey_responses_dict.get('TeacherBeliefTeachItemsWell', None)
+                    doc_dict['teacher_climate_items'] = survey_responses_dict.get('TeacherClimateItems', None)
+                    doc_dict['teacher_education'] = survey_responses_dict.get('TeacherEducation', None)
+                    doc_dict['teacher_feel_job_items'] = survey_responses_dict.get('TeacherFeelJobItems', None)
+                    doc_dict['teacher_gender'] = survey_responses_dict.get('TeacherGender', None)
+                    doc_dict['teacher_grad'] = survey_responses_dict.get('TeacherGrad', None)
+                    doc_dict['teacher_grad_non_ed'] = survey_responses_dict.get('TeacherGradNonEd', None)
+                    doc_dict['teacher_grad_other'] = survey_responses_dict.get('TeacherGradOther', None)
+                    doc_dict['teacher_grad_other_ed'] = survey_responses_dict.get('TeacherGradOtherEd', None)
+                    doc_dict['teacher_ideas_children_items'] = survey_responses_dict.get('TeacherIdeasChildrenItems', None)
+                    doc_dict['teacher_intro_part_a'] = survey_responses_dict.get('TeacherIntroPartA', None)
+                    doc_dict['teacher_survey_intro'] = survey_responses_dict.get('TeacherSurveyIntro', None)
+                    doc_dict['teacher_undergrad'] = survey_responses_dict.get('TeacherUndergrad', None)
+                    doc_dict['teacher_undergrad_non_ed'] = survey_responses_dict.get('TeacherUndergradNonEd', None)
+                    doc_dict['teacher_undergrad_other'] = survey_responses_dict.get('TeacherUndergradOther', None)
+                    doc_dict['teacher_undergrad_other_ed'] = survey_responses_dict.get('TeacherUndergradOtherEd', None)
+                    doc_dict['teacher_years'] = survey_responses_dict.get('TeacherYears', None)
+                    doc_dict['teacher_years_school'] = survey_responses_dict.get('TeacherYearsSchool', None)
                 result.append(doc_dict)
         except Exception as e:
             print(f"Error in get_survey_responses: {e}")
