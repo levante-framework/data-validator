@@ -299,14 +299,14 @@ class LevanteRun(RunBase):
             return True, index  # Proper integers sorted normally
 
         def has_consecutive_identical(lst, n):
-            # Check if the list has fewer than n elements
-            if len(lst) < n:
+            # Check if the list has fewer than n elements or all elements are ""
+            if len(lst) < n or all(x == "" for x in lst):
                 return False
 
             # Loop through the list, stopping at the nth-to-last element
             for i in range(len(lst) - n + 1):
                 # Check if the n elements starting from index i are all the same
-                if all(lst[i] == lst[j] for j in range(i, i + n)):
+                if all(lst[i] == lst[j] and lst[j] != "" for j in range(i, i + n)):
                     return True
             return False
 
@@ -381,14 +381,14 @@ class LevanteUser(UserBase):
     @model_validator(mode='after')
     def check_birth_year_month(self):
         birth_year_month_err = []
-
-        if self.birth_year <= 1934:
-            birth_year_month_err.append("Birth Year must be greater than 1934.")
-        if self.birth_month not in range(1, 13):
-            birth_year_month_err.append("Birth Month must be between 1 and 12.")
-        if self.birth_year and self.user_type == 'student':
-            if self.birth_year < 2000:
-                birth_year_month_err.append("Students must be born in or after 2000.")
+        if self.user_type == 'student':
+            if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(self.birth_month, int):
+                if self.birth_month not in range(1, 13):
+                    birth_year_month_err.append("Birth Month not in between 1 and 12.")
+                if self.birth_year < 2000:
+                    birth_year_month_err.append("Birth Year is prior than 2000.")
+            else:
+                birth_year_month_err.append("Birth Year and Month missing or not integer.")
 
         if birth_year_month_err:
             if self.validation_err_msg:
