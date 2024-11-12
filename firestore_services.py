@@ -288,13 +288,14 @@ class FirestoreServices:
                         yield converted_doc_dict
                     last_doc = docs[-1]
                 except Exception as e:
-                    logging.error(f"Error in get_users: {e}")
+                    logging.error(f"Error in get_administrations: {e}")
                     break
 
         yield from process_docs(query=base_query)
 
     def get_users(self, is_guest: bool = False, org_key: str = None, org_operator: str = None, org_value=None,
-                  user_key: str = None, user_operator: str = None, user_value=None, chunk_size=100):
+                  user_key: str = None, user_operator: str = None, user_value=None, chunk_size=100,
+                  is_using_full_users_list: bool = True):
         collection_name = 'guests' if is_guest else 'users'
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         base_query = self.db.collection(collection_name)
@@ -302,7 +303,12 @@ class FirestoreServices:
         # Apply the date range filters
         base_query = base_query.where(date_field, '>=', self.start_date)
         base_query = base_query.where(date_field, '<=', self.end_date)
-        base_query = base_query.order_by(date_field)
+        if not is_using_full_users_list:
+            if org_key and org_operator and org_value:
+                if org_operator == "array_contains_any":
+                    base_query = base_query.where(f"{org_key}.all", org_operator, org_value)
+
+        base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
 
         def process_docs(query):
             last_doc = None
@@ -332,14 +338,15 @@ class FirestoreServices:
                             if not doc_dict.get('assignmentsStarted', False):
                                 continue
 
-                        # Check if groups.all has any element in org_value
-                        if org_key and org_operator and org_value:
-                            if org_operator == "array_contains_any":
-                                org_value_firebase = doc_dict.get(org_key, {}).get("all", [])
-                                if not org_value_firebase:
-                                    continue  # Skip this document if the filter condition is not met
-                                elif set(org_value).isdisjoint(org_value_firebase):
-                                    continue
+                        if is_using_full_users_list:
+                            # Check if groups.all has any element in org_value
+                            if org_key and org_operator and org_value:
+                                if org_operator == "array_contains_any":
+                                    org_value_firebase = doc_dict.get(org_key, {}).get("all", [])
+                                    if not org_value_firebase:
+                                        continue  # Skip this document if the filter condition is not met
+                                    elif set(org_value).isdisjoint(org_value_firebase):
+                                        continue
 
                         # Check if user filter is being used
                         if user_key and user_operator and user_value:
@@ -351,6 +358,11 @@ class FirestoreServices:
                                     continue
 
                         doc_dict['user_id'] = doc.id
+                        parent_ids = doc_dict.get('parentIds', [])
+                        teacher_ids = doc_dict.get('teacherIds', [])
+                        doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else ""
+                        doc_dict['parent1_id'] = parent_ids[0] if parent_ids else ""
+                        doc_dict['parent2_id'] = parent_ids[1] if parent_ids and len(parent_ids) == 2 else ""
 
                         if doc_dict.get('created', None):
                             doc_dict['created_at'] = doc_dict.get('created')
@@ -518,8 +530,10 @@ class FirestoreServices:
                     doc_dict['teacher_nice'] = survey_responses_dict.get('TeacherNice', None)
                 elif user_type == "teacher":
                     doc_dict['teacher_age'] = survey_responses_dict.get('TeacherAge', None)
-                    doc_dict['teacher_belief_teach_items_influence'] = survey_responses_dict.get('TeacherBeliefTeachItemsInfluence', None)
-                    doc_dict['teacher_belief_teach_items_well'] = survey_responses_dict.get('TeacherBeliefTeachItemsWell', None)
+                    doc_dict['teacher_belief_teach_items_influence'] = survey_responses_dict.get(
+                        'TeacherBeliefTeachItemsInfluence', None)
+                    doc_dict['teacher_belief_teach_items_well'] = survey_responses_dict.get(
+                        'TeacherBeliefTeachItemsWell', None)
                     doc_dict['teacher_climate_items'] = survey_responses_dict.get('TeacherClimateItems', None)
                     doc_dict['teacher_education'] = survey_responses_dict.get('TeacherEducation', None)
                     doc_dict['teacher_feel_job_items'] = survey_responses_dict.get('TeacherFeelJobItems', None)
@@ -528,7 +542,8 @@ class FirestoreServices:
                     doc_dict['teacher_grad_non_ed'] = survey_responses_dict.get('TeacherGradNonEd', None)
                     doc_dict['teacher_grad_other'] = survey_responses_dict.get('TeacherGradOther', None)
                     doc_dict['teacher_grad_other_ed'] = survey_responses_dict.get('TeacherGradOtherEd', None)
-                    doc_dict['teacher_ideas_children_items'] = survey_responses_dict.get('TeacherIdeasChildrenItems', None)
+                    doc_dict['teacher_ideas_children_items'] = survey_responses_dict.get('TeacherIdeasChildrenItems',
+                                                                                         None)
                     doc_dict['teacher_intro_part_a'] = survey_responses_dict.get('TeacherIntroPartA', None)
                     doc_dict['teacher_survey_intro'] = survey_responses_dict.get('TeacherSurveyIntro', None)
                     doc_dict['teacher_undergrad'] = survey_responses_dict.get('TeacherUndergrad', None)

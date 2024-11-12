@@ -63,6 +63,8 @@ class OrgFilter(BaseModel):
     def check_value_type(cls, v):
         if not all(isinstance(element, str) for element in v):
             raise ValueError("Each item in value must be a string")
+        elif len(v) > 30:
+            raise ValueError("Number of items in value must be less than 30.")
         return v
 
     @model_validator(mode='before')

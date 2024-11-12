@@ -226,7 +226,8 @@ class EntityController:
                              org_value=org_ids,
                              user_key=self.org.filters.user_filter.key,
                              user_operator=self.org.filters.user_filter.operator,
-                             user_value=self.org.filters.user_filter.value)
+                             user_value=self.org.filters.user_filter.value,
+                             is_using_full_users_list=False)
 
         self.set_users(users=users)
 

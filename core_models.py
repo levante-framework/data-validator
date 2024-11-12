@@ -172,8 +172,7 @@ class RoarTrial(TrialBase):
 
 
 class LevanteTrial(TrialBase):
-    is_practice_trial: Optional[bool] = ""
-    test_data: Optional[Union[bool, str]] = ""
+    is_practice_trial: Optional[bool] = None
     corpus_trial_type: Optional[Union[str, int]] = ""
     response_type: Optional[str] = ""
     response_location: Optional[Union[int, str]] = ""
@@ -352,7 +351,8 @@ class RoarUser(UserBase):
 
 
 class LevanteUser(UserBase):
-    parent_id: Optional[str] = ""
+    parent1_id: Optional[str] = ""
+    parent2_id: Optional[str] = ""
     teacher_id: Optional[str] = ""
     birth_year: Optional[int] = None  #Field(None, ge=1900, le=datetime.now().year)
     birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
@@ -382,7 +382,8 @@ class LevanteUser(UserBase):
     def check_birth_year_month(self):
         birth_year_month_err = []
         if self.user_type == 'student':
-            if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(self.birth_month, int):
+            if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
+                    self.birth_month, int):
                 if self.birth_month not in range(1, 13):
                     birth_year_month_err.append("Birth Month not in between 1 and 12.")
                 if self.birth_year < 2000:
