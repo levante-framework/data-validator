@@ -164,6 +164,32 @@ def handle_nan(value):
     return value
 
 
+def unwrap_nested_dicts(d: dict):
+    result = {}
+    for key, value in d.items():
+        if isinstance(value, dict):
+            result.update(value)  # Unwrap the nested dictionary
+        else:
+            result[key] = value  # Copy the key-value pair if value is not a dictionary
+    return result
+
+
+def convert_string_to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
+def convert_dict_values(d: dict):
+    # Iterate through each key-value pair in the dictionary
+    for key, value in d.items():
+        # Convert the value if it is a string
+        if isinstance(value, str):
+            d[key] = convert_string_to_int(value)
+    return d
+
+
 # Get the Secret Manager client
 def get_secret_manager_client():
     if os.getenv('ENV') == 'local':

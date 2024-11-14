@@ -48,6 +48,7 @@ class EntityController:
 
         self.valid_student_survey_responses = []
         self.valid_teacher_survey_responses = []
+        self.valid_caregiver_survey_responses = []
         self.invalid_survey_responses = []
 
         # self.valid_score_details = []
@@ -249,9 +250,10 @@ class EntityController:
         logging.info("Now Validating StudentSurveyResponses...")
         for user in self.valid_users:
             self.set_survey_responses(user=user,
-                                      survey_responses=fs_admin.get_survey_responses(user_id=user.user_id, user_type=user.user_type))
+                                      survey_responses=fs_admin.get_survey_responses(user_id=user.user_id))
         survey_responses_result = {"Valid Student Surveys": len(self.valid_student_survey_responses),
                                    "Valid Teacher Surveys": len(self.valid_teacher_survey_responses),
+                                   "Valid Caregiver Surveys": len(self.valid_caregiver_survey_responses),
                                    "Invalid": len(self.invalid_survey_responses),
                                    }
         logging.info(f"survey_responses: {survey_responses_result}")
@@ -434,6 +436,8 @@ class EntityController:
                     self.valid_student_survey_responses.append(core_models.StudentSurveyResponse(**survey_response))
                 elif user.user_type == "teacher":
                     self.valid_teacher_survey_responses.append(core_models.TeacherSurveyResponse(**survey_response))
+                elif user.user_type == "parent":
+                    self.valid_caregiver_survey_responses.append(core_models.CaregiverSurveyResponse(**survey_response))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(
