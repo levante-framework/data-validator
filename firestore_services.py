@@ -25,6 +25,13 @@ def stringify_variables(variable):
         return f'Error converting to string: {variable}'
 
 
+def convert_to_integer(variable):
+    try:
+        return int(variable)
+    except Exception as e:
+        return None
+
+
 # Helper function to split the list into chunks of max 30 items
 def chunked_list(lst, n):
     for i in range(0, len(lst), n):
@@ -335,7 +342,12 @@ class FirestoreServices:
                             if not runs:  # Check if there are no documents in the runs subcollection
                                 continue
                         else:
-                            if not doc_dict.get('assignmentsStarted', False):
+                            user_type = doc_dict.get('userType', None)
+                            assignments_started = doc_dict.get('assignmentsStarted', False)
+                            survey_responses = doc.reference.collection('surveyResponses').limit(1).get()
+                            if user_type == 'student' and not assignments_started:
+                                continue
+                            if user_type in ['teacher', 'parent'] and not survey_responses:
                                 continue
 
                         if is_using_full_users_list:
@@ -358,6 +370,9 @@ class FirestoreServices:
                                     continue
 
                         doc_dict['user_id'] = doc.id
+                        doc_dict['birth_year'] = convert_to_integer(doc_dict.get('birthYear', None))
+                        doc_dict['birth_month'] = convert_to_integer(doc_dict.get('birthMonth', None))
+
                         parent_ids = doc_dict.get('parentIds', [])
                         teacher_ids = doc_dict.get('teacherIds', [])
                         doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else ""

@@ -613,8 +613,8 @@ class CaregiverSurveyResponse(SurveyResponse):
     ChildSleep2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
     ChildSleep5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
     ChildSleepHours: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    ChildSexBirth: Literal["Female", "Male"]
-    ChildGenderCurrent: Literal["Female", "Male", "Nonbinary", "Other"]
+    ChildSexBirth: Optional[Literal["Female", "Male"]] = Field(None, description="Accepts only Male and Female as valid inputs")
+    ChildGenderCurrent: Optional[Literal["Female", "Male", "Nonbinary", "Other"]] = Field(None, description="Accepts only Female,Male,Nonbinary,Other as valid inputs")
     ChildGenderCurrentComment: Optional[str] = ""
     ChildBehGirls: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
     ChildBeGirl: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
@@ -767,7 +767,7 @@ class CaregiverSurveyResponse(SurveyResponse):
     ChildEFQ32: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
     ChildEFQ33: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
     ChildEFQ34: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    CaregiverSectionIntro4: Optional[str] = ""
+
     HomeHOME1: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
     HomeHOME2: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
     HomeHOME3: Optional[str] = ""
@@ -825,7 +825,6 @@ class CaregiverSurveyResponse(SurveyResponse):
     SelfParentMICS4: Optional[str] = ""
     SelfParentMICS6: Optional[str] = ""
     SelfParentMICS12: Optional[str] = ""
-    CaregiverSurveyIntroB: Optional[str] = ""
     HomeNeighborhood: Optional[str] = ""
     HomeNSCHi7a: Optional[str] = ""
     HomeNSCHi7b: Optional[str] = ""
