@@ -300,6 +300,7 @@ class EntityController:
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
             'student_survey_responses': [obj.model_dump() for obj in self.valid_student_survey_responses],
             'teacher_survey_responses': [obj.model_dump() for obj in self.valid_teacher_survey_responses],
+            'caregiver_survey_responses': [obj.model_dump() for obj in self.valid_caregiver_survey_responses],
             'runs': [obj.model_dump() for obj in self.valid_runs],
             'trials': [obj.model_dump() for obj in self.valid_trials],
         }
