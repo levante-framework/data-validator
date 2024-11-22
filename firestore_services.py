@@ -514,11 +514,11 @@ class FirestoreServices:
                     if general:
                         doc_dict['is_completed'] = general.get('isComplete', None)
                         survey_responses_dict = general.get('responses', {})
-                        doc_dict.update(survey_responses_dict)
 
                 doc_dict['survey_response_id'] = doc.id
                 doc_dict['user_id'] = user_id
                 doc_dict['created_at'] = doc_dict.get('createdAt', None)
+                doc_dict.update(survey_responses_dict)
 
                 doc_dict = utils.unwrap_nested_dicts(doc_dict)
                 doc_dict = utils.convert_dict_values(doc_dict)
