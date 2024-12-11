@@ -264,12 +264,6 @@ class EntityController:
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
                                                                  is_guest=self.org.is_guest))
-        runs_result = {"Valid": sum(1 for run in self.valid_runs if run.pass_validation),
-                       "Invalid": sum(1 for run in self.valid_runs if not run.pass_validation)
-                                  + len(self.invalid_runs),
-                       }
-        logging.info(f"runs: {runs_result}")
-        self.validation_log['runs'] = runs_result
 
     def process_trials(self, fs: FirestoreServices):
         logging.info("Now Validating Trials...")
@@ -280,6 +274,12 @@ class EntityController:
                                                  task_id=run.task_id,
                                                  is_guest=self.org.is_guest))
             run.validate_trials_in_run()
+        runs_result = {"Valid": sum(1 for run in self.valid_runs if run.pass_validation),
+                       "Invalid": sum(1 for run in self.valid_runs if not run.pass_validation)
+                                  + len(self.invalid_runs),
+                       }
+        logging.info(f"runs: {runs_result}")
+        self.validation_log['runs'] = runs_result
         trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.pass_validation),
                          "Invalid": sum(1 for trial in self.valid_trials if not trial.pass_validation)
                                     + len(self.invalid_trials),

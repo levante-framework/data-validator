@@ -272,6 +272,7 @@ class LevanteRun(RunBase):
 
     pass_validation: Optional[bool] = None
     validation_err_msg: Optional[list] = []
+    warning_msg: Optional[list] = []
 
     _trials: Optional[list[LevanteTrial]] = []
 
@@ -282,7 +283,7 @@ class LevanteRun(RunBase):
         trial_len_min = 3
 
         if len(self._trials) < trial_len_min:
-            self.validation_err_msg.append(f"less_than_{trial_len_min}_trials")
+            self.warning_msg.append(f"less_than_{trial_len_min}_trials")
 
     def check_straight_line_trials(self):
         def sort_key(trial):
@@ -308,7 +309,7 @@ class LevanteRun(RunBase):
         self._trials.sort(key=sort_key)
         response_location = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
 
-        consecutive_identical_min = 5
+        consecutive_identical_min = 10
         if has_consecutive_identical(response_location, consecutive_identical_min):
             self.validation_err_msg.append(f"straightlining_{consecutive_identical_min}")
 
