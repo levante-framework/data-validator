@@ -232,10 +232,10 @@ class EntityController:
 
         self.set_users(users=users)
 
-        users_result = {"Valid": sum(1 for user in self.valid_users if user.validation_err_msg in (None, "")),
+        users_result = {"Valid": sum(1 for user in self.valid_users if user.pass_validation),
                         "Invalid": sum(
-                            1 for user in self.valid_users if user.validation_err_msg not in (None, "")) + len(
-                            self.invalid_users),
+                            1 for user in self.valid_users if not user.pass_validation + len(
+                                self.invalid_users)),
                         }
         logging.info(f"users: {users_result}")
         self.validation_log['users'] = users_result
@@ -264,8 +264,9 @@ class EntityController:
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
                                                                  is_guest=self.org.is_guest))
-        runs_result = {"Valid": len(self.valid_runs),
-                       "Invalid": len(self.invalid_runs),
+        runs_result = {"Valid": sum(1 for run in self.valid_runs if run.pass_validation),
+                       "Invalid": sum(1 for run in self.valid_runs if not run.pass_validation)
+                                  + len(self.invalid_runs),
                        }
         logging.info(f"runs: {runs_result}")
         self.validation_log['runs'] = runs_result
@@ -279,8 +280,8 @@ class EntityController:
                                                  task_id=run.task_id,
                                                  is_guest=self.org.is_guest))
             run.validate_trials_in_run()
-        trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.validation_err_msg in (None, "")),
-                         "Invalid": sum(1 for trial in self.valid_trials if trial.validation_err_msg not in (None, ""))
+        trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.pass_validation),
+                         "Invalid": sum(1 for trial in self.valid_trials if not trial.pass_validation)
                                     + len(self.invalid_trials),
                          }
         logging.info(f"trials: {trials_result}")

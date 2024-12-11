@@ -3,8 +3,11 @@ from google.oauth2 import service_account
 import datetime
 import json
 import os
+import logging
 
 import settings
+
+logging.basicConfig(level=logging.INFO)
 
 # Create a client
 if 'local' in os.environ['ENV']:
@@ -13,8 +16,10 @@ if 'local' in os.environ['ENV']:
 else:
     storage_client = storage.Client()
 
+gcp_bucket = storage_client.bucket(settings.config['CORE_DATA_BUCKET_NAME'])
 
-def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_type):
+
+def upload_blob_from_memory(data, destination_blob_name, content_type):
     """
         Uploads a file from memory to Google Cloud Storage.
 
@@ -24,11 +29,8 @@ def upload_blob_from_memory(bucket_name, data, destination_blob_name, content_ty
         - destination_blob_name (str): Desired name for the file in the bucket.
         - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
         """
-    # Get the bucket
-    bucket = storage_client.bucket(bucket_name)
-
     # Create a blob object
-    blob = bucket.blob(destination_blob_name)
+    blob = gcp_bucket.blob(destination_blob_name)
 
     # Upload the file
     blob.upload_from_string(data, content_type=content_type)
@@ -43,22 +45,52 @@ class StorageServices:
         self.upload_to_GCP_log = []
 
     def process(self, valid_data: dict, invalid_data: list, validation_logs: list):
+        is_new_version_needed = False
         for key, value in valid_data.items():
             if value:
-                self.save_to_storage(table_name=key, data=value)
+                if not self.check_if_same_file(table_name=key, local_data_list=value):
+                    self.save_to_storage(table_name=key, data=value)
+                    is_new_version_needed = True
 
         if invalid_data:
-            self.save_to_storage(table_name="validation_results", data=invalid_data)
-        else:
+            if not self.check_if_same_file(table_name="invalid_data", local_data_list=invalid_data):
+                self.save_to_storage(table_name="invalid_data", data=invalid_data)
+                is_new_version_needed = True
+
+        if is_new_version_needed:
             [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC"),
                          'api_version': settings.config['VERSION']}) for dct in validation_logs]
             self.save_to_storage(table_name="validation_results", data=validation_logs)
+
+        return is_new_version_needed
+
+    def check_if_same_file(self, table_name, local_data_list):
+        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+
+        if not blob.exists():
+            self.upload_to_GCP_log.append(f"creating_{self.dataset_id}/{table_name}.json")
+            return False
+
+        # Download the JSON content from GCS into memory as a string
+        gcs_json_string = blob.download_as_text()
+        gcs_json_data = json.loads(gcs_json_string)
+
+        # Compare the GCS JSON data with the local data list using DeepDiff
+        # diff = DeepDiff(gcs_json_data, local_data_list, ignore_order=True)
+        # if table_name == 'tasks' or table_name == 'users':
+        #     print(diff)
+        is_same_length = len(gcs_json_data) == len(local_data_list)
+
+        # If diff is empty, there are no differences
+        self.upload_to_GCP_log.append(
+            f"{table_name}(gcs/local)_same_length?: {len(gcs_json_data)}/{len(local_data_list)}, {is_same_length}")
+        return is_same_length
 
     def save_to_storage(self, table_name: str, data):
         data_json = json.dumps(data, cls=CustomJSONEncoder)
         destination_blob_name = f"{self.dataset_id}/{table_name}.json"
         try:
-            upload_blob_from_memory(bucket_name=settings.config['CORE_DATA_BUCKET_NAME'], data=data_json,
+            upload_blob_from_memory(data=data_json,
                                     destination_blob_name=destination_blob_name,
                                     content_type='application/json')
             self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
@@ -66,11 +98,36 @@ class StorageServices:
             self.upload_to_GCP_log.append(
                 f"Failed to save data to cloud, {self.dataset_id}, {table_name}, {e}")
 
+    def append_list_to_json_in_gcp(self, data: dict, file_name: str):
+        # Initialize the GCP Storage client
+        blob = gcp_bucket.blob(f"{self.dataset_id}/{file_name}.json")
+
+        # Try to download the existing JSON file
+        try:
+            content = blob.download_as_text()
+            existing_data = json.loads(content)
+            if not isinstance(existing_data, list):
+                existing_data = []
+        except Exception as e:
+            logging.info(f"Can't read the file or file not exists, try creating...")
+            existing_data = []
+
+        # Append the new data
+        existing_data.append(data)
+        try:
+            # Write back to the JSON file
+            blob.upload_from_string(data=json.dumps(existing_data, cls=CustomJSONEncoder),
+                                    content_type='application/json')
+            logging.info(f"Save to daily_log file.")
+        except Exception as e:
+            logging.info(f"Failed to save to daily_log file: {e}")
+
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""
-        blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix, delimiter=delimiter)
+        blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix,
+                                          delimiter=delimiter)
 
-        return [blob.name for blob in blobs]
+        return [blob.name for blob in blobs if 'daily' not in blob.name]
 
 
 class CustomJSONEncoder(json.JSONEncoder):

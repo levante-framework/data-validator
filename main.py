@@ -48,13 +48,12 @@ def data_validator(request):
                 return str(e), 400
 
             results = []
-
+            storage = StorageServices(dataset_id=dataset_parameters.dataset_id)
             if dataset_parameters:
-                storage = StorageServices(dataset_id=dataset_parameters.dataset_id)
-
                 valid_data = {}
                 invalid_data = []
                 validation_logs = []
+                has_new_data = False
                 if dataset_parameters.prefix:  # if prefix_name specified, go to uploading_to_redivis process.
                     storage.storage_prefix = dataset_parameters.prefix
                 else:  # if no prefix_name specified, start validation process.
@@ -73,12 +72,16 @@ def data_validator(request):
                     # GCP storage service
                     if dataset_parameters.is_save_to_storage:
                         logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
-                        storage.process(valid_data=valid_data,
-                                        invalid_data=invalid_data,
-                                        validation_logs=utils.stringify_values_in_dicts(validation_logs))
-                        logging.info(f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
+                        has_new_data = storage.process(valid_data=valid_data,
+                                                       invalid_data=invalid_data,
+                                                       validation_logs=utils.stringify_values_in_dicts(
+                                                           validation_logs))
+                        storage.upload_to_GCP_log.append(f"has_new_data?: {has_new_data}")
+                        logging.info(f"has_new_data: {has_new_data};"
+                                     f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
                     else:
-                        output = {'title': f'Function executed successfully!',
+                        output = {'title': f'Function executed successfully! '
+                                           f'is_save_to_storage: {dataset_parameters.is_save_to_storage}',
                                   'valid_users_count': len(valid_data.get('users', [])),
                                   'valid_runs_count': len(valid_data.get('runs', [])),
                                   'valid_trials_count': len(valid_data.get('trials', [])),
@@ -87,7 +90,7 @@ def data_validator(request):
                         results.append(output)
 
                 # redivis service
-                if dataset_parameters.is_upload_to_redivis:
+                if dataset_parameters.is_force_uploading_to_redivis or has_new_data:
                     logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
                     rs = RedivisServices()
                     rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
@@ -95,10 +98,12 @@ def data_validator(request):
                     file_names = storage.list_blobs_with_prefix()
                     logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
                     for file_name in file_names:
-                        rs.save_to_redivis_table(file_name=file_name)
+                        if 'validation_results' in file_name:
+                            rs.save_to_redivis_table(file_name=file_name, upload_merge_strategy='append')
+                        else:
+                            rs.save_to_redivis_table(file_name=file_name)
 
-                    if dataset_parameters.is_release_to_redivis:
-                        rs.release_dataset(params=dataset_parameters.orgs)
+                    rs.release_dataset(params=dataset_parameters.orgs)
                     logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
                     output = {
                         'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
@@ -116,8 +121,13 @@ def data_validator(request):
                     pass
 
             elapsed_time = time.time() - start_time
-            response = {'status': 'success', 'logs': results, 'elapsed_time': elapsed_time}
+            response = {'status': 'success',
+                        'dataset_parameters': dataset_parameters.to_dict(),
+                        'logs': results,
+                        'elapsed_time': elapsed_time,
+                        'date_created': datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
             logging.info(json.dumps(response))
+            storage.append_list_to_json_in_gcp(data=response, file_name='daily_logs')
             return json.dumps(response), 200
         else:
             return 'Request body is not received properly', 500

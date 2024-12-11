@@ -100,11 +100,18 @@ class Organization(BaseModel):
 
 class DatasetParameters(BaseModel):
     dataset_id: str = Field()
-    is_save_to_storage: bool = Field()
-    is_upload_to_redivis: bool = Field()
-    is_release_to_redivis: bool = Field()
+    is_save_to_storage: bool = Field(default=False)
+    is_force_uploading_to_redivis: bool = Field(default=False)
     prefix: Optional[str] = None
     orgs: List[Organization] = Field()
+
+    def to_dict(self):
+        return {
+            'dataset_id': self.dataset_id,
+            'is_save_to_storage': self.is_save_to_storage,
+            'is_force_uploading_to_redivis': self.is_force_uploading_to_redivis,
+            'prefix': self.prefix,
+        }
 
 
 def merge_dictionaries(dict1, dict2):

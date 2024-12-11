@@ -1,7 +1,10 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any, Literal
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import ast
+
+import settings
 
 
 class GroupBase(BaseModel):
@@ -140,7 +143,6 @@ class RoarVariant(VariantBase):
 
 
 class TrialBase(BaseModel):
-    validation_err_msg: Optional[str] = ""
     # IDs
     trial_id: str
     user_id: str
@@ -185,9 +187,11 @@ class LevanteTrial(TrialBase):
     theta_se: Optional[float] = None
     theta_se2: Optional[float] = None
 
+    pass_validation: Optional[bool] = None
+    validation_err_msg: Optional[list] = []
+
     @model_validator(mode='after')
     def check_rt(self):
-        rt_err = []
         rt_min = 100
         rt_max = 10000
 
@@ -201,51 +205,45 @@ class LevanteTrial(TrialBase):
                         rt_max = 60000
 
                     if self.rt < rt_min:
-                        rt_err.append(f"rt less than {rt_min / 1000}s.")
+                        self.validation_err_msg.append(f"fast_rt_{rt_min / 1000}s")
                     elif self.rt > rt_max:
-                        rt_err.append(f"rt exceeds {rt_max / 1000}s.")
+                        self.validation_err_msg.append(f"slow_rt_{rt_max / 1000}s")
                 elif isinstance(self.rt, str):
                     try:
                         rt_dict = ast.literal_eval(self.rt)
                         if not all([value > rt_min for value in rt_dict.values()]):
-                            rt_err.append(f"rt less than {rt_min / 1000}s.")
+                            self.validation_err_msg.append(f"fast_rt_{rt_min / 1000}s")
                         if not all([value < rt_max for value in rt_dict.values()]):
-                            rt_err.append(f"rt exceeds {rt_max / 1000}s.")
+                            self.validation_err_msg.append(f"slow_rt_{rt_max / 1000}s")
                     except Exception as e:
-                        rt_err.append(f"rt string converted to dict failed. {e}")
+                        self.validation_err_msg.append(f"rt string converted to dict failed as {e}")
 
             else:
-                rt_err.append("rt is missing.")
-
-        if rt_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(rt_err)}"
-            else:
-                self.validation_err_msg = str(rt_err)
-
+                self.validation_err_msg.append("rt_missing")
         return self
 
     @model_validator(mode='after')
     def check_trial_index(self):
-        trial_index_err = []
-
         if self.trial_index:
             if not isinstance(self.trial_index, int):
-                trial_index_err.append("trial_index needs to be int type.")
+                self.validation_err_msg.append(f"trial_index_not_int")
         else:
-            trial_index_err.append("trial_index is missing.")
-
-        if trial_index_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(trial_index_err)}"
-            else:
-                self.validation_err_msg = str(trial_index_err)
-
+            self.validation_err_msg.append(f"trial_index_missing")
         return self
+
+    @model_validator(mode='after')
+    def update_pass_validation(self):
+        self.pass_validation = True if not self.validation_err_msg else False
+        return self
+
+    # @model_validator(mode='after')
+    # def update_system_info(self):
+    #     self.migration_datetime = datetime.now(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
+    #     self.api_version = settings.config['VERSION']
+    #     return self
 
 
 class RunBase(BaseModel):
-    validation_err_msg: Optional[str] = ""
     run_id: str
     user_id: str
     task_id: str
@@ -272,22 +270,19 @@ class LevanteRun(RunBase):
     test_comp_theta_estimate: Optional[float] = None
     test_comp_theta_se: Optional[float] = None
 
+    pass_validation: Optional[bool] = None
+    validation_err_msg: Optional[list] = []
+
     _trials: Optional[list[LevanteTrial]] = []
 
     def add_levante_trial(self, trial: LevanteTrial):
         self._trials.append(trial)
 
     def check_trials_count(self):
-        trials_count_err = []
+        trial_len_min = 3
 
-        if len(self._trials) < 3:
-            trials_count_err.append("Less than 3 trials in this run.")
-
-        if trials_count_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(trials_count_err)}"
-            else:
-                self.validation_err_msg = str(trials_count_err)
+        if len(self._trials) < trial_len_min:
+            self.validation_err_msg.append(f"less_than_{trial_len_min}_trials")
 
     def check_straight_line_trials(self):
         def sort_key(trial):
@@ -313,17 +308,26 @@ class LevanteRun(RunBase):
         self._trials.sort(key=sort_key)
         response_location = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
 
-        self.validation_err_msg = (f"response_locations are {str(response_location)}, "
-                                   f"has consecutive response_location of 5: {has_consecutive_identical(response_location, 5)}, "
-                                   f"{self.validation_err_msg}")
+        consecutive_identical_min = 5
+        if has_consecutive_identical(response_location, consecutive_identical_min):
+            self.validation_err_msg.append(f"straightlining_{consecutive_identical_min}")
+
+    def update_pass_validation(self):
+        self.pass_validation = True if not self.validation_err_msg else False
+        return self
+
+    # def update_system_info(self):
+    #     self.migration_datetime = datetime.now(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
+    #     self.api_version = settings.config['VERSION']
+    #     return self
 
     def validate_trials_in_run(self):
         self.check_trials_count()
         self.check_straight_line_trials()
+        self.update_pass_validation()
 
 
 class UserBase(BaseModel):
-    validation_err_msg: Optional[str] = ""
     user_id: str
     user_type: str
     assessment_pid: Optional[str] = ""
@@ -360,6 +364,9 @@ class LevanteUser(UserBase):
     sex: Optional[str] = ""
     grade: Optional[Union[str, int]] = ""
 
+    pass_validation: Optional[bool] = None
+    validation_err_msg: Optional[list] = []
+
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 
     @classmethod
@@ -381,24 +388,27 @@ class LevanteUser(UserBase):
 
     @model_validator(mode='after')
     def check_birth_year_month(self):
-        birth_year_month_err = []
         if self.user_type == 'student':
             if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
                     self.birth_month, int):
                 if self.birth_month not in range(1, 13):
-                    birth_year_month_err.append("Birth Month not in between 1 and 12.")
+                    self.validation_err_msg.append("birth_month_error")
                 if self.birth_year < 2000:
-                    birth_year_month_err.append("Birth Year is prior than 2000.")
+                    self.validation_err_msg.append("birth_year_2000")
             else:
-                birth_year_month_err.append("Birth Year and Month missing or not integer.")
-
-        if birth_year_month_err:
-            if self.validation_err_msg:
-                self.validation_err_msg = f"{self.validation_err_msg}, {str(birth_year_month_err)}"
-            else:
-                self.validation_err_msg = str(birth_year_month_err)
-
+                self.validation_err_msg.append("birth_year_month_missing")
         return self
+
+    @model_validator(mode='after')
+    def update_pass_validation(self):
+        self.pass_validation = True if not self.validation_err_msg else False
+        return self
+
+    # @model_validator(mode='after')
+    # def update_system_info(self):
+    #     self.migration_datetime = datetime.now(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
+    #     self.api_version = settings.config['VERSION']
+    #     return self
 
 
 class SurveyResponse(BaseModel):
@@ -613,8 +623,10 @@ class CaregiverSurveyResponse(SurveyResponse):
     ChildSleep2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
     ChildSleep5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
     ChildSleepHours: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    ChildSexBirth: Optional[Literal["Female", "Male"]] = Field(None, description="Accepts only Male and Female as valid inputs")
-    ChildGenderCurrent: Optional[Literal["Female", "Male", "Nonbinary", "Other"]] = Field(None, description="Accepts only Female,Male,Nonbinary,Other as valid inputs")
+    ChildSexBirth: Optional[Literal["Female", "Male"]] = Field(None,
+                                                               description="Accepts only Male and Female as valid inputs")
+    ChildGenderCurrent: Optional[Literal["Female", "Male", "Nonbinary", "Other"]] = Field(None,
+                                                                                          description="Accepts only Female,Male,Nonbinary,Other as valid inputs")
     ChildGenderCurrentComment: Optional[str] = ""
     ChildBehGirls: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
     ChildBeGirl: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)

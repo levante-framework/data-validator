@@ -27,12 +27,12 @@ class RedivisServices:
         }
         logging.info(properties_value)
 
-    def save_to_redivis_table(self, file_name: str):
+    def save_to_redivis_table(self, file_name: str, upload_merge_strategy: str = 'replace'):
         upload_name = file_name.split("/")[1]
         table_name = upload_name.split(".")[0]
         if self.dataset.table(table_name).exists():
             table = self.dataset.table(table_name)
-            table.update(upload_merge_strategy='replace', description=f"This upload is from {file_name}")
+            table.update(upload_merge_strategy=upload_merge_strategy, description=f"This upload is from {file_name}")
         else:
             table = (
                 self.dataset
