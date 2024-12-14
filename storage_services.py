@@ -44,18 +44,20 @@ class StorageServices:
         self.storage_prefix = f"{self.dataset_id}/"
         self.upload_to_GCP_log = []
 
-    def process(self, valid_data: dict, invalid_data: list, validation_logs: list):
+    def process(self, valid_data: dict, invalid_data: list, validation_logs: list, forced_replace: bool = False):
         is_new_version_needed = False
         for key, value in valid_data.items():
             if value:
-                if not self.check_if_same_file(table_name=key, local_data_list=value):
+                if not self.check_if_same_file(table_name=key, local_data_list=value) or forced_replace:
                     self.save_to_storage(table_name=key, data=value)
                     is_new_version_needed = True
 
         if invalid_data:
-            if not self.check_if_same_file(table_name="invalid_data", local_data_list=invalid_data):
+            if not self.check_if_same_file(table_name="invalid_data", local_data_list=invalid_data) or forced_replace:
                 self.save_to_storage(table_name="invalid_data", data=invalid_data)
                 is_new_version_needed = True
+        else:
+            self.check_and_delete_table(table_name="invalid_data")
 
         if is_new_version_needed:
             [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC"),
@@ -128,6 +130,13 @@ class StorageServices:
                                           delimiter=delimiter)
 
         return [blob.name for blob in blobs if 'daily' not in blob.name]
+
+    def check_and_delete_table(self, table_name):
+        """Deletes a blob from the bucket."""
+        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+        if blob.exists():
+            blob.delete()
+            logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")
 
 
 class CustomJSONEncoder(json.JSONEncoder):

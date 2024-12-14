@@ -412,558 +412,572 @@ class LevanteUser(UserBase):
     #     return self
 
 
+class SurveyQuestion(BaseModel):
+    survey_question_id: str
+    survey_question: str
+    survey_type: str
+
+
 class SurveyResponse(BaseModel):
     survey_response_id: str
     user_id: str
+    survey_id: str  # student, teacher, parent
+    question_id: str  # TeacherGender, TeacherEducation
+
+    response: Optional[str] = None
+    response_type: Optional[str] = None
+
+    is_complete: Optional[bool] = None
+
     created_at: datetime
 
 
-class StudentSurveyResponse(SurveyResponse):
-    Example1Comic: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    Example2Neat: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherNice: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherLike: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherListen: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SchoolFun: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SchoolEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SchoolHappy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SchoolSafe: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ClassFriends: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ClassHelp: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ClassPlay: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ClassNice: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    LonelySchool: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    LearningGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SchoolGiveUp: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ReadingEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    MathEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ReadingGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    MathGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    GrowthMindSmart: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    GrowthMindRead: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    GrowthMindMath: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-
-
-class TeacherSurveyResponse(SurveyResponse):
-    TeacherAge: Optional[int] = Field(None, description="Accepts only 10-100 as valid inputs", ge=10, le=100)
-    TeacherGender: Optional[str] = ""
-    TeacherGenderComment: Optional[str] = ""
-    TeacherEducation: Optional[str] = ""
-    TeacherUndergrad: Optional[str] = ""
-    TeacherUndergradOtherEd: Optional[str] = ""
-    TeacherUndergradNonEd: Optional[str] = ""
-    TeacherUndergradOther: Optional[str] = ""
-    TeacherGrad: Optional[str] = ""
-    TeacherGradOtherEd: Optional[str] = ""
-    TeacherGradNonEd: Optional[str] = ""
-    TeacherGradOther: Optional[str] = ""
-    TeacherYears: Optional[str] = ""
-    TeacherYearsSchool: Optional[str] = ""
-    TeacherClimate1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate7a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate7b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherClimate10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-
-    TeacherFeelJob1: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob2: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob3: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob5: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob6: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob7: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob9: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob10: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob12: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob13: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob14: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob15: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-    TeacherFeelJob16: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
-
-    TeacherBeliefTeach1: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach2: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach3: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach4: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach6: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach7: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach8: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach9: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach10: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach11: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach12: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherBeliefTeach5: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-
-    TeacherIdeasChildren1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherIdeasChildren16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-
-    TeacherNumberClasses: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    TeacherOtherAdult: Optional[str] = ""
-    TeacherStudentsEnroll: Optional[int] = None
-    TeacherStudentsGender: Optional[str] = ""
-    TeacherStudentsGenderGirls: Optional[int] = None
-    TeacherStudentsGenderBoys: Optional[int] = None
-    TeacherStudentsGenderNonbinary: Optional[int] = None
-    TeacherStudentsGenderOther: Optional[int] = None
-    TeacherStudentsAges: Optional[str] = ""
-    TeacherStudentsAges5: Optional[int] = None
-    TeacherStudentsAges6: Optional[int] = None
-    TeacherStudentsAges7: Optional[int] = None
-    TeacherStudentsAges8: Optional[int] = None
-    TeacherStudentsAges9: Optional[int] = None
-    TeacherStudentsAges10: Optional[int] = None
-    TeacherStudentsAges11: Optional[int] = None
-    TeacherStudentsAges12: Optional[int] = None
-    TeacherStudentsAges13: Optional[int] = None
-    TeacherMultigrade: Optional[str] = ""
-    TeacherMultigradeLevels: Optional[str] = ""
-    TeacherMultigradeLevelsComment: Optional[str] = ""
-    TeacherGradeLevel: Optional[str] = ""
-    TeacherGradeLevelComment: Optional[str] = ""
-    TeacherLanguageStudents: Optional[str] = ""
-    TeacherLanguageStudentsComment: Optional[str] = ""
-    TeacherLanguageTeachers: Optional[str] = ""
-    TeacherLanguageTeachersComment: Optional[str] = ""
-    TeacherReadingBelow: Optional[int] = None
-    TeacherReadingAbove: Optional[int] = None
-    TeacherMathBelow: Optional[int] = None
-    TeacherMathAbove: Optional[int] = None
-    TeacherReadingFrequency: Optional[str] = ""
-    TeacherReadingTime: Optional[str] = ""
-    TeacherMathFrequency: Optional[str] = ""
-    TeacherMathTime: Optional[str] = ""
-    TeacherFamilySupport: Optional[str] = ""
-    TeacherFamilyOverwhelm: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherFamilyHelping: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    TeacherComm: Optional[str] = ""
-    TeacherCommFamily: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    TeacherCommStudents: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-
-
-class CaregiverSurveyResponse(SurveyResponse):
-    RespondentRelationship: Optional[str] = ""
-    RespondentRelationshipComment: Optional[str] = ""
-    RespondentRelationshipOtherSpecify: Optional[str] = ""
-    RespondentTimeCaring: Optional[str] = ""
-    RespondentTimeCaringYears: Optional[str] = ""
-    RespondentTimeCaringMonths: Optional[str] = ""
-    ChildAgeYears: Optional[int] = Field(None, description="Accepts only 0-15 as valid inputs", ge=0, le=15)
-    ChildHeightCurrent: Optional[str] = ""
-    ChildHeightCurrentFeet: Optional[str] = ""
-    ChildHeightCurrentInches: Optional[str] = ""
-    ChildWeightCurrent: Optional[str] = ""
-    ChildWeightCurrentPounds: Optional[str] = ""
-    ChildBornEarly: Optional[str] = ""
-    ChildWeightBirth: Optional[str] = ""
-    ChildWeightBirthPounds: Optional[str] = ""
-    ChildWeightBirthOunces: Optional[str] = ""
-    ChildHealth: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
-    ChildTeeth: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
-    ChildPhysicalActivity: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildChronicHealth: Optional[str] = ""
-    ChildBreathing: Optional[str] = ""
-    ChildEating: Optional[str] = ""
-    ChildDigestion: Optional[str] = ""
-    ChildPain: Optional[str] = ""
-    ChildToothache: Optional[str] = ""
-    ChildGums: Optional[str] = ""
-    ChildCavities: Optional[str] = ""
-    ChildHealthOther: Optional[str] = ""
-    ChildConcentration: Optional[str] = ""
-    ChildStairs: Optional[str] = ""
-    ChildDressBathe: Optional[str] = ""
-    ChildHearing: Optional[str] = ""
-    ChildEyesight: Optional[str] = ""
-    ChildVisionHearingOther: Optional[str] = ""
-    ChildVisionHearingExp: Optional[str] = ""
-    ChildGenetic: Optional[str] = ""
-    ChildGeneticExp: Optional[str] = ""
-    ChildHealthConditions: Optional[str] = ""
-    ChildConduct: Optional[str] = ""
-    ChildConductCurrent: Optional[str] = ""
-    ChildConductLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildDevDelay: Optional[str] = ""
-    ChildDevDelayCurrent: Optional[str] = ""
-    ChildDevDelayLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildIntellDis: Optional[str] = ""
-    ChildIntellDisCurrent: Optional[str] = ""
-    ChildIntellDisLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildSpeechLang: Optional[str] = ""
-    ChildSpeechLangCurrent: Optional[str] = ""
-    ChildSpeechLangLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildLearnDis: Optional[str] = ""
-    ChildLearnDisCurrent: Optional[str] = ""
-    ChildLearnDisLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildAutism: Optional[str] = ""
-    ChildAutismCurrent: Optional[str] = ""
-    ChildAutismLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildADHD: Optional[str] = ""
-    ChildADHDCurrent: Optional[str] = ""
-    ChildADHDLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    ChildSleep: Optional[str] = ""
-    ChildSleepHabits: Optional[str] = ""
-    ChildSleep1: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildSleep2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildSleep5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildSleepHours: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    ChildSexBirth: Optional[Literal["Female", "Male"]] = Field(None,
-                                                               description="Accepts only Male and Female as valid inputs")
-    ChildGenderCurrent: Optional[Literal["Female", "Male", "Nonbinary", "Other"]] = Field(None,
-                                                                                          description="Accepts only Female,Male,Nonbinary,Other as valid inputs")
-    ChildGenderCurrentComment: Optional[str] = ""
-    ChildBehGirls: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildBeGirl: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildBehBoys: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildBeBoy: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildPubertyYN: Optional[str] = ""
-    ChildPubertyFemale: Optional[str] = ""
-    ChildPubertyGrowthFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyHairFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertySkinFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyBreastFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyMenstruate: Optional[str] = ""
-    ChildPubertyMenstruateAge: Optional[str] = ""
-    ChildPubertyMale: Optional[str] = ""
-    ChildPubertyGrowthMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyHairMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertySkinMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyVoiceMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildPubertyFaceHairMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQitems: Optional[str] = ""
-    ChildSDQ2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ17: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ18: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ22: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ23: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSDQ24: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCSitems: Optional[str] = ""
-    ChildSCS1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildSCS12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQitems: Optional[str] = ""
-    ChildCBQ1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildCBQ11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukesItems: Optional[str] = ""
-    ChildJukes1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes17: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes18: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes19: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildJukes20: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildFriends: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildBullied: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildBullyOthers: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    ChildELSitems: Optional[str] = ""
-    ChildELS1: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS3: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS4: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS6: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS7: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS8: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS9: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS10: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS11: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS12: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS13: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS14: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS15: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS16: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS17: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildELS18: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    ChildAttendEC: Optional[str] = ""
-    ChildAttendKinder: Optional[str] = ""
-    ChildAttendECKinderTime: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    ChildAttendPrimaryAge: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEdAchieve: Optional[str] = ""
-    ChildSchoolItems: Optional[str] = ""
-    ChildNSCHg10a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildNSCHg10b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildNSCHg10c: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildNSCHg10d: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildNSCHg10e: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    ChildDeviceUse: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
-    ChildPhone: Optional[str] = ""
-    ChildPhoneAge: Optional[str] = ""
-    ChildSocialMedia: Optional[str] = ""
-    ChildEFQ: Optional[str] = ""
-    ChildEFQ1: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ2: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ4: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ5: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ6: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ10: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ11: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ12: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ13: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ14: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ15: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ16: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ17: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ18: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ19: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ20: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ21: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ22: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ23: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ24: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ25: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ26: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ27: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ28: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ29: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ30: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ31: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ32: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ33: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    ChildEFQ34: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-
-    HomeHOME1: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME2: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    HomeHOME3: Optional[str] = ""
-    HomeHOME4: Optional[str] = ""
-    HomeHOME5: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
-    HomeHOME6: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    HomeHOME7: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    HomeHOME9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    HomeHOME15: Optional[str] = ""
-    HomeHOME23: Optional[str] = ""
-    HomeHOME22: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME24: Optional[str] = ""
-    HomeHOME24a: Optional[str] = ""
-    HomeHOME24b: Optional[str] = ""
-    HomeHOME24c: Optional[str] = ""
-    HomeHOME24d: Optional[str] = ""
-    HomeHOME24e: Optional[str] = ""
-    HomeHOME24f: Optional[str] = ""
-    HomeHOME24g: Optional[str] = ""
-    HomeHOME24h: Optional[str] = ""
-    HomeHOME24i: Optional[str] = ""
-    HomeHOME24j: Optional[str] = ""
-    HomeHOME25: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME26: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME27: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME28: Optional[str] = ""
-    HomeHOME29: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME30: Optional[str] = ""
-    HomeHOME31: Optional[str] = ""
-    HomeHOME32: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME33: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME34: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME35: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME36: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME37: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    HomeHOME38: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    SelfParentStressNCSHh9: Optional[str] = ""
-    SelfParentStressNSCHh9a: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    SelfParentStressNSCHh9b: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    SelfParentStressNSCHh9c: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
-    SelfParentRohner: Optional[str] = ""
-    SelfParentRohnerC3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerC7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerC14: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerW15: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerC20: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerW21: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerW23: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerC26: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerW27: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentRohnerW29: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfParentMICS: Optional[str] = ""
-    SelfParentMICS1: Optional[str] = ""
-    SelfParentMICS2: Optional[str] = ""
-    SelfParentMICS4: Optional[str] = ""
-    SelfParentMICS6: Optional[str] = ""
-    SelfParentMICS12: Optional[str] = ""
-    HomeNeighborhood: Optional[str] = ""
-    HomeNSCHi7a: Optional[str] = ""
-    HomeNSCHi7b: Optional[str] = ""
-    HomeNSCHi7c: Optional[str] = ""
-    HomeNSCHi7d: Optional[str] = ""
-    HomeNSCHi7e: Optional[str] = ""
-    HomeNSCHi7f: Optional[str] = ""
-    HomeNSCHi7g: Optional[str] = ""
-    HomeNSCHi8items: Optional[str] = ""
-    HomeNSCHi8a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeNSCHi8b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeNSCHi8c: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeNSCHi8d: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeNSCHi8e: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeFood: Optional[str] = ""
-    HomeFoodLast: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    HomeFoodBalanced: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
-    HomeFoodSkipMeal: Optional[str] = ""
-    HomeFoodSkipMealAmount: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
-    HomeCHAOS: Optional[str] = ""
-    HomeCHAOS4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeCHAOS10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeCHAOS14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    HomeCHAOS15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SelfParentStressNSCHh8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
-    SelfAnxDep: Optional[str] = ""
-    SelfAnxDep1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SelfAnxDep2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SelfAnxDep3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SelfAnxDep4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
-    SelfSupport: Optional[str] = ""
-    SelfSupport1: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    SelfSupport2: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
-    SelfSupport3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport4: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport5: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport6: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport10: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport11: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfSupport12: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
-    SelfDiscrim: Optional[str] = ""
-    SelfDiscrim1: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    SelfDiscrim2: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    SelfDiscrim3: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    SelfDiscrim4: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    SelfDiscrim5: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
-    SelfLifeChanges: Optional[str] = ""
-    SelfLifeChangesHealth: Optional[str] = ""
-    SelfLifeChanges1: Optional[Literal[0, 74]] = Field(None, description="Allows only 0 or 74")
-    SelfLifeChanges2: Optional[Literal[0, 44]] = Field(None, description="Allows only 0 or 44")
-    SelfLifeChanges3: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
-    SelfLifeChanges4: Optional[Literal[0, 27]] = Field(None, description="Allows only 0 or 27")
-    SelfLifeChanges5: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
-    SelfLifeChanges6: Optional[Literal[0, 28]] = Field(None, description="Allows only 0 or 28")
-    SelfLifeChangesWork: Optional[str] = Field(None, description="Not applicable field")
-    SelfLifeChanges7: Optional[Literal[0, 51]] = Field(None, description="Allows only 0 or 51")
-    SelfLifeChanges8: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
-    SelfLifeChanges9: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
-    SelfLifeChanges10: Optional[Literal[0, 21]] = Field(None, description="Allows only 0 or 21")
-    SelfLifeChanges11: Optional[Literal[0, 31]] = Field(None, description="Allows only 0 or 31")
-    SelfLifeChanges12: Optional[Literal[0, 42]] = Field(None, description="Allows only 0 or 42")
-    SelfLifeChanges13: Optional[Literal[0, 32]] = Field(None, description="Allows only 0 or 32")
-    SelfLifeChanges14: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
-    SelfLifeChanges15: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
-    SelfLifeChanges16: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
-    SelfLifeChanges17: Optional[Literal[0, 28]] = Field(None, description="Allows only 0 or 28")
-    SelfLifeChanges18: Optional[Literal[0, 60]] = Field(None, description="Allows only 0 or 60")
-    SelfLifeChanges19: Optional[Literal[0, 52]] = Field(None, description="Allows only 0 or 52")
-    SelfLifeChanges20: Optional[Literal[0, 68]] = Field(None, description="Allows only 0 or 68")
-    SelfLifeChanges21: Optional[Literal[0, 79]] = Field(None, description="Allows only 0 or 79")
-    SelfLifeChanges22: Optional[Literal[0, 18]] = Field(None, description="Allows only 0 or 18")
-    SelfLifeChangesHome: Optional[str] = Field(None, description="Not applicable field")
-    SelfLifeChanges23: Optional[Literal[0, 42]] = Field(None, description="Allows only 0 or 42")
-    SelfLifeChanges24: Optional[Literal[0, 25]] = Field(None, description="Allows only 0 or 25")
-    SelfLifeChanges25: Optional[Literal[0, 47]] = Field(None, description="Allows only 0 or 47")
-    SelfLifeChanges26: Optional[Literal[0, 25]] = Field(None, description="Allows only 0 or 25")
-    SelfLifeChanges27: Optional[Literal[0, 55]] = Field(None, description="Allows only 0 or 55")
-    SelfLifeChanges28: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
-    SelfLifeChanges29: Optional[Literal[0, 67]] = Field(None, description="Allows only 0 or 67")
-    SelfLifeChanges31: Optional[Literal[0, 66]] = Field(None, description="Allows only 0 or 66")
-    SelfLifeChanges32: Optional[Literal[0, 65]] = Field(None, description="Allows only 0 or 65")
-    SelfLifeChanges33: Optional[Literal[0, 59]] = Field(None, description="Allows only 0 or 59")
-    SelfLifeChanges34: Optional[Literal[0, 46]] = Field(None, description="Allows only 0 or 46")
-    SelfLifeChanges35: Optional[Literal[0, 41]] = Field(None, description="Allows only 0 or 41")
-    SelfLifeChanges36: Optional[Literal[0, 41]] = Field(None, description="Allows only 0 or 41")
-    SelfLifeChanges37: Optional[Literal[0, 45]] = Field(None, description="Allows only 0 or 45")
-    SelfLifeChanges38: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
-    SelfLifeChanges39: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
-    SelfLifeChanges40: Optional[Literal[0, 59]] = Field(None, description="Allows only 0 or 59")
-    SelfLifeChanges41: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
-    SelfLifeChanges42: Optional[Literal[0, 53]] = Field(None, description="Allows only 0 or 53")
-    SelfLifeChanges43: Optional[Literal[0, 76]] = Field(None, description="Allows only 0 or 76")
-    SelfLifeChanges44: Optional[Literal[0, 96]] = Field(None, description="Allows only 0 or 96")
-    SelfLifeChanges45: Optional[Literal[0, 43]] = Field(None, description="Allows only 0 or 43")
-    SelfLifeChanges46: Optional[Literal[0, 119]] = Field(None, description="Allows only 0 or 119")
-    SelfLifeChanges47: Optional[Literal[0, 123]] = Field(None, description="Allows only 0 or 123")
-    SelfLifeChanges48: Optional[Literal[0, 102]] = Field(None, description="Allows only 0 or 102")
-    SelfLifeChanges49: Optional[Literal[0, 100]] = Field(None, description="Allows only 0 or 100")
-    SelfLifeChangesPersonal: Optional[str] = Field(None, description="Not applicable field")
-    SelfLifeChanges50: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
-    SelfLifeChanges51: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
-    SelfLifeChanges52: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
-    SelfLifeChanges53: Optional[Literal[0, 24]] = Field(None, description="Allows only 0 or 24")
-    SelfLifeChanges54: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
-    SelfLifeChanges55: Optional[Literal[0, 27]] = Field(None, description="Allows only 0 or 27")
-    SelfLifeChanges56: Optional[Literal[0, 24]] = Field(None, description="Allows only 0 or 24")
-    SelfLifeChanges57: Optional[Literal[0, 37]] = Field(None, description="Allows only 0 or 37")
-    SelfLifeChanges58: Optional[Literal[0, 45]] = Field(None, description="Allows only 0 or 45")
-    SelfLifeChanges59: Optional[Literal[0, 39]] = Field(None, description="Allows only 0 or 39")
-    SelfLifeChanges61: Optional[Literal[0, 47]] = Field(None, description="Allows only 0 or 47")
-    SelfLifeChanges62: Optional[Literal[0, 48]] = Field(None, description="Allows only 0 or 48")
-    SelfLifeChanges63: Optional[Literal[0, 20]] = Field(None, description="Allows only 0 or 20")
-    SelfLifeChanges65: Optional[Literal[0, 70]] = Field(None, description="Allows only 0 or 70")
-    SelfLifeChanges66: Optional[Literal[0, 51]] = Field(None, description="Allows only 0 or 51")
-    SelfLifeChanges67: Optional[Literal[0, 36]] = Field(None, description="Allows only 0 or 36")
-    SelfLifeChangesFinancial: Optional[str] = Field(None, description="Not applicable field")
-    SelfLifeChanges68: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
-    SelfLifeChanges69: Optional[Literal[0, 60]] = Field(None, description="Allows only 0 or 60")
-    SelfLifeChanges70: Optional[Literal[0, 56]] = Field(None, description="Allows only 0 or 56")
-    SelfLifeChanges71: Optional[Literal[0, 43]] = Field(None, description="Allows only 0 or 43")
-    SelfLifeChanges72: Optional[Literal[0, 20]] = Field(None, description="Allows only 0 or 20")
-    SelfLifeChanges73: Optional[Literal[0, 37]] = Field(None, description="Allows only 0 or 37")
-    SelfLifeChanges74: Optional[Literal[0, 58]] = Field(None, description="Allows only 0 or 58")
+# class StudentSurveyResponse(SurveyResponse):
+#     Example1Comic: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     Example2Neat: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherNice: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherLike: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherListen: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SchoolFun: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SchoolEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SchoolHappy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SchoolSafe: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ClassFriends: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ClassHelp: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ClassPlay: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ClassNice: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     LonelySchool: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     LearningGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SchoolGiveUp: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ReadingEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     MathEnjoy: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ReadingGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     MathGood: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     GrowthMindSmart: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     GrowthMindRead: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     GrowthMindMath: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#
+#
+# class TeacherSurveyResponse(SurveyResponse):
+#     TeacherAge: Optional[int] = Field(None, description="Accepts only 10-100 as valid inputs", ge=10, le=100)
+#     TeacherGender: Optional[str] = ""
+#     TeacherGenderComment: Optional[str] = ""
+#     TeacherEducation: Optional[str] = ""
+#     TeacherUndergrad: Optional[str] = ""
+#     TeacherUndergradOtherEd: Optional[str] = ""
+#     TeacherUndergradNonEd: Optional[str] = ""
+#     TeacherUndergradOther: Optional[str] = ""
+#     TeacherGrad: Optional[str] = ""
+#     TeacherGradOtherEd: Optional[str] = ""
+#     TeacherGradNonEd: Optional[str] = ""
+#     TeacherGradOther: Optional[str] = ""
+#     TeacherYears: Optional[str] = ""
+#     TeacherYearsSchool: Optional[str] = ""
+#     TeacherClimate1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate7a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate7b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherClimate10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#
+#     TeacherFeelJob1: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob2: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob3: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob5: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob6: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob7: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob9: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob10: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob12: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob13: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob14: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob15: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#     TeacherFeelJob16: Optional[int] = Field(None, description="Accepts only 0-6 as valid inputs", ge=0, le=6)
+#
+#     TeacherBeliefTeach1: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach2: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach3: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach4: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach6: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach7: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach8: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach9: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach10: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach11: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach12: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherBeliefTeach5: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#
+#     TeacherIdeasChildren1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherIdeasChildren16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#
+#     TeacherNumberClasses: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
+#     TeacherOtherAdult: Optional[str] = ""
+#     TeacherStudentsEnroll: Optional[int] = None
+#     TeacherStudentsGender: Optional[str] = ""
+#     TeacherStudentsGenderGirls: Optional[int] = None
+#     TeacherStudentsGenderBoys: Optional[int] = None
+#     TeacherStudentsGenderNonbinary: Optional[int] = None
+#     TeacherStudentsGenderOther: Optional[int] = None
+#     TeacherStudentsAges: Optional[str] = ""
+#     TeacherStudentsAges5: Optional[int] = None
+#     TeacherStudentsAges6: Optional[int] = None
+#     TeacherStudentsAges7: Optional[int] = None
+#     TeacherStudentsAges8: Optional[int] = None
+#     TeacherStudentsAges9: Optional[int] = None
+#     TeacherStudentsAges10: Optional[int] = None
+#     TeacherStudentsAges11: Optional[int] = None
+#     TeacherStudentsAges12: Optional[int] = None
+#     TeacherStudentsAges13: Optional[int] = None
+#     TeacherMultigrade: Optional[str] = ""
+#     TeacherMultigradeLevels: Optional[str] = ""
+#     TeacherMultigradeLevelsComment: Optional[str] = ""
+#     TeacherGradeLevel: Optional[str] = ""
+#     TeacherGradeLevelComment: Optional[str] = ""
+#     TeacherLanguageStudents: Optional[str] = ""
+#     TeacherLanguageStudentsComment: Optional[str] = ""
+#     TeacherLanguageTeachers: Optional[str] = ""
+#     TeacherLanguageTeachersComment: Optional[str] = ""
+#     TeacherReadingBelow: Optional[int] = None
+#     TeacherReadingAbove: Optional[int] = None
+#     TeacherMathBelow: Optional[int] = None
+#     TeacherMathAbove: Optional[int] = None
+#     TeacherReadingFrequency: Optional[str] = ""
+#     TeacherReadingTime: Optional[str] = ""
+#     TeacherMathFrequency: Optional[str] = ""
+#     TeacherMathTime: Optional[str] = ""
+#     TeacherFamilySupport: Optional[str] = ""
+#     TeacherFamilyOverwhelm: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherFamilyHelping: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     TeacherComm: Optional[str] = ""
+#     TeacherCommFamily: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     TeacherCommStudents: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#
+#
+# class CaregiverSurveyResponse(SurveyResponse):
+#     RespondentRelationship: Optional[str] = ""
+#     RespondentRelationshipComment: Optional[str] = ""
+#     RespondentRelationshipOtherSpecify: Optional[str] = ""
+#     RespondentTimeCaring: Optional[str] = ""
+#     RespondentTimeCaringYears: Optional[str] = ""
+#     RespondentTimeCaringMonths: Optional[str] = ""
+#     ChildAgeYears: Optional[int] = Field(None, description="Accepts only 0-15 as valid inputs", ge=0, le=15)
+#     ChildHeightCurrent: Optional[str] = ""
+#     ChildHeightCurrentFeet: Optional[str] = ""
+#     ChildHeightCurrentInches: Optional[str] = ""
+#     ChildWeightCurrent: Optional[str] = ""
+#     ChildWeightCurrentPounds: Optional[str] = ""
+#     ChildBornEarly: Optional[str] = ""
+#     ChildWeightBirth: Optional[str] = ""
+#     ChildWeightBirthPounds: Optional[str] = ""
+#     ChildWeightBirthOunces: Optional[str] = ""
+#     ChildHealth: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
+#     ChildTeeth: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
+#     ChildPhysicalActivity: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildChronicHealth: Optional[str] = ""
+#     ChildBreathing: Optional[str] = ""
+#     ChildEating: Optional[str] = ""
+#     ChildDigestion: Optional[str] = ""
+#     ChildPain: Optional[str] = ""
+#     ChildToothache: Optional[str] = ""
+#     ChildGums: Optional[str] = ""
+#     ChildCavities: Optional[str] = ""
+#     ChildHealthOther: Optional[str] = ""
+#     ChildConcentration: Optional[str] = ""
+#     ChildStairs: Optional[str] = ""
+#     ChildDressBathe: Optional[str] = ""
+#     ChildHearing: Optional[str] = ""
+#     ChildEyesight: Optional[str] = ""
+#     ChildVisionHearingOther: Optional[str] = ""
+#     ChildVisionHearingExp: Optional[str] = ""
+#     ChildGenetic: Optional[str] = ""
+#     ChildGeneticExp: Optional[str] = ""
+#     ChildHealthConditions: Optional[str] = ""
+#     ChildConduct: Optional[str] = ""
+#     ChildConductCurrent: Optional[str] = ""
+#     ChildConductLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildDevDelay: Optional[str] = ""
+#     ChildDevDelayCurrent: Optional[str] = ""
+#     ChildDevDelayLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildIntellDis: Optional[str] = ""
+#     ChildIntellDisCurrent: Optional[str] = ""
+#     ChildIntellDisLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildSpeechLang: Optional[str] = ""
+#     ChildSpeechLangCurrent: Optional[str] = ""
+#     ChildSpeechLangLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildLearnDis: Optional[str] = ""
+#     ChildLearnDisCurrent: Optional[str] = ""
+#     ChildLearnDisLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildAutism: Optional[str] = ""
+#     ChildAutismCurrent: Optional[str] = ""
+#     ChildAutismLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildADHD: Optional[str] = ""
+#     ChildADHDCurrent: Optional[str] = ""
+#     ChildADHDLevel: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     ChildSleep: Optional[str] = ""
+#     ChildSleepHabits: Optional[str] = ""
+#     ChildSleep1: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildSleep2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildSleep5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildSleepHours: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
+#     ChildSexBirth: Optional[Literal["Female", "Male"]] = Field(None,
+#                                                                description="Accepts only Male and Female as valid inputs")
+#     ChildGenderCurrent: Optional[Literal["Female", "Male", "Nonbinary", "Other"]] = Field(None,
+#                                                                                           description="Accepts only Female,Male,Nonbinary,Other as valid inputs")
+#     ChildGenderCurrentComment: Optional[str] = ""
+#     ChildBehGirls: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildBeGirl: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildBehBoys: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildBeBoy: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildPubertyYN: Optional[str] = ""
+#     ChildPubertyFemale: Optional[str] = ""
+#     ChildPubertyGrowthFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyHairFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertySkinFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyBreastFemale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyMenstruate: Optional[str] = ""
+#     ChildPubertyMenstruateAge: Optional[str] = ""
+#     ChildPubertyMale: Optional[str] = ""
+#     ChildPubertyGrowthMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyHairMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertySkinMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyVoiceMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildPubertyFaceHairMale: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQitems: Optional[str] = ""
+#     ChildSDQ2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ17: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ18: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ22: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ23: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSDQ24: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCSitems: Optional[str] = ""
+#     ChildSCS1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildSCS12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQitems: Optional[str] = ""
+#     ChildCBQ1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildCBQ11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukesItems: Optional[str] = ""
+#     ChildJukes1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes5: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes6: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes7: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes8: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes9: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes11: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes12: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes13: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes16: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes17: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes18: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes19: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildJukes20: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildFriends: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildBullied: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildBullyOthers: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     ChildELSitems: Optional[str] = ""
+#     ChildELS1: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS2: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS3: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS4: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS5: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS6: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS7: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS8: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS9: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS10: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS11: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS12: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS13: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS14: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS15: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS16: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS17: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildELS18: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     ChildAttendEC: Optional[str] = ""
+#     ChildAttendKinder: Optional[str] = ""
+#     ChildAttendECKinderTime: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     ChildAttendPrimaryAge: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEdAchieve: Optional[str] = ""
+#     ChildSchoolItems: Optional[str] = ""
+#     ChildNSCHg10a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildNSCHg10b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildNSCHg10c: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildNSCHg10d: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildNSCHg10e: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     ChildDeviceUse: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
+#     ChildPhone: Optional[str] = ""
+#     ChildPhoneAge: Optional[str] = ""
+#     ChildSocialMedia: Optional[str] = ""
+#     ChildEFQ: Optional[str] = ""
+#     ChildEFQ1: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ2: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ4: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ5: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ6: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ10: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ11: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ12: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ13: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ14: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ15: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ16: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ17: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ18: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ19: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ20: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ21: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ22: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ23: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ24: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ25: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ26: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ27: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ28: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ29: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ30: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ31: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ32: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ33: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     ChildEFQ34: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#
+#     HomeHOME1: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME2: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     HomeHOME3: Optional[str] = ""
+#     HomeHOME4: Optional[str] = ""
+#     HomeHOME5: Optional[int] = Field(None, description="Accepts only 1-5 as valid inputs", ge=1, le=5)
+#     HomeHOME6: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     HomeHOME7: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     HomeHOME9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     HomeHOME15: Optional[str] = ""
+#     HomeHOME23: Optional[str] = ""
+#     HomeHOME22: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME24: Optional[str] = ""
+#     HomeHOME24a: Optional[str] = ""
+#     HomeHOME24b: Optional[str] = ""
+#     HomeHOME24c: Optional[str] = ""
+#     HomeHOME24d: Optional[str] = ""
+#     HomeHOME24e: Optional[str] = ""
+#     HomeHOME24f: Optional[str] = ""
+#     HomeHOME24g: Optional[str] = ""
+#     HomeHOME24h: Optional[str] = ""
+#     HomeHOME24i: Optional[str] = ""
+#     HomeHOME24j: Optional[str] = ""
+#     HomeHOME25: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME26: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME27: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME28: Optional[str] = ""
+#     HomeHOME29: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME30: Optional[str] = ""
+#     HomeHOME31: Optional[str] = ""
+#     HomeHOME32: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME33: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME34: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME35: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME36: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME37: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     HomeHOME38: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     SelfParentStressNCSHh9: Optional[str] = ""
+#     SelfParentStressNSCHh9a: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     SelfParentStressNSCHh9b: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     SelfParentStressNSCHh9c: Optional[int] = Field(None, description="Accepts only 0-4 as valid inputs", ge=0, le=4)
+#     SelfParentRohner: Optional[str] = ""
+#     SelfParentRohnerC3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerC7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerC14: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerW15: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerC20: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerW21: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerW23: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerC26: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerW27: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentRohnerW29: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfParentMICS: Optional[str] = ""
+#     SelfParentMICS1: Optional[str] = ""
+#     SelfParentMICS2: Optional[str] = ""
+#     SelfParentMICS4: Optional[str] = ""
+#     SelfParentMICS6: Optional[str] = ""
+#     SelfParentMICS12: Optional[str] = ""
+#     HomeNeighborhood: Optional[str] = ""
+#     HomeNSCHi7a: Optional[str] = ""
+#     HomeNSCHi7b: Optional[str] = ""
+#     HomeNSCHi7c: Optional[str] = ""
+#     HomeNSCHi7d: Optional[str] = ""
+#     HomeNSCHi7e: Optional[str] = ""
+#     HomeNSCHi7f: Optional[str] = ""
+#     HomeNSCHi7g: Optional[str] = ""
+#     HomeNSCHi8items: Optional[str] = ""
+#     HomeNSCHi8a: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeNSCHi8b: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeNSCHi8c: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeNSCHi8d: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeNSCHi8e: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeFood: Optional[str] = ""
+#     HomeFoodLast: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     HomeFoodBalanced: Optional[int] = Field(None, description="Accepts only 0-2 as valid inputs", ge=0, le=2)
+#     HomeFoodSkipMeal: Optional[str] = ""
+#     HomeFoodSkipMealAmount: Optional[int] = Field(None, description="Accepts only 1-3 as valid inputs", ge=1, le=3)
+#     HomeCHAOS: Optional[str] = ""
+#     HomeCHAOS4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeCHAOS10: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeCHAOS14: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     HomeCHAOS15: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SelfParentStressNSCHh8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=4)
+#     SelfAnxDep: Optional[str] = ""
+#     SelfAnxDep1: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SelfAnxDep2: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SelfAnxDep3: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SelfAnxDep4: Optional[int] = Field(None, description="Accepts only 0-3 as valid inputs", ge=0, le=3)
+#     SelfSupport: Optional[str] = ""
+#     SelfSupport1: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
+#     SelfSupport2: Optional[int] = Field(None, description="Accepts only 1-7 as valid inputs", ge=1, le=7)
+#     SelfSupport3: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport4: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport5: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport6: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport7: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport8: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport9: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport10: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport11: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfSupport12: Optional[int] = Field(None, description="Accepts only 1-4 as valid inputs", ge=1, le=7)
+#     SelfDiscrim: Optional[str] = ""
+#     SelfDiscrim1: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     SelfDiscrim2: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     SelfDiscrim3: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     SelfDiscrim4: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     SelfDiscrim5: Optional[int] = Field(None, description="Accepts only 0-5 as valid inputs", ge=0, le=5)
+#     SelfLifeChanges: Optional[str] = ""
+#     SelfLifeChangesHealth: Optional[str] = ""
+#     SelfLifeChanges1: Optional[Literal[0, 74]] = Field(None, description="Allows only 0 or 74")
+#     SelfLifeChanges2: Optional[Literal[0, 44]] = Field(None, description="Allows only 0 or 44")
+#     SelfLifeChanges3: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
+#     SelfLifeChanges4: Optional[Literal[0, 27]] = Field(None, description="Allows only 0 or 27")
+#     SelfLifeChanges5: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
+#     SelfLifeChanges6: Optional[Literal[0, 28]] = Field(None, description="Allows only 0 or 28")
+#     SelfLifeChangesWork: Optional[str] = Field(None, description="Not applicable field")
+#     SelfLifeChanges7: Optional[Literal[0, 51]] = Field(None, description="Allows only 0 or 51")
+#     SelfLifeChanges8: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
+#     SelfLifeChanges9: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
+#     SelfLifeChanges10: Optional[Literal[0, 21]] = Field(None, description="Allows only 0 or 21")
+#     SelfLifeChanges11: Optional[Literal[0, 31]] = Field(None, description="Allows only 0 or 31")
+#     SelfLifeChanges12: Optional[Literal[0, 42]] = Field(None, description="Allows only 0 or 42")
+#     SelfLifeChanges13: Optional[Literal[0, 32]] = Field(None, description="Allows only 0 or 32")
+#     SelfLifeChanges14: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
+#     SelfLifeChanges15: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
+#     SelfLifeChanges16: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
+#     SelfLifeChanges17: Optional[Literal[0, 28]] = Field(None, description="Allows only 0 or 28")
+#     SelfLifeChanges18: Optional[Literal[0, 60]] = Field(None, description="Allows only 0 or 60")
+#     SelfLifeChanges19: Optional[Literal[0, 52]] = Field(None, description="Allows only 0 or 52")
+#     SelfLifeChanges20: Optional[Literal[0, 68]] = Field(None, description="Allows only 0 or 68")
+#     SelfLifeChanges21: Optional[Literal[0, 79]] = Field(None, description="Allows only 0 or 79")
+#     SelfLifeChanges22: Optional[Literal[0, 18]] = Field(None, description="Allows only 0 or 18")
+#     SelfLifeChangesHome: Optional[str] = Field(None, description="Not applicable field")
+#     SelfLifeChanges23: Optional[Literal[0, 42]] = Field(None, description="Allows only 0 or 42")
+#     SelfLifeChanges24: Optional[Literal[0, 25]] = Field(None, description="Allows only 0 or 25")
+#     SelfLifeChanges25: Optional[Literal[0, 47]] = Field(None, description="Allows only 0 or 47")
+#     SelfLifeChanges26: Optional[Literal[0, 25]] = Field(None, description="Allows only 0 or 25")
+#     SelfLifeChanges27: Optional[Literal[0, 55]] = Field(None, description="Allows only 0 or 55")
+#     SelfLifeChanges28: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
+#     SelfLifeChanges29: Optional[Literal[0, 67]] = Field(None, description="Allows only 0 or 67")
+#     SelfLifeChanges31: Optional[Literal[0, 66]] = Field(None, description="Allows only 0 or 66")
+#     SelfLifeChanges32: Optional[Literal[0, 65]] = Field(None, description="Allows only 0 or 65")
+#     SelfLifeChanges33: Optional[Literal[0, 59]] = Field(None, description="Allows only 0 or 59")
+#     SelfLifeChanges34: Optional[Literal[0, 46]] = Field(None, description="Allows only 0 or 46")
+#     SelfLifeChanges35: Optional[Literal[0, 41]] = Field(None, description="Allows only 0 or 41")
+#     SelfLifeChanges36: Optional[Literal[0, 41]] = Field(None, description="Allows only 0 or 41")
+#     SelfLifeChanges37: Optional[Literal[0, 45]] = Field(None, description="Allows only 0 or 45")
+#     SelfLifeChanges38: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
+#     SelfLifeChanges39: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
+#     SelfLifeChanges40: Optional[Literal[0, 59]] = Field(None, description="Allows only 0 or 59")
+#     SelfLifeChanges41: Optional[Literal[0, 50]] = Field(None, description="Allows only 0 or 50")
+#     SelfLifeChanges42: Optional[Literal[0, 53]] = Field(None, description="Allows only 0 or 53")
+#     SelfLifeChanges43: Optional[Literal[0, 76]] = Field(None, description="Allows only 0 or 76")
+#     SelfLifeChanges44: Optional[Literal[0, 96]] = Field(None, description="Allows only 0 or 96")
+#     SelfLifeChanges45: Optional[Literal[0, 43]] = Field(None, description="Allows only 0 or 43")
+#     SelfLifeChanges46: Optional[Literal[0, 119]] = Field(None, description="Allows only 0 or 119")
+#     SelfLifeChanges47: Optional[Literal[0, 123]] = Field(None, description="Allows only 0 or 123")
+#     SelfLifeChanges48: Optional[Literal[0, 102]] = Field(None, description="Allows only 0 or 102")
+#     SelfLifeChanges49: Optional[Literal[0, 100]] = Field(None, description="Allows only 0 or 100")
+#     SelfLifeChangesPersonal: Optional[str] = Field(None, description="Not applicable field")
+#     SelfLifeChanges50: Optional[Literal[0, 26]] = Field(None, description="Allows only 0 or 26")
+#     SelfLifeChanges51: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
+#     SelfLifeChanges52: Optional[Literal[0, 35]] = Field(None, description="Allows only 0 or 35")
+#     SelfLifeChanges53: Optional[Literal[0, 24]] = Field(None, description="Allows only 0 or 24")
+#     SelfLifeChanges54: Optional[Literal[0, 29]] = Field(None, description="Allows only 0 or 29")
+#     SelfLifeChanges55: Optional[Literal[0, 27]] = Field(None, description="Allows only 0 or 27")
+#     SelfLifeChanges56: Optional[Literal[0, 24]] = Field(None, description="Allows only 0 or 24")
+#     SelfLifeChanges57: Optional[Literal[0, 37]] = Field(None, description="Allows only 0 or 37")
+#     SelfLifeChanges58: Optional[Literal[0, 45]] = Field(None, description="Allows only 0 or 45")
+#     SelfLifeChanges59: Optional[Literal[0, 39]] = Field(None, description="Allows only 0 or 39")
+#     SelfLifeChanges61: Optional[Literal[0, 47]] = Field(None, description="Allows only 0 or 47")
+#     SelfLifeChanges62: Optional[Literal[0, 48]] = Field(None, description="Allows only 0 or 48")
+#     SelfLifeChanges63: Optional[Literal[0, 20]] = Field(None, description="Allows only 0 or 20")
+#     SelfLifeChanges65: Optional[Literal[0, 70]] = Field(None, description="Allows only 0 or 70")
+#     SelfLifeChanges66: Optional[Literal[0, 51]] = Field(None, description="Allows only 0 or 51")
+#     SelfLifeChanges67: Optional[Literal[0, 36]] = Field(None, description="Allows only 0 or 36")
+#     SelfLifeChangesFinancial: Optional[str] = Field(None, description="Not applicable field")
+#     SelfLifeChanges68: Optional[Literal[0, 38]] = Field(None, description="Allows only 0 or 38")
+#     SelfLifeChanges69: Optional[Literal[0, 60]] = Field(None, description="Allows only 0 or 60")
+#     SelfLifeChanges70: Optional[Literal[0, 56]] = Field(None, description="Allows only 0 or 56")
+#     SelfLifeChanges71: Optional[Literal[0, 43]] = Field(None, description="Allows only 0 or 43")
+#     SelfLifeChanges72: Optional[Literal[0, 20]] = Field(None, description="Allows only 0 or 20")
+#     SelfLifeChanges73: Optional[Literal[0, 37]] = Field(None, description="Allows only 0 or 37")
+#     SelfLifeChanges74: Optional[Literal[0, 58]] = Field(None, description="Allows only 0 or 58")
 
 
 class AdministrationBase(BaseModel):

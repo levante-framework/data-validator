@@ -75,7 +75,8 @@ def data_validator(request):
                         has_new_data = storage.process(valid_data=valid_data,
                                                        invalid_data=invalid_data,
                                                        validation_logs=utils.stringify_values_in_dicts(
-                                                           validation_logs))
+                                                           validation_logs),
+                                                       forced_replace=dataset_parameters.is_force_uploading_to_redivis)
                         storage.upload_to_GCP_log.append(f"has_new_data?: {has_new_data}")
                         logging.info(f"has_new_data: {has_new_data};"
                                      f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
@@ -97,11 +98,19 @@ def data_validator(request):
                     rs.create_dateset_version(params=dataset_parameters.orgs)
                     file_names = storage.list_blobs_with_prefix()
                     logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
+
+                    redivis_remove_invalid_data_table = True
                     for file_name in file_names:
                         if 'validation_results' in file_name:
                             rs.save_to_redivis_table(file_name=file_name, upload_merge_strategy='append')
                         else:
                             rs.save_to_redivis_table(file_name=file_name)
+
+                        if 'invalid_data' in file_name:
+                            redivis_remove_invalid_data_table = False
+
+                    if redivis_remove_invalid_data_table:
+                        rs.delete_table(table_name='invalid_data')
 
                     rs.release_dataset(params=dataset_parameters.orgs)
                     logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")

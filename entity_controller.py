@@ -46,9 +46,7 @@ class EntityController:
         self.valid_trials = []
         self.invalid_trials = []
 
-        self.valid_student_survey_responses = []
-        self.valid_teacher_survey_responses = []
-        self.valid_caregiver_survey_responses = []
+        self.valid_survey_responses = []
         self.invalid_survey_responses = []
 
         # self.valid_score_details = []
@@ -80,7 +78,7 @@ class EntityController:
             self.process_users(fs=fs_admin)
 
             if self.valid_users:
-                self.process_survey_response(fs_admin)
+                self.process_surveys(fs_admin)
             else:
                 self.validation_log['users'] = "No valid users were found."
                 self.validation_log['survey_responses'] = "No valid survey_responses were found."
@@ -246,15 +244,26 @@ class EntityController:
         logging.info(f"user_groups: {user_group_result}")
         self.validation_log['user_groups'] = user_group_result
 
-    def process_survey_response(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating StudentSurveyResponses...")
+    def process_surveys(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Surveys...")
+        stats = {"student": 0,
+                 "teacher": 0,
+                 "caregiver": 0}
         for user in self.valid_users:
-            self.set_survey_responses(user=user,
-                                      survey_responses=fs_admin.get_survey_responses(user_id=user.user_id))
-        survey_responses_result = {"Valid Student Surveys": len(self.valid_student_survey_responses),
-                                   "Valid Teacher Surveys": len(self.valid_teacher_survey_responses),
-                                   "Valid Caregiver Surveys": len(self.valid_caregiver_survey_responses),
+            survey_responses = fs_admin.get_surveys(user_id=user.user_id,
+                                                    user_type=user.user_type)
+            if survey_responses:
+                self.set_survey_responses(user=user, survey_responses=survey_responses)
+                if user.user_type == 'student':
+                    stats["student"] += 1
+                elif user.user_type == 'teacher':
+                    stats["teacher"] += 1
+                elif user.user_type == 'parent':
+                    stats["caregiver"] += 1
+
+        survey_responses_result = {"Valid": len(self.valid_survey_responses),
                                    "Invalid": len(self.invalid_survey_responses),
+                                   "User_survey_stats": stats,
                                    }
         logging.info(f"survey_responses: {survey_responses_result}")
         self.validation_log['survey_responses'] = survey_responses_result
@@ -299,9 +308,10 @@ class EntityController:
             'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
             'users': [obj.model_dump() for obj in self.valid_users],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            'student_survey_responses': [obj.model_dump() for obj in self.valid_student_survey_responses],
-            'teacher_survey_responses': [obj.model_dump() for obj in self.valid_teacher_survey_responses],
-            'caregiver_survey_responses': [obj.model_dump() for obj in self.valid_caregiver_survey_responses],
+            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
+            # 'student_survey_responses': [obj.model_dump() for obj in self.valid_student_survey_responses],
+            # 'teacher_survey_responses': [obj.model_dump() for obj in self.valid_teacher_survey_responses],
+            # 'caregiver_survey_responses': [obj.model_dump() for obj in self.valid_caregiver_survey_responses],
             'runs': [obj.model_dump() for obj in self.valid_runs],
             'trials': [obj.model_dump() for obj in self.valid_trials],
         }
@@ -434,12 +444,13 @@ class EntityController:
     def set_survey_responses(self, user: core_models.LevanteUser, survey_responses: list):
         for survey_response in survey_responses:
             try:
-                if user.user_type == "student":
-                    self.valid_student_survey_responses.append(core_models.StudentSurveyResponse(**survey_response))
-                elif user.user_type == "teacher":
-                    self.valid_teacher_survey_responses.append(core_models.TeacherSurveyResponse(**survey_response))
-                elif user.user_type == "parent":
-                    self.valid_caregiver_survey_responses.append(core_models.CaregiverSurveyResponse(**survey_response))
+                self.valid_survey_responses.append(core_models.SurveyResponse(**survey_response))
+                # if user.user_type == "student":
+                #     self.valid_student_survey_responses.append(core_models.StudentSurveyResponse(**survey_response))
+                # elif user.user_type == "teacher":
+                #     self.valid_teacher_survey_responses.append(core_models.TeacherSurveyResponse(**survey_response))
+                # elif user.user_type == "parent":
+                #     self.valid_caregiver_survey_responses.append(core_models.CaregiverSurveyResponse(**survey_response))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(

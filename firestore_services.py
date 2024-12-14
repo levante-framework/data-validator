@@ -497,8 +497,44 @@ class FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_survey_responses(self, user_id: str):
-        result = []
+    def get_surveys(self, user_id: str, user_type: str):
+        survey_responses = []
+
+        def reformat_responses(data):
+            formatted_responses = []
+
+            def process_item(process_key, process_value):
+                response_type = None
+                # If value is a dictionary, process nested items
+                if isinstance(process_value, dict):
+                    for sub_key, sub_value in process_value.items():
+                        process_item(sub_key, sub_value)
+                else:
+                    boolean_values = {"Yes", "No"}  # Set for quick lookup
+
+                    if isinstance(process_value, (int, str)):
+                        if isinstance(process_value, int) or process_value.isdigit():
+                            response_type = "numeric"
+                        elif process_value in boolean_values:
+                            response_type = "boolean"
+                        else:
+                            response_type = "string"
+                    else:
+                        response_type = "string"
+
+                    process_value = str(process_value) if not isinstance(process_value, str) else process_value
+
+                    # Format and add to the list, converting values to integers when possible
+                    formatted_responses.append({
+                        "question_id": process_key,
+                        "response": process_value,
+                        "response_type": response_type
+                    })
+
+            for key, value in data.items():
+                process_item(key, value)
+
+            return formatted_responses
         try:
             docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
                     .where('createdAt', '>=', self.start_date)
@@ -507,23 +543,31 @@ class FirestoreServices:
 
             for doc in docs:
                 doc_dict = doc.to_dict()
+                is_complete = None
                 survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
-
                 if not survey_responses_dict:
                     general = doc_dict.get('general', {})
                     if general:
-                        doc_dict['is_completed'] = general.get('isComplete', None)
+                        is_complete = general.get('isComplete', None)
                         survey_responses_dict = general.get('responses', {})
 
-                doc_dict['survey_response_id'] = doc.id
-                doc_dict['user_id'] = user_id
-                doc_dict['created_at'] = doc_dict.get('createdAt', None)
-                doc_dict.update(survey_responses_dict)
+                reformated_survey_responses = reformat_responses(data=survey_responses_dict)
 
-                doc_dict = utils.unwrap_nested_dicts(doc_dict)
-                doc_dict = utils.convert_dict_values(doc_dict)
+                # Processing responses:
+                for item in reformated_survey_responses:
+                    item.update({
+                        'survey_response_id': doc.id,
+                        'user_id': user_id,
+                        'survey_id': user_type if user_type != 'parent' else 'caregiver',
+                        'is_complete': is_complete,
+                        'created_at': doc_dict.get('createdAt', None)
+                    })
 
-                result.append(doc_dict)
+                # doc_dict.update(reformated_survey_responses)
+                # doc_dict = utils.unwrap_nested_dicts(doc_dict)
+                # doc_dict = utils.convert_dict_values(doc_dict)
+
+                survey_responses.extend(reformated_survey_responses)
         except Exception as e:
-            print(f"Error in get_survey_responses: {e}")
-        return result
+            print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
+        return survey_responses
