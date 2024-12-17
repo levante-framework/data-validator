@@ -504,31 +504,32 @@ class FirestoreServices:
             formatted_responses = []
 
             def process_item(process_key, process_value):
-                response_type = None
+                boolean_response = None
+                string_response = None
+                numeric_response = None
                 # If value is a dictionary, process nested items
                 if isinstance(process_value, dict):
                     for sub_key, sub_value in process_value.items():
                         process_item(sub_key, sub_value)
-                else:
+                elif 'intro' not in process_key.lower():
                     boolean_values = {"Yes", "No"}  # Set for quick lookup
 
                     if isinstance(process_value, (int, str)):
                         if isinstance(process_value, int) or process_value.isdigit():
-                            response_type = "numeric"
+                            numeric_response = int(process_value) if not isinstance(process_value, int) else process_value
                         elif process_value in boolean_values:
-                            response_type = "boolean"
+                            boolean_response = True if process_value == "Yes" else False
                         else:
-                            response_type = "string"
+                            string_response = process_value
                     else:
-                        response_type = "string"
-
-                    process_value = str(process_value) if not isinstance(process_value, str) else process_value
+                        string_response = str(process_value)
 
                     # Format and add to the list, converting values to integers when possible
                     formatted_responses.append({
                         "question_id": process_key,
-                        "response": process_value,
-                        "response_type": response_type
+                        "boolean_response": boolean_response,
+                        "string_response": string_response,
+                        "numeric_response": numeric_response,
                     })
 
             for key, value in data.items():

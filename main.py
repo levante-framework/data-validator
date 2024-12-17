@@ -99,18 +99,18 @@ def data_validator(request):
                     file_names = storage.list_blobs_with_prefix()
                     logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
 
-                    redivis_remove_invalid_data_table = True
                     for file_name in file_names:
                         if 'validation_results' in file_name:
                             rs.save_to_redivis_table(file_name=file_name, upload_merge_strategy='append')
                         else:
                             rs.save_to_redivis_table(file_name=file_name)
 
-                        if 'invalid_data' in file_name:
-                            redivis_remove_invalid_data_table = False
-
-                    if redivis_remove_invalid_data_table:
-                        rs.delete_table(table_name='invalid_data')
+                    print([table.name for table in rs.dataset.list_tables()])
+                    print(storage.list_table_names_in_blob())
+                    # Remove used or deleted tables from Redivis
+                    for table in rs.dataset.list_tables():
+                        if table.name not in storage.list_table_names_in_blob():
+                            rs.delete_table(table_name=table)
 
                     rs.release_dataset(params=dataset_parameters.orgs)
                     logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")

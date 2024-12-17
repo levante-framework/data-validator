@@ -57,7 +57,7 @@ class StorageServices:
                 self.save_to_storage(table_name="invalid_data", data=invalid_data)
                 is_new_version_needed = True
         else:
-            self.check_and_delete_table(table_name="invalid_data")
+            self.check_and_delete_single_table(table_name="invalid_data")
 
         if is_new_version_needed:
             [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC"),
@@ -129,14 +129,38 @@ class StorageServices:
         blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix,
                                           delimiter=delimiter)
 
-        return [blob.name for blob in blobs if 'daily' not in blob.name]
+        return [blob.name for blob in blobs if 'logs' not in blob.name]
 
-    def check_and_delete_table(self, table_name):
+    def list_table_names_in_blob(self):
+        table_names = self.list_blobs_with_prefix()
+        return [name.split('/')[-1].split('.')[0] for name in table_names]
+
+    def check_and_delete_single_table(self, table_name):
         """Deletes a blob from the bucket."""
         blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
         if blob.exists():
             blob.delete()
             logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")
+
+    def delete_unmatched_json_files(self, valid_data):
+        # List all blobs in the specified bucket and folder
+        blobs = gcp_bucket.list_blobs(prefix=self.storage_prefix)
+
+        # Iterate through each blob in the folder
+        for blob in blobs:
+            # Extract the file name from the blob's name
+            file_name = blob.name.split('/')[-1]
+
+            # Check if the file is a .json file and not in the valid keys and does not contain 'log' or 'result'
+            if file_name.endswith('.json') and not any(substring in file_name for substring in ['log', 'result']):
+                # Extract the key from the file name (assuming format 'xxx.json')
+                key = file_name.split('.')[0]
+
+                # Check if the key is not in the dictionary's keys
+                if key not in valid_data:
+                    # Delete the file
+                    blob.delete()
+                    print(f"Deleted {file_name} from bucket.")
 
 
 class CustomJSONEncoder(json.JSONEncoder):

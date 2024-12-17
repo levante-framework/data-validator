@@ -88,9 +88,6 @@ class RedivisServices:
         result = df.to_dict(orient='records')
         return result
 
-    def get_specified_table(self, table_list: list, spec_key: str, spec_value: str):
-        return [item for item in table_list if item.get(spec_key) == spec_value]
-
     def get_datasets_list(self):
         return [dn.name for dn in self.organization.list_datasets()]
 
@@ -98,5 +95,6 @@ class RedivisServices:
         try:
             if self.dataset.table(table_name).exists():
                 self.dataset.table(table_name).delete()
+                self.upload_to_redivis_log.append(f"Removed table {table_name}.")
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed to delete table {table_name}: {e}")

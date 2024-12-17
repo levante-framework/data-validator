@@ -424,8 +424,9 @@ class SurveyResponse(BaseModel):
     survey_id: str  # student, teacher, parent
     question_id: str  # TeacherGender, TeacherEducation
 
-    response: Optional[str] = None
-    response_type: Optional[str] = None
+    boolean_response: Optional[bool] = None
+    string_response: Optional[str] = None
+    numeric_response: Optional[int] = None
 
     is_complete: Optional[bool] = None
 
