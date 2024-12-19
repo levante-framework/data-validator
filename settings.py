@@ -5,7 +5,7 @@ import requests
 
 # Global configuration variables
 config = {
-    'VERSION': '1.1.4',
+    'VERSION': '1.1.5',
     'INSTANCE': 'ROAR',
     'CORE_DATA_BUCKET_NAME': 'firebase-redivis-pipeline',
     'EXTERNAL_DATA_BUCKET_NAME': 'firebase-redivis-pipeline-external',

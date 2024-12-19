@@ -110,7 +110,7 @@ def data_validator(request):
                     # Remove used or deleted tables from Redivis
                     for table in rs.dataset.list_tables():
                         if table.name not in storage.list_table_names_in_blob():
-                            rs.delete_table(table_name=table)
+                            rs.delete_table(table_name=table.name)
 
                     rs.release_dataset(params=dataset_parameters.orgs)
                     logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")

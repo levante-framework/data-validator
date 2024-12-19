@@ -51,6 +51,7 @@ class StorageServices:
                 if not self.check_if_same_file(table_name=key, local_data_list=value) or forced_replace:
                     self.save_to_storage(table_name=key, data=value)
                     is_new_version_needed = True
+        self.delete_unmatched_json_files(valid_data=valid_data)
 
         if invalid_data:
             if not self.check_if_same_file(table_name="invalid_data", local_data_list=invalid_data) or forced_replace:
@@ -152,7 +153,7 @@ class StorageServices:
             file_name = blob.name.split('/')[-1]
 
             # Check if the file is a .json file and not in the valid keys and does not contain 'log' or 'result'
-            if file_name.endswith('.json') and not any(substring in file_name for substring in ['log', 'result']):
+            if file_name.endswith('.json') and not any(substring in file_name for substring in ['log', 'result', 'invalid']):
                 # Extract the key from the file name (assuming format 'xxx.json')
                 key = file_name.split('.')[0]
 
@@ -160,7 +161,7 @@ class StorageServices:
                 if key not in valid_data:
                     # Delete the file
                     blob.delete()
-                    print(f"Deleted {file_name} from bucket.")
+                    logging.info(f"Deleted {file_name} from bucket.")
 
 
 class CustomJSONEncoder(json.JSONEncoder):
