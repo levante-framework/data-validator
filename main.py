@@ -121,7 +121,11 @@ def data_validator(request):
                     }
                     results.append(output)
                 elif dataset_parameters.is_save_to_storage and not dataset_parameters.prefix:
-                    output = {'title': f'Function executed successfully! Data uploaded to GCP storage only.',
+                    if has_new_data:
+                        title = f'Function executed successfully! Data uploaded to GCP storage only.'
+                    else:
+                        title = f'Function executed successfully! No new data has been detected.'
+                    output = {'title': title,
                               'gcp_logs': storage.upload_to_GCP_log,
                               'validation_logs': validation_logs,
                               }
@@ -134,7 +138,8 @@ def data_validator(request):
                         'dataset_parameters': dataset_parameters.to_dict(),
                         'logs': results,
                         'elapsed_time': elapsed_time,
-                        'date_created': datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                        'date_created': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'api_version': settings.config['VERSION']}
             logging.info(json.dumps(response))
             storage.append_list_to_json_in_gcp(data=response, file_name='daily_logs')
             return json.dumps(response), 200
