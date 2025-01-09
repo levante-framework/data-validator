@@ -71,8 +71,22 @@ class RedivisServices:
             logging.info(f"Failed on create_dateset_version: {e}")
 
     def release_dataset(self, params: list):
+        # Build a shorter description from params
+        org_summary = []
+        for org in params:
+            # Summarize organization details
+            group_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
+            date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
+            org_summary.append(
+                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): groups ({group_names}), Date range: {date_range}")
+
+        # Join all summaries, but check length constraint
+        full_description = "; ".join(org_summary)
+        if len(full_description) > 1950:  # Leave some room for static text
+            full_description = full_description[:1950] + "..."  # Truncate to fit
+
         try:
-            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
+            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {full_description}")
             self.dataset.release()
         except Exception as e:
             self.upload_to_redivis_log.append(f"Failed on release_dataset: {e}")
