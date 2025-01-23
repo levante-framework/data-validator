@@ -39,39 +39,34 @@ def upload_blob_from_memory(data, destination_blob_name, content_type):
 class StorageServices:
     storage_prefix = None
 
-    def __init__(self, dataset_id: str):
+    def __init__(self, dataset_id: str, is_forced_uploading_redivis: bool = False):
         self.dataset_id = dataset_id
         self.storage_prefix = f"{self.dataset_id}/"
-        self.upload_to_GCP_log = []
+        self.is_new_version_needed = is_forced_uploading_redivis
+        self.upload_to_GCP_log = {
+            'new_version_needed': False,
+            'blob_file_counts': 0,
+            'file_updated': [],
+            'file_uploads_fail': [],
+            'file_deletion': [],
+        }
 
-    def process(self, valid_data: dict, invalid_data: list, validation_logs: list, forced_replace: bool = False):
-        is_new_version_needed = False
-        for key, value in valid_data.items():
-            if value:
-                if not self.check_if_same_file(table_name=key, local_data_list=value) or forced_replace:
-                    self.save_to_storage(table_name=key, data=value)
-                    is_new_version_needed = True
-        self.delete_unmatched_json_files(valid_data=valid_data)
+    def process(self, validated_data: dict):
+        for table_name, data in validated_data.items():
+            if data and (not self.check_if_same_file(table_name=table_name,
+                                                     local_data_list=data) or self.is_new_version_needed):
+                self.save_to_storage(table_name=table_name, data=data)
+                self.is_new_version_needed = True
 
-        if invalid_data:
-            if not self.check_if_same_file(table_name="invalid_data", local_data_list=invalid_data) or forced_replace:
-                self.save_to_storage(table_name="invalid_data", data=invalid_data)
-                is_new_version_needed = True
-        else:
-            self.check_and_delete_single_table(table_name="invalid_data")
-
-        if is_new_version_needed:
-            [dct.update({'date_time': datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d-%H-%M-%S UTC"),
-                         'api_version': settings.config['VERSION']}) for dct in validation_logs]
-            self.save_to_storage(table_name="validation_results", data=validation_logs)
-
-        return is_new_version_needed
+        self.delete_unmatched_json_files(data=validated_data)
+        self.upload_to_GCP_log['new_version_needed'] = self.is_new_version_needed
+        self.upload_to_GCP_log['blob_file_counts'] = len(self.list_table_names_in_blob())
 
     def check_if_same_file(self, table_name, local_data_list):
         blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
 
         if not blob.exists():
-            self.upload_to_GCP_log.append(f"creating_{self.dataset_id}/{table_name}.json")
+            logging.info(f"creating_{self.dataset_id}/{table_name}.json")
             return False
 
         # Download the JSON content from GCS into memory as a string
@@ -85,8 +80,9 @@ class StorageServices:
         is_same_length = len(gcs_json_data) == len(local_data_list)
 
         # If diff is empty, there are no differences
-        self.upload_to_GCP_log.append(
-            f"{table_name}(gcs/local)_same_length?: {len(gcs_json_data)}/{len(local_data_list)}, {is_same_length}")
+        if not is_same_length:
+            self.upload_to_GCP_log['file_updated'].append(
+                f"{table_name}(gcs/local): {len(gcs_json_data)}/{len(local_data_list)}")
         return is_same_length
 
     def save_to_storage(self, table_name: str, data):
@@ -96,10 +92,8 @@ class StorageServices:
             upload_blob_from_memory(data=data_json,
                                     destination_blob_name=destination_blob_name,
                                     content_type='application/json')
-            self.upload_to_GCP_log.append(f"Data uploaded to {destination_blob_name}.")
         except Exception as e:
-            self.upload_to_GCP_log.append(
-                f"Failed to save data to cloud, {self.dataset_id}, {table_name}, {e}")
+            self.upload_to_GCP_log['file_uploads_fail'].append(f"{table_name}, {e}")
 
     def append_list_to_json_in_gcp(self, data: dict, file_name: str):
         # Initialize the GCP Storage client
@@ -136,14 +130,7 @@ class StorageServices:
         table_names = self.list_blobs_with_prefix()
         return [name.split('/')[-1].split('.')[0] for name in table_names]
 
-    def check_and_delete_single_table(self, table_name):
-        """Deletes a blob from the bucket."""
-        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
-        if blob.exists():
-            blob.delete()
-            logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")
-
-    def delete_unmatched_json_files(self, valid_data):
+    def delete_unmatched_json_files(self, data):
         # List all blobs in the specified bucket and folder
         blobs = gcp_bucket.list_blobs(prefix=self.storage_prefix)
 
@@ -151,17 +138,27 @@ class StorageServices:
         for blob in blobs:
             # Extract the file name from the blob's name
             file_name = blob.name.split('/')[-1]
-
-            # Check if the file is a .json file and not in the valid keys and does not contain 'log' or 'result'
-            if file_name.endswith('.json') and not any(substring in file_name for substring in ['log', 'result', 'invalid']):
+            # Check if the file is a .json file
+            if file_name.endswith('.json'):
                 # Extract the key from the file name (assuming format 'xxx.json')
                 key = file_name.split('.')[0]
-
                 # Check if the key is not in the dictionary's keys
-                if key not in valid_data:
+                if key not in data:
                     # Delete the file
-                    blob.delete()
-                    logging.info(f"Deleted {file_name} from bucket.")
+                    try:
+                        blob.delete()
+                        logging.info(f'{file_name}_deleted_from_{self.dataset_id}')
+                        self.upload_to_GCP_log['file_deletion'].append(f'{file_name}')
+                    except Exception as e:
+                        logging.info(f'{file_name}_deleted_from_{self.dataset_id}_failed, {str(e)}')
+                        self.upload_to_GCP_log['file_deletion'].append(f'{file_name}_failed, {str(e)}')
+
+    def check_and_delete_single_table(self, table_name):
+        """Deletes a blob from the bucket."""
+        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+        if blob.exists():
+            blob.delete()
+            logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")
 
 
 class CustomJSONEncoder(json.JSONEncoder):

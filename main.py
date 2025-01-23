@@ -17,6 +17,7 @@ def data_validator(request):
     start_time = time.time()
     settings.initialize_env_securities()
 
+    from firestore_services import FirestoreServices
     from secret_services import secret_services
     from storage_services import StorageServices
     from redivis_services import RedivisServices
@@ -41,108 +42,147 @@ def data_validator(request):
     if request.method == 'POST':
         request_json = request.get_json(silent=True)
         if request_json:
-
             try:
                 dataset_parameters = utils.DatasetParameters(**request_json)
             except Exception as e:
                 return str(e), 400
 
             results = []
-            storage = StorageServices(dataset_id=dataset_parameters.dataset_id)
-            if dataset_parameters:
-                valid_data = {}
-                invalid_data = []
-                validation_logs = []
-                has_new_data = False
-                if dataset_parameters.prefix:  # if prefix_name specified, go to uploading_to_redivis process.
-                    storage.storage_prefix = dataset_parameters.prefix
-                else:  # if no prefix_name specified, start validation process.
-                    logging.info(
-                        f'Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.')
-                    for org in dataset_parameters.orgs:
-                        logging.info(f'Getting data from Firestore for org_id: {org.org_id}.')
-                        ec = EntityController(org=org)
+            if not dataset_parameters:
+                return 'No dataset params are given.', 400
+            else:
+                validated_data = {}
+                total_validation_stats = {
+                    'groups': 0,
+                    'administrations': 0,
+                    'users': {
+                        'total': 0,
+                        'pass_validation': 0
+                    },
+                    'runs': {
+                        'total': 0,
+                        'pass_validation': 0
+                    },
+                    'trials': {
+                        'total': 0,
+                        'pass_validation': 0
+                    },
+                    'survey_responses': {
+                        'student': 0,
+                        'teacher': 0,
+                        'caregiver': 0,
+                    },
+                    'invalid_data_count': 0,
+                    'orgs': {}
+                }
+                logging.info(
+                    f'Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.')
+                # Processing validation
+                for org in dataset_parameters.orgs:
+                    logging.info(f'Getting data from Firestore for org_id: {org.org_id}.')
+                    ec = EntityController(org=org)
+                    ec.validate_data_from_firestore()
+                    org_validated_data = ec.get_validated_data()
 
-                        ec.set_values_from_firestore()
-                        logging.info(f"validation_log_list: {ec.validation_log}")
-                        valid_data = merge_dictionaries(valid_data, ec.get_valid_data())
-                        invalid_data = invalid_data + ec.get_invalid_data()
-                        validation_logs.append(ec.validation_log)
-
-                    # GCP storage service
-                    if dataset_parameters.is_save_to_storage:
-                        logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
-                        has_new_data = storage.process(valid_data=valid_data,
-                                                       invalid_data=invalid_data,
-                                                       validation_logs=utils.stringify_values_in_dicts(
-                                                           validation_logs),
-                                                       forced_replace=dataset_parameters.is_force_uploading_to_redivis)
-                        storage.upload_to_GCP_log.append(f"has_new_data?: {has_new_data}")
-                        logging.info(f"has_new_data: {has_new_data};"
-                                     f"upload_to_GCP_log_list: {storage.upload_to_GCP_log}")
-                    else:
-                        output = {'title': f'Function executed successfully! '
-                                           f'is_save_to_storage: {dataset_parameters.is_save_to_storage}',
-                                  'valid_users_count': len(valid_data.get('users', [])),
-                                  'valid_runs_count': len(valid_data.get('runs', [])),
-                                  'valid_trials_count': len(valid_data.get('trials', [])),
-                                  'validation_logs': validation_logs,
-                                  'invalid_results': invalid_data}
-                        results.append(output)
-
-                # redivis service
-                if dataset_parameters.is_force_uploading_to_redivis or has_new_data:
-                    logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
-                    rs = RedivisServices()
-                    rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
-                    rs.create_dateset_version(params=dataset_parameters.orgs)
-                    file_names = storage.list_blobs_with_prefix()
-                    logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
-
-                    for file_name in file_names:
-                        if 'validation_results' in file_name:
-                            rs.save_to_redivis_table(file_name=file_name, upload_merge_strategy='append')
-                        else:
-                            rs.save_to_redivis_table(file_name=file_name)
-
-                    print([table.name for table in rs.dataset.list_tables()])
-                    print(storage.list_table_names_in_blob())
-                    # Remove used or deleted tables from Redivis
-                    for table in rs.dataset.list_tables():
-                        if table.name not in storage.list_table_names_in_blob():
-                            rs.delete_table(table_name=table.name)
-
-                    rs.release_dataset(params=dataset_parameters.orgs)
-                    logging.info(f"upload_to_redivis_log_list: {rs.upload_to_redivis_log}")
-                    output = {
-                        'title': f'Function executed successfully! Current DS has {rs.count_tables()} tables.',
-                        'redivis_logs': rs.upload_to_redivis_log,
-                        'validation_logs': validation_logs,
+                    org_validation_stats = {
+                        'groups': len(ec.valid_groups) + len(ec.invalid_groups),
+                        'administrations': len(ec.valid_administrations) + len(ec.invalid_administrations),
+                        'users': {
+                            'total': len(ec.valid_users) + len(ec.invalid_users),
+                            'pass_validation': sum(1 for user in ec.valid_users if user.pass_validation)
+                        },
+                        'runs': {
+                            'total': len(ec.valid_runs) + len(ec.invalid_runs),
+                            'pass_validation': sum(1 for run in ec.valid_runs if run.pass_validation)
+                        },
+                        'trials': {
+                            'total': len(ec.valid_trials) + len(ec.invalid_trials),
+                            'pass_validation': sum(1 for trial in ec.valid_trials if trial.pass_validation)
+                        },
+                        'survey_responses': ec.survey_responses_stats,
+                        'invalid_data_count': len(org_validated_data.get('invalid_data', [])),
                     }
-                    results.append(output)
-                elif dataset_parameters.is_save_to_storage and not dataset_parameters.prefix:
-                    if has_new_data:
-                        title = f'Function executed successfully! Data uploaded to GCP storage only.'
-                    else:
-                        title = f'Function executed successfully! No new data has been detected.'
-                    output = {'title': title,
-                              'gcp_logs': storage.upload_to_GCP_log,
-                              'validation_logs': validation_logs,
-                              }
-                    results.append(output)
-                else:
-                    pass
+                    total_validation_stats['orgs'][org.org_id] = org_validation_stats
 
-            elapsed_time = time.time() - start_time
-            response = {'status': 'success',
-                        'dataset_parameters': dataset_parameters.to_dict(),
-                        'logs': results,
-                        'elapsed_time': elapsed_time,
-                        'date_created': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        'api_version': settings.config['VERSION']}
-            logging.info(json.dumps(response))
-            storage.append_list_to_json_in_gcp(data=response, file_name='daily_logs')
-            return json.dumps(response), 200
+                    total_validation_stats['groups'] += org_validation_stats['groups']
+                    total_validation_stats['administrations'] += org_validation_stats['administrations']
+                    total_validation_stats['users']['total'] += org_validation_stats['users']['total']
+                    total_validation_stats['users']['pass_validation'] += org_validation_stats['users'][
+                        'pass_validation']
+                    total_validation_stats['runs']['total'] += org_validation_stats['runs']['total']
+                    total_validation_stats['runs']['pass_validation'] += org_validation_stats['runs']['pass_validation']
+                    total_validation_stats['trials']['total'] += org_validation_stats['trials']['total']
+                    total_validation_stats['trials']['pass_validation'] += org_validation_stats['trials'][
+                        'pass_validation']
+                    total_validation_stats['survey_responses']['student'] += org_validation_stats['survey_responses']['student']
+                    total_validation_stats['survey_responses']['teacher'] += org_validation_stats['survey_responses']['teacher']
+                    total_validation_stats['survey_responses']['caregiver'] += org_validation_stats['survey_responses']['caregiver']
+                    total_validation_stats['invalid_data_count'] += org_validation_stats['invalid_data_count']
+
+                    validated_data = merge_dictionaries(validated_data, org_validated_data)
+
+                # GCP storage service
+                if not dataset_parameters.is_save_to_storage:
+                    elapsed_time = time.time() - start_time
+                    output = {'title': 'Function executed successfully! Nothing uploaded to GCP or Redivis.',
+                              'elapsed_time': elapsed_time,
+                              'is_save_to_storage': dataset_parameters.is_save_to_storage,
+                              'is_force_uploading_to_redivis': dataset_parameters.is_force_uploading_to_redivis,
+                              'total_validation_stats': total_validation_stats,
+                              }
+                    logging.info(json.dumps(output))
+                    return json.dumps(output), 200
+                else:  # Start to process on GCP and redivis
+                    logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
+                    storage = StorageServices(dataset_id=dataset_parameters.dataset_id,
+                                              is_forced_uploading_redivis=dataset_parameters.is_force_uploading_to_redivis)
+                    storage.process(validated_data=validated_data)
+
+                    # redivis service
+                    if storage.is_new_version_needed:
+                        logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
+                        rs = RedivisServices()
+                        rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
+                        rs.create_dateset_version(params=dataset_parameters.to_dict()['orgs'])
+                        if rs.upload_to_redivis_log['dataset_fails']:
+                            logging.info("Process stops at create_dateset_version.")
+                        else:
+                            file_names = storage.list_blobs_with_prefix()
+                            logging.info(f"GCP bucket {dataset_parameters.dataset_id} has files {file_names}.")
+
+                            for file_name in file_names:
+                                rs.save_to_redivis_table(file_name=file_name)
+
+                            # Remove archive or deleted tables from Redivis
+                            table_names_in_redivis = [table.name for table in rs.dataset.list_tables()]
+                            table_names_in_gcp_bucket = [name.split('/')[-1].split('.')[0] for name in file_names]
+
+                            for name in table_names_in_redivis:
+                                if name not in table_names_in_gcp_bucket:
+                                    rs.delete_table(table_name=name)
+
+                            rs.release_dataset(params=dataset_parameters.to_dict())
+
+                        rs.upload_to_redivis_log['table_counts'] = rs.count_tables()
+                        output = {
+                            'validation_logs': total_validation_stats,
+                            'gcp_logs': storage.upload_to_GCP_log,
+                            'redivis_logs': rs.upload_to_redivis_log,
+                        }
+                    else:
+                        output = {
+                            'validation_logs': total_validation_stats,
+                            'gcp_logs': storage.upload_to_GCP_log,
+                        }
+                elapsed_time = time.time() - start_time
+                response = {'dataset_parameters': dataset_parameters.to_dict(),
+                            'logs': output,
+                            'elapsed_time': elapsed_time,
+                            'api_version': settings.config['VERSION']}
+                logging.info(json.dumps(response))
+                fs_admin = FirestoreServices(app_name='admin_site')
+                fs_admin.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
+                return json.dumps(response), 200
         else:
             return 'Request body is not received properly', 500
     else:

@@ -1,6 +1,7 @@
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+import pytz
 
 import logging
 from datetime import datetime
@@ -12,6 +13,8 @@ from secret_services import secret_services
 import settings
 
 logging.basicConfig(level=logging.INFO)
+
+pst_timezone = pytz.timezone('America/Los_Angeles')
 
 
 def stringify_variables(variable):
@@ -42,7 +45,7 @@ class FirestoreServices:
     default_app = None
     db = None
 
-    def __init__(self, app_name, start_date, end_date):
+    def __init__(self, app_name, start_date=None, end_date=None):
         try:
             # Check if the app already exists
             self.default_app = firebase_admin.get_app(name=app_name)
@@ -65,6 +68,20 @@ class FirestoreServices:
         self.end_date = (datetime.strptime(end_date, '%Y-%m-%d')
                          .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
             2050, 1, 1)
+
+    def set_logs_to_firebase(self, response, dataset_id):
+        date_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d")
+        datetime_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            # Adding document to the 'logs' collection with an auto-generated ID
+            doc_ref = (self.db.collection('logs')
+                       .document(dataset_id)
+                       .collection(date_doc_name)
+                       .document(datetime_doc_name))
+            doc_ref.set(response)
+            logging.info(f'Document written with ID: {doc_ref.id}')
+        except Exception as e:
+            logging.info(f'An error occurred: {e}')
 
     def get_groups(self, group_filter=None):
         result = []
@@ -516,7 +533,8 @@ class FirestoreServices:
 
                     if isinstance(process_value, (int, str)):
                         if isinstance(process_value, int) or process_value.isdigit():
-                            numeric_response = int(process_value) if not isinstance(process_value, int) else process_value
+                            numeric_response = int(process_value) if not isinstance(process_value,
+                                                                                    int) else process_value
                         elif process_value in boolean_values:
                             boolean_response = True if process_value == "Yes" else False
                         else:
@@ -536,6 +554,7 @@ class FirestoreServices:
                 process_item(key, value)
 
             return formatted_responses
+
         try:
             docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
                     .where('createdAt', '>=', self.start_date)
@@ -544,29 +563,43 @@ class FirestoreServices:
 
             for doc in docs:
                 doc_dict = doc.to_dict()
-                is_complete = None
+
                 survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
+                reformated_survey_responses = []
                 if not survey_responses_dict:
                     general = doc_dict.get('general', {})
+                    specific = doc_dict.get('specific', [])
                     if general:
                         is_complete = general.get('isComplete', None)
-                        survey_responses_dict = general.get('responses', {})
-
-                reformated_survey_responses = reformat_responses(data=survey_responses_dict)
+                        general_responses = general.get('responses', {})
+                        if general_responses:
+                            reformatted_g_data = reformat_responses(data=general_responses)
+                            for r in reformatted_g_data:
+                                r.update({'is_complete': is_complete})
+                            reformated_survey_responses.extend(reformatted_g_data)
+                    if specific:
+                        for s in specific:
+                            child_id = s.get('childId', None)
+                            is_complete = s.get('isComplete', None)
+                            specific_responses = s.get('responses', {})
+                            if specific_responses:
+                                reformatted_s_data = reformat_responses(data=specific_responses)
+                                for r in reformatted_s_data:
+                                    r.update({'is_complete': is_complete, 'child_id': child_id})
+                                reformated_survey_responses.extend(reformatted_s_data)
+                else:
+                    reformated_survey_responses = reformat_responses(data=survey_responses_dict)
 
                 # Processing responses:
                 for item in reformated_survey_responses:
                     item.update({
                         'survey_response_id': doc.id,
                         'user_id': user_id,
+                        'administration_id': doc_dict.get('administrationId', None),
                         'survey_id': user_type if user_type != 'parent' else 'caregiver',
-                        'is_complete': is_complete,
-                        'created_at': doc_dict.get('createdAt', None)
+                        'created_at': doc_dict.get('createdAt', None),
+                        'updated_at': doc_dict.get('updatedAt', None),
                     })
-
-                # doc_dict.update(reformated_survey_responses)
-                # doc_dict = utils.unwrap_nested_dicts(doc_dict)
-                # doc_dict = utils.convert_dict_values(doc_dict)
 
                 survey_responses.extend(reformated_survey_responses)
         except Exception as e:

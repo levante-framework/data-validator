@@ -1,6 +1,7 @@
 import redivis
 import logging
 import settings
+import utils
 from secret_services import secret_services
 
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +13,12 @@ class RedivisServices:
 
     def __init__(self):
         self.organization = redivis.organization(settings.config['INSTANCE'])
-        self.upload_to_redivis_log = []
+        self.upload_to_redivis_log = {
+            'table_counts': 0,
+            'table_deletions': [],
+            'upload_fails': [],
+            'dataset_fails': []
+        }
 
     def set_dataset(self, dataset_id: str):
         self.dataset_id = dataset_id
@@ -54,10 +60,9 @@ class RedivisServices:
                 remove_on_fail=True,
                 raise_on_fail=False
             )
-            self.upload_to_redivis_log.append(f"{file_name} has been uploaded to redivis table")
             logging.info(f"{file_name} has been uploaded to redivis table")
         except Exception as e:
-            self.upload_to_redivis_log.append(f"{file_name} failed to upload to redivis table, {e}")
+            self.upload_to_redivis_log['upload_fails'].append(f"{file_name}_failed, {e}")
             logging.info(f"{file_name} failed to upload to redivis table, {e}")
 
     def create_dateset_version(self, params: list):
@@ -65,32 +70,17 @@ class RedivisServices:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
             else:
-                self.dataset.create(description=f"This is a dataset for {self.dataset_id}, with API params: {params}, version: {settings.config['VERSION']}", public_access_level="overview")
+                self.dataset.create(description=f"Dataset_id: {self.dataset_id}, params: {params}", public_access_level="overview")
         except Exception as e:
-            self.upload_to_redivis_log.append(f"Failed on create_dateset_version: {e}")
             logging.info(f"Failed on create_dateset_version: {e}")
+            self.upload_to_redivis_log['dataset_fails'].append(f"create_dateset_version: {e}")
 
-    def release_dataset(self, params: list):
-        # Build a shorter description from params
-        org_summary = []
-        for org in params:
-            # Summarize organization details
-            group_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
-            date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
-            org_summary.append(
-                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): groups ({group_names}), Date range: {date_range}")
-
-        # Join all summaries, but check length constraint
-        full_description = "; ".join(org_summary)
-        if len(full_description) > 1950:  # Leave some room for static text
-            full_description = full_description[:1950] + "..."  # Truncate to fit
-
+    def release_dataset(self, params: dict):
         try:
-            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {full_description}")
+            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
             self.dataset.release()
         except Exception as e:
-            self.upload_to_redivis_log.append(f"Failed on release_dataset: {e}")
-            self.get_properties()
+            self.upload_to_redivis_log['dataset_fails'].append(f"release_dataset: {e}")
             logging.info(f"Failed on release_dataset: {e}")
 
     def count_tables(self):
@@ -109,6 +99,6 @@ class RedivisServices:
         try:
             if self.dataset.table(table_name).exists():
                 self.dataset.table(table_name).delete()
-                self.upload_to_redivis_log.append(f"Removed table {table_name}.")
+                self.upload_to_redivis_log['table_deletions'].append(f"{table_name}_removed")
         except Exception as e:
-            self.upload_to_redivis_log.append(f"Failed to delete table {table_name}: {e}")
+            self.upload_to_redivis_log['table_deletions'].append(f"{table_name}_removed_failed, {e}")

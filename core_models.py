@@ -131,7 +131,7 @@ class VariantBase(BaseModel):
     skip_instructions: Optional[bool] = None
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
-    last_updated: datetime
+    last_updated: Optional[datetime] = None
 
 
 class LevanteVariant(VariantBase):
@@ -420,7 +420,9 @@ class SurveyQuestion(BaseModel):
 
 class SurveyResponse(BaseModel):
     survey_response_id: str
+    administration_id: Optional[str] = None
     user_id: str
+    child_id: Optional[str] = None
     survey_id: str  # student, teacher, parent
     question_id: str  # TeacherGender, TeacherEducation
 

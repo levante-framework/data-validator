@@ -102,15 +102,28 @@ class DatasetParameters(BaseModel):
     dataset_id: str = Field()
     is_save_to_storage: bool = Field(default=False)
     is_force_uploading_to_redivis: bool = Field(default=False)
-    prefix: Optional[str] = None
     orgs: List[Organization] = Field()
 
     def to_dict(self):
+        # Build a shorter description from params
+        org_summary = []
+        for org in self.orgs:
+            # Summarize organization details
+            group_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
+            date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
+            org_summary.append(
+                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): groups ({group_names}), Date range: {date_range}")
+
+        # Join all summaries, but check length constraint
+        full_description_org = "; ".join(org_summary)
+        if len(full_description_org) > 1950:  # Leave some room for static text
+            full_description_org = full_description_org[:1950] + "..."  # Truncate to fit
+
         return {
             'dataset_id': self.dataset_id,
             'is_save_to_storage': self.is_save_to_storage,
             'is_force_uploading_to_redivis': self.is_force_uploading_to_redivis,
-            'prefix': self.prefix,
+            'orgs': full_description_org,
         }
 
 

@@ -16,6 +16,8 @@ class EntityController:
         self.validation_log = {"org_info": str(org)}
         self.valid_groups = []
         self.invalid_groups = []
+        self.valid_administrations = []
+        self.invalid_administrations = []
         self.valid_districts = []
         self.invalid_districts = []
         self.valid_schools = []
@@ -29,18 +31,6 @@ class EntityController:
 
         self.valid_users = []
         self.invalid_users = []
-        self.valid_user_groups = []
-        self.invalid_user_groups = []
-        self.valid_user_classes = []
-        self.invalid_user_classes = []
-        self.valid_user_assignments = []
-        self.invalid_user_assignments = []
-
-        self.valid_administrations = []
-        self.invalid_administrations = []
-        self.valid_administration_tasks = []
-        self.invalid_administration_tasks = []
-
         self.valid_runs = []
         self.invalid_runs = []
         self.valid_trials = []
@@ -48,13 +38,17 @@ class EntityController:
 
         self.valid_survey_responses = []
         self.invalid_survey_responses = []
+        self.survey_responses_stats = {"student": 0, "teacher": 0, "caregiver": 0}
 
-        # self.valid_score_details = []
-        # self.invalid_score_details = []
-        # self.valid_variants_params = []
-        # self.invalid_variants_params = []
+        self.valid_user_groups = []
+        self.invalid_user_groups = []
+        self.valid_administration_tasks = []
+        self.invalid_administration_tasks = []
 
-    def set_values_from_firestore(self):
+        self.valid_user_assignments = []
+        self.invalid_user_assignments = []
+
+    def validate_data_from_firestore(self):
         fs_assessment = FirestoreServices(app_name='assessment_site',
                                           start_date=self.org.filters.date_filter.start_date,
                                           end_date=self.org.filters.date_filter.end_date)
@@ -79,9 +73,6 @@ class EntityController:
 
             if self.valid_users:
                 self.process_surveys(fs_admin)
-            else:
-                self.validation_log['users'] = "No valid users were found."
-                self.validation_log['survey_responses'] = "No valid survey_responses were found."
         else:
             self.process_users(fs=fs_assessment)
 
@@ -89,233 +80,24 @@ class EntityController:
             self.process_runs(fs=fs_assessment)
             if self.valid_runs:
                 self.process_trials(fs=fs_assessment)
-            else:
-                self.validation_log['runs'] = "No valid runs were found."
-                self.validation_log['trials'] = "No valid trials were found."
-                logging.info("Runs result: No valid runs were found.")
-        else:
-            self.validation_log['survey_responses'] = "No valid survey_responses were found."
-            self.validation_log['users'] = "No valid users were found."
-            self.validation_log['runs'] = "No valid runs were found."
-            self.validation_log['trials'] = "No valid trials were found."
-            logging.info("Users result: No valid users were found.")
 
-    def process_groups(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Groups...")
-
-        groups = fs_admin.get_groups(group_filter=self.org.filters.org_filter.value)
-
-        self.set_groups(groups=groups)
-
-        groups_result = {"Valid": len(self.valid_groups),
-                         "Invalid": len(self.invalid_groups),
-                         }
-        logging.info(f"groups: {groups_result}")
-        self.validation_log['groups'] = groups_result
-
-    def process_districts(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Districts...")
-
-        districts = fs_admin.get_districts_by_district_name_list(district_name_list=self.org.filters.org_filter.value)
-
-        self.set_districts(districts=districts)
-
-        districts_result = {"Valid": len(self.valid_districts),
-                            "Invalid": len(self.invalid_districts),
-                            }
-        logging.info(districts_result)
-        self.validation_log['districts'] = districts_result
-
-    def process_schools(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Schools...")
-
-        schools = fs_admin.get_schools(district_id=self.valid_districts[0].district_id)
-
-        self.set_schools(schools=schools)
-
-        schools_result = {"Valid": len(self.valid_schools),
-                          "Invalid": len(self.invalid_schools),
-                          }
-        logging.info(schools_result)
-        self.validation_log['schools'] = schools_result
-
-    def process_classes(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Classes...")
-
-        classes = fs_admin.get_classes(district_id=self.valid_districts[0].district_id)
-
-        self.set_classes(classes=classes)
-
-        classes_result = {"Valid": len(self.valid_classes),
-                          "Invalid": len(self.invalid_classes),
-                          }
-        logging.info(classes_result)
-        self.validation_log['classes'] = classes_result
-
-    def process_administration(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Administration and AdministrationTasks...")
-
-        if self.org.filters.org_filter.key == 'groups':
-            org_ids = [group.group_id for group in self.valid_groups]
-        elif self.org.filters.org_filter.key == 'districts':
-            org_ids = [district.district_id for district in self.valid_districts]
-        else:
-            org_ids = []
-        administrations = fs_admin.get_administrations(org_key=self.org.filters.org_filter.key,
-                                                       org_operator=self.org.filters.org_filter.operator,
-                                                       org_value=org_ids)
-
-        self.set_administrations(administrations=administrations)
-
-        administrations_result = {"Valid": len(self.valid_administrations),
-                                  "Invalid": len(self.invalid_administrations),
-                                  }
-        logging.info(f"administrations: {administrations_result}")
-        self.validation_log['administrations'] = administrations_result
-
-        administrations_task_result = {"Valid": len(self.valid_administration_tasks),
-                                       "Invalid": len(self.invalid_administration_tasks),
-                                       }
-        logging.info(f"administration_tasks: {administrations_task_result}")
-        self.validation_log['administration_tasks'] = administrations_task_result
-
-    def process_tasks_variants(self, fs_assessment: FirestoreServices):
-        logging.info("Now Validating Tasks and Variants...")
-        task_variants = {}
-        if self.valid_administration_tasks:
-            for item in self.valid_administration_tasks:
-                if item.task_id not in task_variants:
-                    task_variants[item.task_id] = []
-                if item.variant_id and item.variant_id not in task_variants[
-                    item.task_id]:  # Only add non-None non-exists variant_id
-                    task_variants[item.task_id].append(item.variant_id)
-        tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
-        self.set_tasks(tasks=tasks)
-        tasks_result = {"Valid": len(self.valid_tasks),
-                        "Invalid": len(self.invalid_tasks),
-                        }
-
-        if self.valid_tasks:
-            for task in self.valid_tasks:
-                variants = fs_assessment.get_variants(task_id=task.task_id,
-                                                      variant_filter=task_variants.get(task.task_id, []))
-                self.set_variants(variants=variants, task_id=task.task_id)
-            variants_result = {"Valid": len(self.valid_variants),
-                               "Invalid": len(self.invalid_variants),
-                               }
-            self.validation_log['variants'] = variants_result
-            logging.info(f"variants: {variants_result}")
-        else:
-            tasks_result = "No valid tasks were found."
-        self.validation_log['tasks'] = tasks_result
-        logging.info(f"tasks: {tasks_result}")
-
-    def process_users(self, fs: FirestoreServices):
-        logging.info("Now Validating Users and UserGroups...")
-
-        if self.org.filters.org_filter.key == 'groups':
-            org_ids = [group.group_id for group in self.valid_groups]
-        elif self.org.filters.org_filter.key == 'districts':
-            org_ids = [district.district_id for district in self.valid_districts]
-        else:
-            org_ids = []
-
-        users = fs.get_users(is_guest=self.org.is_guest,
-                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator,
-                             org_value=org_ids,
-                             user_key=self.org.filters.user_filter.key,
-                             user_operator=self.org.filters.user_filter.operator,
-                             user_value=self.org.filters.user_filter.value,
-                             is_using_full_users_list=False)
-
-        self.set_users(users=users)
-
-        users_result = {"Valid": sum(1 for user in self.valid_users if user.pass_validation),
-                        "Invalid": sum(
-                            1 for user in self.valid_users if not user.pass_validation + len(
-                                self.invalid_users)),
-                        }
-        logging.info(f"users: {users_result}")
-        self.validation_log['users'] = users_result
-
-        user_group_result = {"Valid": len(self.valid_user_groups),
-                             "Invalid": len(self.invalid_user_groups),
-                             }
-        logging.info(f"user_groups: {user_group_result}")
-        self.validation_log['user_groups'] = user_group_result
-
-    def process_surveys(self, fs_admin: FirestoreServices):
-        logging.info("Now Validating Surveys...")
-        stats = {"student": 0,
-                 "teacher": 0,
-                 "caregiver": 0}
-        for user in self.valid_users:
-            survey_responses = fs_admin.get_surveys(user_id=user.user_id,
-                                                    user_type=user.user_type)
-            if survey_responses:
-                self.set_survey_responses(user=user, survey_responses=survey_responses)
-                if user.user_type == 'student':
-                    stats["student"] += 1
-                elif user.user_type == 'teacher':
-                    stats["teacher"] += 1
-                elif user.user_type == 'parent':
-                    stats["caregiver"] += 1
-
-        survey_responses_result = {"Valid": len(self.valid_survey_responses),
-                                   "Invalid": len(self.invalid_survey_responses),
-                                   "User_survey_stats": stats,
-                                   }
-        logging.info(f"survey_responses: {survey_responses_result}")
-        self.validation_log['survey_responses'] = survey_responses_result
-
-    def process_runs(self, fs: FirestoreServices):
-        logging.info("Now Validating Runs...")
-        for user in self.valid_users:
-            self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
-                                                                 is_guest=self.org.is_guest))
-
-    def process_trials(self, fs: FirestoreServices):
-        logging.info("Now Validating Trials...")
-        for run in self.valid_runs:
-            self.set_trials(run=run,
-                            trials=fs.get_trials(user_id=run.user_id,
-                                                 run_id=run.run_id,
-                                                 task_id=run.task_id,
-                                                 is_guest=self.org.is_guest))
-            run.validate_trials_in_run()
-        runs_result = {"Valid": sum(1 for run in self.valid_runs if run.pass_validation),
-                       "Invalid": sum(1 for run in self.valid_runs if not run.pass_validation)
-                                  + len(self.invalid_runs),
-                       }
-        logging.info(f"runs: {runs_result}")
-        self.validation_log['runs'] = runs_result
-        trials_result = {"Valid": sum(1 for trial in self.valid_trials if trial.pass_validation),
-                         "Invalid": sum(1 for trial in self.valid_trials if not trial.pass_validation)
-                                    + len(self.invalid_trials),
-                         }
-        logging.info(f"trials: {trials_result}")
-        self.validation_log['trials'] = trials_result
-
-    def get_valid_data(self):
-        valid_dict = {
-            # 'districts': [obj.model_dump() for obj in self.valid_districts],
-            # 'schools': [obj.model_dump() for obj in self.valid_schools],
-            # 'classes': [obj.model_dump() for obj in self.valid_classes],
+    def get_validated_data(self):
+        data = {
             'groups': [obj.model_dump() for obj in self.valid_groups],
+            'administration': [obj.model_dump() for obj in self.valid_administrations],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
             'variants': [obj.model_dump() for obj in self.valid_variants],
-            'administration': [obj.model_dump() for obj in self.valid_administrations],
-            'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
             'users': [obj.model_dump() for obj in self.valid_users],
-            'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
-            # 'student_survey_responses': [obj.model_dump() for obj in self.valid_student_survey_responses],
-            # 'teacher_survey_responses': [obj.model_dump() for obj in self.valid_teacher_survey_responses],
-            # 'caregiver_survey_responses': [obj.model_dump() for obj in self.valid_caregiver_survey_responses],
             'runs': [obj.model_dump() for obj in self.valid_runs],
             'trials': [obj.model_dump() for obj in self.valid_trials],
+            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
+            'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
+            'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
         }
-        return valid_dict
+        invalid_data = self.get_invalid_data()
+        if invalid_data:
+            data['invalid_data'] = invalid_data
+        return data
 
     def get_invalid_data(self):
         invalid_list = ([{**obj, "table_name": "groups"} for obj in self.invalid_groups]
@@ -347,6 +129,118 @@ class EntityController:
                 invalid_item.pop('ctx')
 
         return invalid_list
+
+    def process_groups(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Groups...")
+
+        groups = fs_admin.get_groups(group_filter=self.org.filters.org_filter.value)
+
+        self.set_groups(groups=groups)
+
+    def process_districts(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Districts...")
+
+        districts = fs_admin.get_districts_by_district_name_list(district_name_list=self.org.filters.org_filter.value)
+
+        self.set_districts(districts=districts)
+
+    def process_schools(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Schools...")
+
+        schools = fs_admin.get_schools(district_id=self.valid_districts[0].district_id)
+
+        self.set_schools(schools=schools)
+
+    def process_classes(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Classes...")
+
+        classes = fs_admin.get_classes(district_id=self.valid_districts[0].district_id)
+
+        self.set_classes(classes=classes)
+
+    def process_administration(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Administration and AdministrationTasks...")
+
+        if self.org.filters.org_filter.key == 'groups':
+            org_ids = [group.group_id for group in self.valid_groups]
+        elif self.org.filters.org_filter.key == 'districts':
+            org_ids = [district.district_id for district in self.valid_districts]
+        else:
+            org_ids = []
+        administrations = fs_admin.get_administrations(org_key=self.org.filters.org_filter.key,
+                                                       org_operator=self.org.filters.org_filter.operator,
+                                                       org_value=org_ids)
+
+        self.set_administrations(administrations=administrations)
+
+    def process_tasks_variants(self, fs_assessment: FirestoreServices):
+        logging.info("Now Validating Tasks and Variants...")
+        task_variants = {}
+        if self.valid_administration_tasks:
+            for item in self.valid_administration_tasks:
+                if item.task_id not in task_variants:
+                    task_variants[item.task_id] = []
+                if item.variant_id and item.variant_id not in task_variants[
+                    item.task_id]:  # Only add non-None non-exists variant_id
+                    task_variants[item.task_id].append(item.variant_id)
+        tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
+        self.set_tasks(tasks=tasks)
+
+        if self.valid_tasks:
+            for task in self.valid_tasks:
+                variants = fs_assessment.get_variants(task_id=task.task_id,
+                                                      variant_filter=task_variants.get(task.task_id, []))
+                self.set_variants(variants=variants, task_id=task.task_id)
+
+    def process_users(self, fs: FirestoreServices):
+        logging.info("Now Validating Users and UserGroups...")
+
+        if self.org.filters.org_filter.key == 'groups':
+            org_ids = [group.group_id for group in self.valid_groups]
+        elif self.org.filters.org_filter.key == 'districts':
+            org_ids = [district.district_id for district in self.valid_districts]
+        else:
+            org_ids = []
+
+        users = fs.get_users(is_guest=self.org.is_guest,
+                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator,
+                             org_value=org_ids,
+                             user_key=self.org.filters.user_filter.key,
+                             user_operator=self.org.filters.user_filter.operator,
+                             user_value=self.org.filters.user_filter.value,
+                             is_using_full_users_list=False)
+
+        self.set_users(users=users)
+
+    def process_surveys(self, fs_admin: FirestoreServices):
+        logging.info("Now Validating Surveys...")
+        for user in self.valid_users:
+            survey_responses = fs_admin.get_surveys(user_id=user.user_id,
+                                                    user_type=user.user_type)
+            if survey_responses:
+                self.set_survey_responses(user=user, survey_responses=survey_responses)
+                if user.user_type == 'student':
+                    self.survey_responses_stats["student"] += 1
+                elif user.user_type == 'teacher':
+                    self.survey_responses_stats["teacher"] += 1
+                elif user.user_type == 'parent':
+                    self.survey_responses_stats["caregiver"] += 1
+
+    def process_runs(self, fs: FirestoreServices):
+        logging.info("Now Validating Runs...")
+        for user in self.valid_users:
+            self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
+                                                                 is_guest=self.org.is_guest))
+
+    def process_trials(self, fs: FirestoreServices):
+        logging.info("Now Validating Trials...")
+        for run in self.valid_runs:
+            self.set_trials(run=run,
+                            trials=fs.get_trials(user_id=run.user_id,
+                                                 run_id=run.run_id,
+                                                 task_id=run.task_id,
+                                                 is_guest=self.org.is_guest))
+            run.validate_trials_in_run()
 
     def set_groups(self, groups: list):
         for group in groups:
@@ -445,12 +339,6 @@ class EntityController:
         for survey_response in survey_responses:
             try:
                 self.valid_survey_responses.append(core_models.SurveyResponse(**survey_response))
-                # if user.user_type == "student":
-                #     self.valid_student_survey_responses.append(core_models.StudentSurveyResponse(**survey_response))
-                # elif user.user_type == "teacher":
-                #     self.valid_teacher_survey_responses.append(core_models.TeacherSurveyResponse(**survey_response))
-                # elif user.user_type == "parent":
-                #     self.valid_caregiver_survey_responses.append(core_models.CaregiverSurveyResponse(**survey_response))
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(
@@ -479,22 +367,6 @@ class EntityController:
             for group in all_groups:
                 append_to_groups(group,
                                  group in current_groups)  # Set is_active based on presence in current_groups
-
-    def set_user_class(self, user: dict):
-        user_id = user.get('user_id', None)
-        user_classes = user.get('classes', {})
-        all_classes = user_classes.get('all', [])
-        current_classes = user_classes.get('current', [])
-        for class_id in all_classes:
-            try:
-                self.valid_user_classes.append(core_models.UserClass(
-                    user_id=user_id,
-                    class_id=class_id,
-                    is_active=True if class_id in current_classes else False))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_classes.append(
-                        {**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
 
     def set_administrations(self, administrations: list):
         for administration in administrations:
@@ -544,8 +416,6 @@ class EntityController:
                         {**error, 'id': f"run_id: {run['run_id']}, user_id: {user_id}"})
 
     def set_trials(self, run: core_models.RunBase, trials: list):
-        # valid_trials_in_current_run = []
-        # invalid_trials_in_current_run = []
         for trial in trials:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
@@ -562,8 +432,6 @@ class EntityController:
                     self.invalid_trials.append(
                         {**error,
                          'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}, task_id:{trial.get('task_id', None)}"})
-        # self.valid_trials.extend(valid_trials_in_current_run)
-        # self.invalid_trials.extend(invalid_trials_in_current_run)
 
     def set_user_assignment(self, user: dict):
         user_id = user.get('user_id', None)
@@ -657,3 +525,19 @@ class EntityController:
     #     logging.info(lab_lists)
     #     for lab in lab_lists:
     #         self.set_values_from_redivis(lab)
+
+    # def set_user_class(self, user: dict):
+    #     user_id = user.get('user_id', None)
+    #     user_classes = user.get('classes', {})
+    #     all_classes = user_classes.get('all', [])
+    #     current_classes = user_classes.get('current', [])
+    #     for class_id in all_classes:
+    #         try:
+    #             self.valid_user_classes.append(core_models.UserClass(
+    #                 user_id=user_id,
+    #                 class_id=class_id,
+    #                 is_active=True if class_id in current_classes else False))
+    #         except ValidationError as e:
+    #             for error in e.errors():
+    #                 self.invalid_user_classes.append(
+    #                     {**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
