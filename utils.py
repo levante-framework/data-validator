@@ -149,6 +149,29 @@ def merge_dictionaries(dict1, dict2):
     return merged_dict
 
 
+def reduce_duplication_by_keys(data: dict, keys: dict):
+    processed_data = {}
+
+    for category, items in data.items():
+        if category in keys:
+            unique_key = keys[category]
+            seen = set()
+            unique_list = []
+
+            for item in items:
+                identifier = item.get(unique_key)
+                if identifier not in seen:
+                    seen.add(identifier)
+                    unique_list.append(item)
+
+            processed_data[category] = unique_list
+        else:
+            # If no unique key is specified for a category, return it unchanged
+            processed_data[category] = items
+
+    return processed_data
+
+
 # Utility function for converting dictionaries to snake_case and handling NaN values
 def process_doc_dict(doc_dict, ignore_keys=None):
     if ignore_keys is None:

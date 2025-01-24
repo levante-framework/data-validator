@@ -276,14 +276,14 @@ class LevanteRun(RunBase):
 
     _trials: Optional[list[LevanteTrial]] = []
 
-    def add_levante_trial(self, trial: LevanteTrial):
+    def add_trials(self, trial: LevanteTrial):
         self._trials.append(trial)
 
     def check_trials_count(self):
         trial_len_min = 3
 
         if len(self._trials) < trial_len_min:
-            self.warning_msg.append(f"less_than_{trial_len_min}_trials")
+            self.warning_msg.append(f"less_than_{trial_len_min}_test_trials")
 
     def check_straight_line_trials(self):
         def sort_key(trial):

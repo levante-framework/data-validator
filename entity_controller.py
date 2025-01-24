@@ -180,8 +180,7 @@ class EntityController:
             for item in self.valid_administration_tasks:
                 if item.task_id not in task_variants:
                     task_variants[item.task_id] = []
-                if item.variant_id and item.variant_id not in task_variants[
-                    item.task_id]:  # Only add non-None non-exists variant_id
+                if item.variant_id and item.variant_id not in task_variants[item.task_id]:  # Only add non-None non-exists variant_id
                     task_variants[item.task_id].append(item.variant_id)
         tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
         self.set_tasks(tasks=tasks)
@@ -420,7 +419,8 @@ class EntityController:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
                     trial_model = core_models.LevanteTrial(**trial)
-                    run.add_levante_trial(trial_model)  # Use the public method to add the trial
+                    if not trial_model.is_practice_trial or trial_model.assessment_stage == 'test_response':
+                        run.add_trials(trial_model)  # Use the public method to add the trial
                 elif settings.config['INSTANCE'] == 'ROAR':
                     trial_model = core_models.RoarTrial(**trial)
                 else:

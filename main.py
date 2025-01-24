@@ -121,6 +121,8 @@ def data_validator(request):
 
                     validated_data = merge_dictionaries(validated_data, org_validated_data)
 
+                validated_data = reduce_duplication_by_keys(data=validated_data,
+                                                            keys={'tasks': 'task_id', 'variants': 'variant_id'})
                 # GCP storage service
                 if not dataset_parameters.is_save_to_storage:
                     elapsed_time = time.time() - start_time
