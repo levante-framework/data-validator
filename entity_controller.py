@@ -419,8 +419,11 @@ class EntityController:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
                     trial_model = core_models.LevanteTrial(**trial)
-                    if not trial_model.is_practice_trial or trial_model.assessment_stage == 'test_response':
-                        run.add_trials(trial_model)  # Use the public method to add the trial
+                    is_test_trial = (trial_model.assessment_stage == 'test_response' or
+                                     (trial_model.is_practice_trial is not None and not trial_model.is_practice_trial))
+                    # Execute action based on the condition
+                    if is_test_trial:
+                        run.add_non_practice_trials(trial_model)
                 elif settings.config['INSTANCE'] == 'ROAR':
                     trial_model = core_models.RoarTrial(**trial)
                 else:

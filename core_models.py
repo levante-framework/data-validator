@@ -274,16 +274,16 @@ class LevanteRun(RunBase):
     validation_err_msg: Optional[list] = []
     warning_msg: Optional[list] = []
 
-    _trials: Optional[list[LevanteTrial]] = []
+    _non_practice_trials: Optional[list[LevanteTrial]] = []
 
-    def add_trials(self, trial: LevanteTrial):
-        self._trials.append(trial)
+    def add_non_practice_trials(self, trial: LevanteTrial):
+        self._non_practice_trials.append(trial)
 
-    def check_trials_count(self):
-        trial_len_min = 3
+    def check_non_practice_trials_count(self):
+        trial_len_min = 10
 
-        if len(self._trials) < trial_len_min:
-            self.warning_msg.append(f"less_than_{trial_len_min}_test_trials")
+        if len(self._non_practice_trials) < trial_len_min:
+            self.validation_err_msg.append(f"less_than_{trial_len_min}_test_trials")
 
     def check_straight_line_trials(self):
         def sort_key(trial):
@@ -306,8 +306,8 @@ class LevanteRun(RunBase):
                     return True
             return False
 
-        self._trials.sort(key=sort_key)
-        response_location = [trial.response_location for trial in self._trials if isinstance(trial.trial_index, int)]
+        self._non_practice_trials.sort(key=sort_key)
+        response_location = [trial.response_location for trial in self._non_practice_trials if isinstance(trial.trial_index, int)]
 
         consecutive_identical_min = 10
         if has_consecutive_identical(response_location, consecutive_identical_min):
@@ -323,7 +323,7 @@ class LevanteRun(RunBase):
     #     return self
 
     def validate_trials_in_run(self):
-        self.check_trials_count()
+        self.check_non_practice_trials_count()
         self.check_straight_line_trials()
         self.update_pass_validation()
 
