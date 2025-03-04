@@ -57,15 +57,15 @@ def data_validator(request):
                     'administrations': 0,
                     'users': {
                         'total': 0,
-                        'pass_validation': 0
+                        'valid_users': 0
                     },
                     'runs': {
                         'total': 0,
-                        'pass_validation': 0
+                        'valid_runs': 0
                     },
                     'trials': {
                         'total': 0,
-                        'pass_validation': 0
+                        'valid_trials': 0
                     },
                     'survey_responses': {
                         'student': 0,
@@ -89,15 +89,15 @@ def data_validator(request):
                         'administrations': len(ec.valid_administrations) + len(ec.invalid_administrations),
                         'users': {
                             'total': len(ec.valid_users) + len(ec.invalid_users),
-                            'pass_validation': sum(1 for user in ec.valid_users if user.pass_validation)
+                            'valid_users': sum(1 for user in ec.valid_users if user.valid_user)
                         },
                         'runs': {
                             'total': len(ec.valid_runs) + len(ec.invalid_runs),
-                            'pass_validation': sum(1 for run in ec.valid_runs if run.pass_validation)
+                            'valid_runs': sum(1 for run in ec.valid_runs if run.valid_run)
                         },
                         'trials': {
                             'total': len(ec.valid_trials) + len(ec.invalid_trials),
-                            'pass_validation': sum(1 for trial in ec.valid_trials if trial.pass_validation)
+                            'valid_trials': sum(1 for trial in ec.valid_trials if trial.valid_trial)
                         },
                         'survey_responses': ec.survey_responses_stats,
                         'invalid_data_count': len(org_validated_data.get('invalid_data', [])),
@@ -107,13 +107,13 @@ def data_validator(request):
                     total_validation_stats['groups'] += org_validation_stats['groups']
                     total_validation_stats['administrations'] += org_validation_stats['administrations']
                     total_validation_stats['users']['total'] += org_validation_stats['users']['total']
-                    total_validation_stats['users']['pass_validation'] += org_validation_stats['users'][
-                        'pass_validation']
+                    total_validation_stats['users']['valid_users'] += org_validation_stats['users'][
+                        'valid_users']
                     total_validation_stats['runs']['total'] += org_validation_stats['runs']['total']
-                    total_validation_stats['runs']['pass_validation'] += org_validation_stats['runs']['pass_validation']
+                    total_validation_stats['runs']['valid_runs'] += org_validation_stats['runs']['valid_runs']
                     total_validation_stats['trials']['total'] += org_validation_stats['trials']['total']
-                    total_validation_stats['trials']['pass_validation'] += org_validation_stats['trials'][
-                        'pass_validation']
+                    total_validation_stats['trials']['valid_trials'] += org_validation_stats['trials'][
+                        'valid_trials']
                     total_validation_stats['survey_responses']['student'] += org_validation_stats['survey_responses']['student']
                     total_validation_stats['survey_responses']['teacher'] += org_validation_stats['survey_responses']['teacher']
                     total_validation_stats['survey_responses']['caregiver'] += org_validation_stats['survey_responses']['caregiver']

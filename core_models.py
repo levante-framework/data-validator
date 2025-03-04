@@ -187,8 +187,8 @@ class LevanteTrial(TrialBase):
     theta_se: Optional[float] = None
     theta_se2: Optional[float] = None
 
-    pass_validation: Optional[bool] = None
-    validation_err_msg: Optional[list] = []
+    valid_trial: Optional[bool] = None
+    validation_msg_trial: Optional[list] = []
 
     @model_validator(mode='after')
     def check_rt(self):
@@ -205,35 +205,35 @@ class LevanteTrial(TrialBase):
                         rt_max = 60000
 
                     if self.rt < rt_min:
-                        self.validation_err_msg.append(f"fast_rt_{rt_min / 1000}s")
+                        self.validation_msg_trial.append(f"fast_rt_{rt_min / 1000}s")
                     elif self.rt > rt_max:
-                        self.validation_err_msg.append(f"slow_rt_{rt_max / 1000}s")
+                        self.validation_msg_trial.append(f"slow_rt_{rt_max / 1000}s")
                 elif isinstance(self.rt, str):
                     try:
                         rt_dict = ast.literal_eval(self.rt)
                         if not all([value > rt_min for value in rt_dict.values()]):
-                            self.validation_err_msg.append(f"fast_rt_{rt_min / 1000}s")
+                            self.validation_msg_trial.append(f"fast_rt_{rt_min / 1000}s")
                         if not all([value < rt_max for value in rt_dict.values()]):
-                            self.validation_err_msg.append(f"slow_rt_{rt_max / 1000}s")
+                            self.validation_msg_trial.append(f"slow_rt_{rt_max / 1000}s")
                     except Exception as e:
-                        self.validation_err_msg.append(f"rt string converted to dict failed as {e}")
+                        self.validation_msg_trial.append(f"rt string converted to dict failed as {e}")
 
             else:
-                self.validation_err_msg.append("rt_missing")
+                self.validation_msg_trial.append("rt_missing")
         return self
 
     @model_validator(mode='after')
     def check_trial_index(self):
         if self.trial_index:
             if not isinstance(self.trial_index, int):
-                self.validation_err_msg.append(f"trial_index_not_int")
+                self.validation_msg_trial.append(f"trial_index_not_int")
         else:
-            self.validation_err_msg.append(f"trial_index_missing")
+            self.validation_msg_trial.append(f"trial_index_missing")
         return self
 
     @model_validator(mode='after')
-    def update_pass_validation(self):
-        self.pass_validation = True if not self.validation_err_msg else False
+    def update_valid_trial(self):
+        self.valid_trial = True if not self.validation_msg_trial else False
         return self
 
     # @model_validator(mode='after')
@@ -270,9 +270,9 @@ class LevanteRun(RunBase):
     test_comp_theta_estimate: Optional[float] = None
     test_comp_theta_se: Optional[float] = None
 
-    pass_validation: Optional[bool] = None
-    validation_err_msg: Optional[list] = []
-    warning_msg: Optional[list] = []
+    valid_run: Optional[bool] = None
+    validation_msg_run: Optional[list] = []
+    # warning_msg: Optional[list] = []
 
     _non_practice_trials: Optional[list[LevanteTrial]] = []
 
@@ -283,7 +283,7 @@ class LevanteRun(RunBase):
         trial_len_min = 10
 
         if len(self._non_practice_trials) < trial_len_min:
-            self.validation_err_msg.append(f"less_than_{trial_len_min}_test_trials")
+            self.validation_msg_run.append(f"less_than_{trial_len_min}_test_trials")
 
     def check_straight_line_trials(self):
         def sort_key(trial):
@@ -311,10 +311,10 @@ class LevanteRun(RunBase):
 
         consecutive_identical_min = 10
         if has_consecutive_identical(response_location, consecutive_identical_min):
-            self.validation_err_msg.append(f"straightlining_{consecutive_identical_min}")
+            self.validation_msg_run.append(f"straightlining_{consecutive_identical_min}")
 
-    def update_pass_validation(self):
-        self.pass_validation = True if not self.validation_err_msg else False
+    def update_valid_run(self):
+        self.valid_run = True if not self.validation_msg_run else False
         return self
 
     # def update_system_info(self):
@@ -325,7 +325,7 @@ class LevanteRun(RunBase):
     def validate_trials_in_run(self):
         self.check_non_practice_trials_count()
         self.check_straight_line_trials()
-        self.update_pass_validation()
+        self.update_valid_run()
 
 
 class UserBase(BaseModel):
@@ -365,8 +365,8 @@ class LevanteUser(UserBase):
     sex: Optional[str] = ""
     grade: Optional[Union[str, int]] = ""
 
-    pass_validation: Optional[bool] = None
-    validation_err_msg: Optional[list] = []
+    valid_user: Optional[bool] = None
+    validation_msg_user: Optional[list] = []
 
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 
@@ -393,16 +393,16 @@ class LevanteUser(UserBase):
             if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
                     self.birth_month, int):
                 if self.birth_month not in range(1, 13):
-                    self.validation_err_msg.append("birth_month_error")
+                    self.validation_msg_user.append("birth_month_error")
                 if self.birth_year < 2000:
-                    self.validation_err_msg.append("birth_year_2000")
+                    self.validation_msg_user.append("birth_year_2000")
             else:
-                self.validation_err_msg.append("birth_year_month_missing")
+                self.validation_msg_user.append("birth_year_month_missing")
         return self
 
     @model_validator(mode='after')
-    def update_pass_validation(self):
-        self.pass_validation = True if not self.validation_err_msg else False
+    def update_valid_user(self):
+        self.valid_user = True if not self.validation_msg_user else False
         return self
 
     # @model_validator(mode='after')
