@@ -392,9 +392,11 @@ class FirestoreServices:
 
                         parent_ids = doc_dict.get('parentIds', [])
                         teacher_ids = doc_dict.get('teacherIds', [])
-                        doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else ""
-                        doc_dict['parent1_id'] = parent_ids[0] if parent_ids else ""
-                        doc_dict['parent2_id'] = parent_ids[1] if parent_ids and len(parent_ids) == 2 else ""
+                        grade = doc_dict.get('grade', None)
+                        doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else None
+                        doc_dict['parent1_id'] = parent_ids[0] if parent_ids else None
+                        doc_dict['parent2_id'] = parent_ids[1] if parent_ids and len(parent_ids) == 2 else None
+                        doc_dict['grade'] = grade if doc_dict.get('grade', None) else None
 
                         if doc_dict.get('created', None):
                             doc_dict['created_at'] = doc_dict.get('created')

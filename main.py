@@ -114,15 +114,25 @@ def data_validator(request):
                     total_validation_stats['trials']['total'] += org_validation_stats['trials']['total']
                     total_validation_stats['trials']['valid_trials'] += org_validation_stats['trials'][
                         'valid_trials']
-                    total_validation_stats['survey_responses']['student'] += org_validation_stats['survey_responses']['student']
-                    total_validation_stats['survey_responses']['teacher'] += org_validation_stats['survey_responses']['teacher']
-                    total_validation_stats['survey_responses']['caregiver'] += org_validation_stats['survey_responses']['caregiver']
+                    total_validation_stats['survey_responses']['student'] += org_validation_stats['survey_responses'][
+                        'student']
+                    total_validation_stats['survey_responses']['teacher'] += org_validation_stats['survey_responses'][
+                        'teacher']
+                    total_validation_stats['survey_responses']['caregiver'] += org_validation_stats['survey_responses'][
+                        'caregiver']
                     total_validation_stats['invalid_data_count'] += org_validation_stats['invalid_data_count']
 
                     validated_data = merge_dictionaries(validated_data, org_validated_data)
 
                 validated_data = reduce_duplication_by_keys(data=validated_data,
-                                                            keys={'tasks': 'task_id', 'variants': 'variant_id'})
+                                                            keys={'administrations': 'administration_id',
+                                                                  'groups': 'group_id',
+                                                                  'tasks': 'task_id',
+                                                                  'variants': 'variant_id',
+                                                                  'users': 'user_id',
+                                                                  'runs': 'run_id',
+                                                                  'trials': 'trial_id',
+                                                                  })
                 # GCP storage service
                 if not dataset_parameters.is_save_to_storage:
                     elapsed_time = time.time() - start_time

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pydantic import ValidationError
 import logging
 import core_models
@@ -6,6 +7,8 @@ from firestore_services import FirestoreServices, stringify_variables
 from utils import Organization
 
 logging.basicConfig(level=logging.INFO)
+
+now_utc = datetime.now(timezone.utc).isoformat()
 
 
 class EntityController:
@@ -32,6 +35,7 @@ class EntityController:
         self.valid_users = []
         self.invalid_users = []
         self.valid_runs = []
+
         self.invalid_runs = []
         self.valid_trials = []
         self.invalid_trials = []
@@ -47,6 +51,61 @@ class EntityController:
 
         self.valid_user_assignments = []
         self.invalid_user_assignments = []
+
+    def adding_schema_row_to_data(self):
+        if self.valid_groups:
+            self.valid_groups.append(core_models.LevanteGroup(group_id='schema_row', name='schema_row', abbreviation='',
+                                                              tags='', created_at=now_utc))
+        if self.valid_tasks:
+            self.valid_tasks.append(core_models.TaskBase(task_id='schema_row', name='schema_row', description='',
+                                                         last_updated=now_utc))
+        if self.valid_administrations:
+            self.valid_administrations.append(
+                core_models.AdministrationBase(administration_id='schema_row', name='schema_row', public_name='',
+                                               sequential=False,
+                                               created_by='schema_row', date_created=now_utc, date_closed=now_utc,
+                                               date_opened=now_utc))
+        if self.valid_variants:
+            self.valid_variants.append(
+                core_models.VariantBase(variant_id='schema_row', task_id='schema_row', name='', age=0,
+                                        button_layout='',
+                                        corpus='', key_helpers=False, language='', max_incorrect=0,
+                                        max_time=0, num_of_practice_trials=0,
+                                        number_of_trials=0, sequential_practice=False, sequential_stimulus=False,
+                                        skip_instructions=False,
+                                        stimulus_blocks=0, store_item_id=False, last_updated=now_utc))
+
+        if self.valid_users:
+            self.valid_users.append(
+                core_models.LevanteUser(user_id='schema_row', user_type='schema_row', assessment_pid='schema_row',
+                                        assessment_uid='schema_row', email='',
+                                        email_verified=False, created_at=now_utc, last_updated=now_utc,
+                                        parent1_id='', parent2_id='',
+                                        teacher_id='', birth_year=0, birth_month=0, sex='', grade=0,
+                                        validation_msg_user=['schema_row']))
+        if self.valid_runs:
+            self.valid_runs.append(
+                core_models.LevanteRun(run_id='schema_row', user_id='schema_row', task_id='schema_row',
+                                       variant_id='schema_row', administration_id='schema_row',
+                                       reliable=False, completed=False, best_run=False,
+                                       task_version='', time_started=now_utc,
+                                       time_finished=now_utc,
+                                       num_attempted=0, num_correct=0, test_comp_theta_estimate=0.0001,
+                                       test_comp_theta_se=0.0001, valid_run=False, validation_msg_run=['schema_row']))
+        if self.valid_trials:
+            self.valid_trials.append(
+                core_models.LevanteTrial(trial_id='schema_row', run_id='schema_row', user_id='schema_row',
+                                         task_id='schema_row', assessment_stage='schema_row',
+                                         trial_index=0, item='', item_id='',
+                                         answer='', response='', correct=False,
+                                         difficulty=0.0001, response_source='', time_elapsed=0,
+                                         rt=0, server_timestamp=now_utc, is_practice_trial=False,
+                                         corpus_trial_type='',
+                                         response_type='', response_location='',
+                                         distractors='', theta_estimate=0.0001,
+                                         theta_estimate2=0.0001,
+                                         theta_se=0.0001, theta_se2=0.0001, valid_trial=False,
+                                         validation_msg_trial=['schema_row']))
 
     def validate_data_from_firestore(self):
         fs_assessment = FirestoreServices(app_name='assessment_site',
@@ -81,10 +140,12 @@ class EntityController:
             if self.valid_runs:
                 self.process_trials(fs=fs_assessment)
 
+        self.adding_schema_row_to_data()
+
     def get_validated_data(self):
         data = {
             'groups': [obj.model_dump() for obj in self.valid_groups],
-            'administration': [obj.model_dump() for obj in self.valid_administrations],
+            'administrations': [obj.model_dump() for obj in self.valid_administrations],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
             'variants': [obj.model_dump() for obj in self.valid_variants],
             'users': [obj.model_dump() for obj in self.valid_users],
@@ -180,7 +241,8 @@ class EntityController:
             for item in self.valid_administration_tasks:
                 if item.task_id not in task_variants:
                     task_variants[item.task_id] = []
-                if item.variant_id and item.variant_id not in task_variants[item.task_id]:  # Only add non-None non-exists variant_id
+                if item.variant_id and item.variant_id not in task_variants[
+                    item.task_id]:  # Only add non-None non-exists variant_id
                     task_variants[item.task_id].append(item.variant_id)
         tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
         self.set_tasks(tasks=tasks)
@@ -451,96 +513,3 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_user_assignments.append(
                         {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
-
-    # def set_score_details(self, run: dict):
-    # run_id = run.get('id', None)
-    # scores = run.get('scores', {})
-    # computed_scores = scores.get('computed', {})
-    # raw_scores = scores.get('raw', {})
-    # for sub_task, sub_score in computed_scores.items():
-    #     score = None
-    #     if isinstance(sub_score, int) or isinstance(sub_score, str):
-    #         score = sub_score
-    #     elif isinstance(sub_score, dict):
-    #         score = sub_score.get('roarScore', None)
-    #         attempted_note = ''
-    #         correct_note = ''
-    #         incorrect_note = ''
-    #         theta_estimate = ''
-    #         theta_se = ''
-    #         test_result = raw_scores.get(sub_task, {}).get('test', {})
-    #         for key, value in test_result.items():
-    #             if key.contains('Attempt'):
-    #                 attempted_note = value
-    #             if key.contains('Correct'):
-    #                 correct_note = value
-    #             if key.contains('Attempt'):
-    #                 attempted_note = value
-    #             if key.contains('Correct'):
-    #                 correct_note = value
-    #
-    #
-    #     try:
-    #         ScoreDetails(run_id=run_id,
-    #                      is_computed=True,
-    #                      is_composite=True if sub_task == 'composite' else False,
-    #                      is_practice=False,
-    #                      subtask_name=None if sub_task == 'composite' else sub_task,
-    #                      score=score)
-    #     except ValidationError as e:
-    #         print(f"score_detail error for run {run_id}, computed_scores {key}: {e}")
-    #         self.invalid_score_details.append(f"{run_id},{key}")
-
-    # def set_values_from_redivis(self, lab_id: str, is_consolidate: bool):
-    #     rs = RedivisServices(is_from_firestore=False)
-    #     rs.set_dataset(lab_id=lab_id)
-    #
-    #     self.set_groups(groups=rs.get_tables(table_name="groups"))
-    #     self.set_districts(districts=rs.get_tables(table_name="districts"))
-    #     self.set_schools(schools=rs.get_tables(table_name="schools"))
-    #     self.set_classes(classes=rs.get_tables(table_name="classes"))
-    #     self.set_tasks(tasks=rs.get_tables(table_name="tasks"))
-    #     self.set_variants(variants=rs.get_tables(table_name="variants"))
-    #     self.set_users(users=rs.get_tables(table_name="users"))
-    #     self.set_assignments(assignments=rs.get_tables(table_name="assignments"))
-    #
-    #     runs_table = rs.get_tables(table_name="runs")
-    #     if self.valid_users:
-    #         for user in self.valid_users:
-    #             # logging.info(rs.get_specified_table(table_list=runs_table, spec_key="user_id", spec_value=user.user_id))
-    #             self.set_runs(user=user, runs=rs.get_specified_table(table_list=runs_table, spec_key="user_id",
-    #                                                                  spec_value=user.user_id))
-    #     else:
-    #         self.validation_log.append(f"redivis_db has no valid users in {lab_id}.")
-    #
-    #     trials_table = rs.get_tables(table_name="trials")
-    #     if self.valid_runs:
-    #         for run in self.valid_runs:
-    #             self.set_trials(run=run, trials=rs.get_specified_table(table_list=trials_table, spec_key="run_id",
-    #                                                                    spec_value=run.run_id))
-    #     else:
-    #         self.validation_log.append(f"redivis_db has no valid runs in {lab_id}.")
-
-    # def set_values_for_consolidate(self):
-    #     rs = RedivisServices(is_from_firestore=False)
-    #
-    #     lab_lists = rs.get_datasets_list()
-    #     logging.info(lab_lists)
-    #     for lab in lab_lists:
-    #         self.set_values_from_redivis(lab)
-
-    # def set_user_class(self, user: dict):
-    #     user_id = user.get('user_id', None)
-    #     user_classes = user.get('classes', {})
-    #     all_classes = user_classes.get('all', [])
-    #     current_classes = user_classes.get('current', [])
-    #     for class_id in all_classes:
-    #         try:
-    #             self.valid_user_classes.append(core_models.UserClass(
-    #                 user_id=user_id,
-    #                 class_id=class_id,
-    #                 is_active=True if class_id in current_classes else False))
-    #         except ValidationError as e:
-    #             for error in e.errors():
-    #                 self.invalid_user_classes.append(
-    #                     {**error, 'id': f"user_id: {user['user_id']}, class_id: {class_id}"})
