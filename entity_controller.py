@@ -99,7 +99,7 @@ class EntityController:
                                          trial_index=0, item='', item_id='',
                                          answer='', response='', correct=False,
                                          difficulty=0.0001, response_source='', time_elapsed=0,
-                                         rt=0, server_timestamp=now_utc, is_practice_trial=False,
+                                         rt='', server_timestamp=now_utc, is_practice_trial=False,
                                          corpus_trial_type='',
                                          response_type='', response_location='',
                                          distractors='', theta_estimate=0.0001,

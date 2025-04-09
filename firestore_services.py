@@ -18,10 +18,8 @@ pst_timezone = pytz.timezone('America/Los_Angeles')
 
 
 def stringify_variables(variable):
-    if isinstance(variable, (dict, list, tuple, bool, str)):
+    if isinstance(variable, (dict, list, tuple, bool, str, float, int)):
         return str(variable)
-    elif isinstance(variable, (float, int)):
-        return variable
     elif variable is None or variable == 'nan':
         return ""
     else:
@@ -502,6 +500,7 @@ class FirestoreServices:
                     else:
                         answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         doc_dict.update({
+                            'corpus_trial_type': stringify_variables(doc_dict.get('corpus_trial_type', '')),
                             'item': stringify_variables(doc_dict.get('item', '')),
                             'distractors': stringify_variables(doc_dict.get('distractors', '')),
                             'answer': stringify_variables(answer) if answer is not None else "",

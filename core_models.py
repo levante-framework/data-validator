@@ -66,7 +66,7 @@ class TrialBase(BaseModel):
     time_elapsed: Optional[int] = None
 
     # Time related fields
-    rt: Optional[Union[int, str]] = None
+    rt: Optional[Any] = None
     server_timestamp: Optional[datetime] = None
 
 
@@ -74,7 +74,7 @@ class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
     corpus_trial_type: Optional[str] = None
     response_type: Optional[str] = None
-    response_location: Optional[Union[int, str]] = None
+    response_location: Optional[Any] = None
     distractors: Optional[str] = None
 
     # For some roar tasks
