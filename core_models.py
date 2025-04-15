@@ -85,6 +85,7 @@ class LevanteTrial(TrialBase):
 
     valid_trial: Optional[bool] = None
     validation_msg_trial: Optional[list] = []
+    warning_msg_trial: Optional[list] = []
 
     @model_validator(mode='after')
     def check_rt(self):
@@ -122,9 +123,9 @@ class LevanteTrial(TrialBase):
     def check_trial_index(self):
         if self.trial_index:
             if not isinstance(self.trial_index, int):
-                self.validation_msg_trial.append(f"trial_index_not_int")
+                self.warning_msg_trial.append(f"trial_index_not_int")
         else:
-            self.validation_msg_trial.append(f"trial_index_missing")
+            self.warning_msg_trial.append(f"trial_index_missing")
         return self
 
     @model_validator(mode='after')
@@ -161,7 +162,7 @@ class LevanteRun(RunBase):
 
     valid_run: Optional[bool] = None
     validation_msg_run: Optional[list] = []
-    # warning_msg: Optional[list] = []
+    warning_msg_run: Optional[list] = []
 
     _non_practice_trials: Optional[list[LevanteTrial]] = []
 
