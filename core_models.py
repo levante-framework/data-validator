@@ -72,7 +72,7 @@ class TrialBase(BaseModel):
 
 class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
-    corpus_trial_type: Optional[str] = None
+    corpus_trial_type: Optional[Any] = None
     response_type: Optional[str] = None
     response_location: Optional[Any] = None
     distractors: Optional[str] = None
