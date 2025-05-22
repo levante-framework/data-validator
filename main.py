@@ -1,36 +1,32 @@
 import os
 import logging
-import settings
-import requests
-import functions_framework
-from flask import Flask, request
 import time
-
+import json
+import settings
+import functions_framework
+from flask import request
 import utils
-from utils import *
+utils.setup_project_environment()
 
 logging.basicConfig(level=logging.INFO)
+
+from secret_services import secret_services
+from firestore_services import firestore_services
+from entity_controller import EntityController
+from storage_services import StorageServices
+from redivis_services import RedivisServices
 
 
 @functions_framework.http
 def data_validator(request):
     start_time = time.time()
-    settings.initialize_env_securities()
-
-    from firestore_services import FirestoreServices
-    from secret_services import secret_services
-    from storage_services import StorageServices
-    from redivis_services import RedivisServices
-    from entity_controller import EntityController
     logging.info(
-        f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}, instance: {settings.config['INSTANCE']}")
-    os.environ["REDIVIS_API_TOKEN"] = secret_services.access_secret_version(
-        secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
-        version_id="latest")
+        f"running version {settings.config['VERSION']}, "
+        f"project_id: {os.getenv('project_id')}, "
+        f"instance: {settings.config['INSTANCE']}"
+    )
 
-    admin_api_key = secret_services.access_secret_version(secret_id=settings.config['VALIDATOR_API_SECRET_ID'],
-                                                          version_id="latest")
-    admin_api_key = admin_api_key.strip().lower()
+    admin_api_key = os.environ.get("ADMIN_API_KEY").strip().lower()
 
     # Sanitize API Keys
     api_key = request.headers.get('API-Key')
@@ -122,17 +118,17 @@ def data_validator(request):
                         'caregiver']
                     total_validation_stats['invalid_data_count'] += org_validation_stats['invalid_data_count']
 
-                    validated_data = merge_dictionaries(validated_data, org_validated_data)
+                    validated_data = utils.merge_dictionaries(validated_data, org_validated_data)
 
-                validated_data = reduce_duplication_by_keys(data=validated_data,
-                                                            keys={'administrations': 'administration_id',
-                                                                  'groups': 'group_id',
-                                                                  'tasks': 'task_id',
-                                                                  'variants': 'variant_id',
-                                                                  'users': 'user_id',
-                                                                  'runs': 'run_id',
-                                                                  'trials': 'trial_id',
-                                                                  })
+                validated_data = utils.reduce_duplication_by_keys(data=validated_data,
+                                                                  keys={'administrations': 'administration_id',
+                                                                        'groups': 'group_id',
+                                                                        'tasks': 'task_id',
+                                                                        'variants': 'variant_id',
+                                                                        'users': 'user_id',
+                                                                        'runs': 'run_id',
+                                                                        'trials': 'trial_id',
+                                                                        })
                 # GCP storage service
                 if not dataset_parameters.is_save_to_storage:
                     elapsed_time = time.time() - start_time
@@ -146,7 +142,8 @@ def data_validator(request):
                     return json.dumps(output), 200
                 else:  # Start to process on GCP and redivis
                     logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
-                    storage = StorageServices(dataset_id=dataset_parameters.dataset_id,
+                    storage = StorageServices(cred=firestore_services.admin_credentials,
+                                              dataset_id=dataset_parameters.dataset_id,
                                               is_forced_uploading_redivis=dataset_parameters.is_force_uploading_to_redivis)
                     storage.process(validated_data=validated_data)
 
@@ -192,8 +189,7 @@ def data_validator(request):
                             'elapsed_time': elapsed_time,
                             'api_version': settings.config['VERSION']}
                 logging.info(json.dumps(response))
-                fs_admin = FirestoreServices(app_name='admin_site')
-                fs_admin.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
+                firestore_services.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
                 return json.dumps(response), 200
         else:
             return 'Request body is not received properly', 500
@@ -201,57 +197,7 @@ def data_validator(request):
         return 'Function needs to receive POST request', 500
 
 
-# This cloud function is responsible for triggering the data_validator cloud function
-# It can be triggered by a POST request with a list of lab_ids for testing
-# Or it can be triggered by a scheduled job to run on a regular basis
-# Using Firestore to get the list of lab_ids to pass to the data_validator
-def data_validator_trigger(http_request=None):
-    logging.info(f"running version {settings.config['VERSION']}, project_id: {os.environ.get('project_id', None)}")
-
-    client = get_secret_manager_client()
-    admin_service_account = get_secret(settings.config['ADMIN_SERVICE_ACCOUNT_SECRET_ID'], client)
-    admin_public_key = get_secret(settings.config['ADMIN_PUBLIC_KEY_SECRET_ID'], client)
-    data_validator_url = get_secret(settings.config['DATA_VALIDATOR_URL_SECRET_ID'], client)
-    admin_app = initialize_firebase(admin_service_account)
-
-    lab_ids = get_lab_ids(_request=http_request, app=admin_app)
-
-    # This is the payload that will be sent to the data_validator
-    payload = {
-        "lab_ids": lab_ids,
-        "is_from_guest": False,
-        "is_from_firestore": True,
-        "is_save_to_storage": True,
-        "is_upload_to_redivis": True,
-        "is_release_to_redivis": True,
-    }
-
-    headers = {
-        'Content-Type': 'application/json',
-        'API-Key': admin_public_key.strip()
-    }
-
-    response = requests.post(data_validator_url.strip(), json=payload, headers=headers)
-
-    if response.status_code == 200:
-        logging.info('data_validator triggered successfully.')
-        return 'data_validator triggered successfully.', 200
-    else:
-        logging.error(f'Error triggering data_validator: {response.text}')
-        return f'Error triggering data_validator: {response.text}', response.status_code
-
-
-# Local testing with Flask and functions-framework
-app = Flask(__name__)
-
-
-# This is the payload that will be sent to the data_validator_trigger for testing
-# This payload determines the behavior of the data_validator by looking for the presence
-# Of is_test key in the payload
-@app.route('/', methods=['POST'])
-def main(data):
-    return data_validator_trigger(data)
-
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    import functions_framework
+
+    print("Running locally with functions-framework...")

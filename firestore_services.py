@@ -1,20 +1,22 @@
-import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
-import pytz
+from google.cloud import firestore
+from google.oauth2 import service_account
+from google.cloud.firestore_v1.base_query import FieldFilter
 
-import logging
-from datetime import datetime
-import json
+import pytz
+from copy import deepcopy
 
 import utils
-from utils import process_doc_dict, handle_nan, Filters
-from secret_services import secret_services
+from utils import *
 import settings
+import warnings
 
+warnings.filterwarnings("ignore", message="Detected filter using positional arguments")
 logging.basicConfig(level=logging.INFO)
 
 pst_timezone = pytz.timezone('America/Los_Angeles')
+
+default_start_date = datetime(2024, 1, 1)
+default_end_date = datetime(2050, 1, 1)
 
 
 def stringify_variables(variable):
@@ -24,6 +26,16 @@ def stringify_variables(variable):
         return ""
     else:
         return f'Error converting to string: {variable}'
+
+
+def to_datetime(dt_str, dt_type):
+    if dt_str:
+        return datetime.strptime(dt_str, '%Y-%m-%d')
+    else:
+        if dt_type == 'start':
+            return default_start_date
+        else:
+            return default_end_date
 
 
 def convert_to_integer(variable):
@@ -39,40 +51,27 @@ def chunked_list(lst, n):
         yield lst[i:i + n]
 
 
-class FirestoreServices:
-    default_app = None
-    db = None
+class _FirestoreServices:
+    def __init__(self):
 
-    def __init__(self, app_name, start_date=None, end_date=None):
-        try:
-            # Check if the app already exists
-            self.default_app = firebase_admin.get_app(name=app_name)
-        except ValueError:
-            # If the app does not exist, initialize it based on the app_name
-            if app_name == 'assessment_site':
-                assessment_cred = secret_services.access_secret_version(
-                    secret_id=settings.config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID'],
-                    version_id="latest")
-                cred = credentials.Certificate(json.loads(assessment_cred))
-            else:
-                cred = credentials.ApplicationDefault()
+        admin_sa_info = json.loads(os.getenv('ADMIN_SA'))
+        assessment_sa_info = json.loads(os.getenv('ASSESSMENT_SA'))
 
-            self.default_app = firebase_admin.initialize_app(credential=cred, name=app_name)
-        self.db = firestore.client(self.default_app)
+        # Create credentials
+        self.admin_credentials = service_account.Credentials.from_service_account_info(admin_sa_info)
+        self.assessment_credentials = service_account.Credentials.from_service_account_info(assessment_sa_info)
 
-        self.start_date = (datetime.strptime(start_date, "%Y-%m-%d")
-                           .replace(hour=0, minute=0, second=0, microsecond=0)) if start_date else datetime(2024, 1,
-                                                                                                            1)
-        self.end_date = (datetime.strptime(end_date, '%Y-%m-%d')
-                         .replace(hour=23, minute=59, second=59, microsecond=999999)) if end_date else datetime(
-            2050, 1, 1)
+        # Initialize Firestore clients
+        self.admin_db = firestore.Client(credentials=self.admin_credentials, project=admin_sa_info['project_id'])
+        self.assessment_db = firestore.Client(credentials=self.assessment_credentials,
+                                              project=assessment_sa_info['project_id'])
 
     def set_logs_to_firebase(self, response, dataset_id):
         date_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d")
         datetime_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d %H:%M:%S")
         try:
             # Adding document to the 'logs' collection with an auto-generated ID
-            doc_ref = (self.db.collection('logs')
+            doc_ref = (self.admin_db.collection('logs')
                        .document(dataset_id)
                        .collection(date_doc_name)
                        .document(datetime_doc_name))
@@ -81,12 +80,12 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
-    def get_groups(self, group_filter=None):
+    def get_groups(self, date_filter: utils.DateFilter, group_filter):
         result = []
         try:
-            docs = (self.db.collection('groups')
-                    .where('createdAt', '>=', self.start_date)
-                    .where('createdAt', '<=', self.end_date)
+            docs = (self.admin_db.collection('groups')
+                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
                     .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -97,7 +96,7 @@ class FirestoreServices:
                         'group_id': doc.id,
                         'tags': tags
                     })
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    converted_doc_dict = utils.process_doc_dict(doc_dict=doc_dict)
                     result.append(converted_doc_dict)
         except Exception as e:
             logging.error(f"Error in get_groups: {e}")
@@ -106,7 +105,7 @@ class FirestoreServices:
     def get_districts(self, lab_id: str):
         # Does not need to be chunked since districts are unique
         try:
-            doc = self.db.collection('districts').document(lab_id).get()
+            doc = self.admin_db.collection('districts').document(lab_id).get()
             doc_dict = doc.to_dict()
             doc_dict.update({
                 'district_id': doc.id,
@@ -119,12 +118,12 @@ class FirestoreServices:
             logging.error(f"Error in get_districts: {e}")
             return {}
 
-    def get_districts_by_district_name_list(self, district_name_list: list = None):
+    def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list = None):
         result = []
         try:
-            docs = (self.db.collection('districts')
-                    .where('createdAt', '>=', self.start_date)
-                    .where('createdAt', '<=', self.end_date)
+            docs = (self.admin_db.collection('districts')
+                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
                     .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -141,12 +140,12 @@ class FirestoreServices:
 
     def get_schools(self, district_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('schools').where('districtId', '==', district_id).get()
+        total_docs = self.admin_db.collection('schools').where('districtId', '==', district_id).get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
-                query = (self.db.collection('schools')
+                query = (self.admin_db.collection('schools')
                          .where('districtId', '==', district_id)
                          .limit(chunk_size))
                 if last_doc:
@@ -172,12 +171,12 @@ class FirestoreServices:
 
     def get_classes(self, district_id: str, chunk_size=100):
         last_doc = None
-        total_docs = self.db.collection('classes').where('districtId', '==', district_id).get()
+        total_docs = self.admin_db.collection('classes').where('districtId', '==', district_id).get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
         while True:
             try:
-                query = (self.db.collection('classes')
+                query = (self.admin_db.collection('classes')
                          .where('districtId', '==', district_id)
                          .limit(chunk_size))
                 if last_doc:
@@ -201,9 +200,9 @@ class FirestoreServices:
                 logging.error(f"Error in get_classes: {e}")
                 break
 
-    def get_tasks(self, task_filter: list = None, chunk_size=100):
+    def get_tasks(self, task_filter: list, chunk_size=100):
         last_doc = None
-        base_query = self.db.collection('tasks')
+        base_query = self.assessment_db.collection('tasks')
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
@@ -233,9 +232,9 @@ class FirestoreServices:
                 logging.error(f"Error in get_tasks: {e}")
                 break
 
-    def get_variants(self, task_id: str, variant_filter: list = None, chunk_size=100):
+    def get_variants(self, task_id: str, variant_filter: list, chunk_size=100):
         last_doc = None
-        base_query = self.db.collection('tasks').document(task_id).collection('variants')
+        base_query = self.assessment_db.collection('tasks').document(task_id).collection('variants')
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
@@ -267,12 +266,15 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, org_key: str = None, org_operator: str = None, org_value=None, chunk_size=100):
-        base_query = self.db.collection('administrations')
-
+    def get_administrations(self, date_filter: utils.DateFilter, org_filter: utils.OrgFilter, org_ids, chunk_size=100):
+        base_query = self.admin_db.collection('administrations')
         # Apply the date range filters
-        base_query = base_query.where('dateCreated', '>=', self.start_date)
-        base_query = base_query.where('dateCreated', '<=', self.end_date)
+        base_query = base_query.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
+        base_query = base_query.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
+        # Apply the org range filters
+        if org_filter.key:
+            if org_filter.operator == "array_contains_any":
+                base_query = base_query.where(f"{org_filter.key}.minimalOrgs", org_filter.operator, org_ids)
         base_query = base_query.order_by('dateCreated')
 
         def process_docs(query):
@@ -294,14 +296,13 @@ class FirestoreServices:
                         f"Getting administrations... processing chunk {current_chunk} of {total_chunks} administration chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict()
-                        if org_key and org_operator and org_value:
-                            if org_operator == "array_contains_any":
-                                org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_key, [])
-                                if not org_value_firebase:
-                                    continue  # Skip this document if the filter condition is not met
-                                elif set(org_value).isdisjoint(org_value_firebase):
-                                    continue
-
+                        # if org_filter.key and org_filter.operator and org_filter.value:
+                        #     if org_filter.org_operator == "array_contains_any":
+                        #         org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_filter.key, [])
+                        #         if not org_value_firebase:
+                        #             continue  # Skip this document if the filter condition is not met
+                        #         elif set(org_value).isdisjoint(org_value_firebase):
+                        #             continue
                         doc_dict.update({
                             'administration_id': doc.id,
                         })
@@ -315,20 +316,22 @@ class FirestoreServices:
 
         yield from process_docs(query=base_query)
 
-    def get_users(self, is_guest: bool = False, org_key: str = None, org_operator: str = None, org_value=None,
-                  user_key: str = None, user_operator: str = None, user_value=None, chunk_size=100,
-                  is_using_full_users_list: bool = True):
-        collection_name = 'guests' if is_guest else 'users'
+    def get_users(self, is_guest: bool, date_filter: utils.DateFilter, org_filter: utils.OrgFilter, org_ids,
+                  user_filter: utils.UserFilter, chunk_size=100):
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
-        base_query = self.db.collection(collection_name)
+        if is_guest:
+            collection_name = 'guests'
+            base_query = self.assessment_db.collection(collection_name)
+        else:
+            collection_name = 'users'
+            base_query = self.admin_db.collection(collection_name)
 
         # Apply the date range filters
-        base_query = base_query.where(date_field, '>=', self.start_date)
-        base_query = base_query.where(date_field, '<=', self.end_date)
-        if not is_using_full_users_list:
-            if org_key and org_operator and org_value:
-                if org_operator == "array_contains_any":
-                    base_query = base_query.where(f"{org_key}.all", org_operator, org_value)
+        base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
+        base_query = base_query.where(date_field, '<=', to_datetime(date_filter.start_date, 'end'))
+        if org_filter.key:
+            if org_filter.operator == "array_contains_any":
+                base_query = base_query.where(f"{org_filter.key}.all", org_filter.operator, org_ids)
 
         base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
 
@@ -365,23 +368,13 @@ class FirestoreServices:
                             if user_type in ['teacher', 'parent'] and not survey_responses:
                                 continue
 
-                        if is_using_full_users_list:
-                            # Check if groups.all has any element in org_value
-                            if org_key and org_operator and org_value:
-                                if org_operator == "array_contains_any":
-                                    org_value_firebase = doc_dict.get(org_key, {}).get("all", [])
-                                    if not org_value_firebase:
-                                        continue  # Skip this document if the filter condition is not met
-                                    elif set(org_value).isdisjoint(org_value_firebase):
-                                        continue
-
                         # Check if user filter is being used
-                        if user_key and user_operator and user_value:
-                            if user_operator == "contains":
-                                user_value_firebase = doc_dict.get(user_key, None)
+                        if user_filter.key:
+                            if user_filter.operator == "contains":
+                                user_value_firebase = doc_dict.get(user_filter.key, None)
                                 if not user_value_firebase:
                                     continue  # Skip this document if the filter condition is not met
-                                elif user_value not in user_value_firebase:
+                                elif user_filter.value not in user_value_firebase:
                                     continue
 
                         doc_dict['user_id'] = doc.id
@@ -411,7 +404,7 @@ class FirestoreServices:
     def get_runs(self, user_id: str, is_guest: bool = False, chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
-        base_query = (self.db.collection(collection_name).document(user_id)
+        base_query = (self.assessment_db.collection(collection_name).document(user_id)
                       .collection('runs'))
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
@@ -450,10 +443,11 @@ class FirestoreServices:
                 logging.error(f"Error in get_runs: {e}")
                 break
 
-    def get_trials(self, user_id: str, run_id: str, task_id: str, is_guest: bool = False, chunk_size=100):
+    def get_trials(self, user_id: str, run_id: str, task_id: str, trial_key_usage: dict, is_guest: bool = False,
+                   chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
-        base_query = (self.db.collection(collection_name).document(user_id)
+        base_query = (self.assessment_db.collection(collection_name).document(user_id)
                       .collection('runs').document(run_id)
                       .collection('trials'))
         total_docs = base_query.get()
@@ -480,6 +474,20 @@ class FirestoreServices:
                         'run_id': run_id,
                         'task_id': task_id,
                     })
+                    timestamp = doc_dict.get('serverTimestamp', None)
+                    sig = utils.schema_signature(doc_dict)
+                    task_dict = trial_key_usage.setdefault(task_id, {})
+
+                    # If this schema has not been seen before, store it
+                    if sig not in task_dict:
+                        task_dict[sig] = {
+                            'trial_doc': deepcopy(doc_dict),
+                            'user_id': user_id,
+                            'run_id': run_id,
+                            'trial_id': doc.id,
+                            'serverTimeStamp': timestamp
+                        }
+
                     # Add identifiers to the dictionary
                     if settings.config['INSTANCE'] == 'ROAR':
                         doc_dict.update({
@@ -516,7 +524,7 @@ class FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_surveys(self, user_id: str, user_type: str):
+    def get_surveys(self, user_id: str, user_type: str, date_filter: utils.DateFilter):
         survey_responses = []
 
         def reformat_responses(data):
@@ -558,9 +566,9 @@ class FirestoreServices:
             return formatted_responses
 
         try:
-            docs = (self.db.collection('users').document(user_id).collection('surveyResponses')
-                    .where('createdAt', '>=', self.start_date)
-                    .where('createdAt', '<=', self.end_date)
+            docs = (self.admin_db.collection('users').document(user_id).collection('surveyResponses')
+                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                    .where('createdAt', '<=', to_datetime(date_filter.start_date, 'end'))
                     .get())
 
             for doc in docs:
@@ -607,3 +615,18 @@ class FirestoreServices:
         except Exception as e:
             print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
         return survey_responses
+
+    def upload_trial_key_variants_to_firestore(self, trial_key_usage, task_id: str):
+        if task_id not in trial_key_usage:
+            logging.info(f"No trial key variants for task {task_id}")
+            return
+
+        trial_keys_ref = self.assessment_db.collection('tasks').document(task_id).collection('trialKeys')
+
+        for schema_hash, record in trial_key_usage[task_id].items():
+            record_with_hash = record.copy()
+            record_with_hash['schema_hash'] = schema_hash
+            trial_keys_ref.add(record_with_hash)
+
+
+firestore_services = _FirestoreServices()

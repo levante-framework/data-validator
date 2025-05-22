@@ -1,8 +1,8 @@
 import redivis
 import logging
 import settings
-import utils
-from secret_services import secret_services
+import os
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,8 +53,7 @@ class RedivisServices:
                 transfer_specification={
                     "sourceType": "gcs",  # one of gcs, s3, bigQuery, url, redivis
                     "sourcePath": f"{settings.config['CORE_DATA_BUCKET_NAME']}/{file_name}",
-                    "identity": secret_services.access_secret_version(secret_id=settings.config['REDIVIS_IDENTITY_ACCOUNT_SECRET_ID'],
-                                                                      version_id="latest"),  # The email associated with the data source
+                    "identity": os.getenv('REDIVIS_IDENTITY'),  # The email associated with the data source
                 },
                 replace_on_conflict=True,
                 remove_on_fail=True,

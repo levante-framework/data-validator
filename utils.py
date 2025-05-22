@@ -1,13 +1,12 @@
 import os
 import re
-import json
+import hashlib
 import math
 import settings
 import logging
-import firebase_admin
-from firebase_admin import firestore
-from firebase_admin import credentials
-from google.cloud import secretmanager
+from dotenv import load_dotenv
+import json
+import requests
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Union, Optional
@@ -127,6 +126,25 @@ class DatasetParameters(BaseModel):
         }
 
 
+def setup_project_environment():
+    try:
+        response = requests.get(
+            "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+            headers={"Metadata-Flavor": "Google"},
+            timeout=2
+        )
+        if response.status_code == 200:
+            project_id = response.text
+            os.environ['project_id'] = project_id
+            os.environ['ENV'] = "remote"
+    except requests.exceptions.RequestException:
+        load_dotenv()
+        os.environ['ENV'] = "local"
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
+        with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
+            os.environ['project_id'] = json.load(sa).get('project_id', None)
+
+
 def merge_dictionaries(dict1, dict2):
     # Initialize the result dictionary
     merged_dict = {}
@@ -233,62 +251,6 @@ def convert_dict_values(d: dict):
     return d
 
 
-# Get the Secret Manager client
-def get_secret_manager_client():
-    if os.getenv('ENV') == 'local':
-        logging.info("Running in local mode.")
-        return secretmanager.SecretManagerServiceClient.from_service_account_json(settings.local_admin_service_account)
-    else:
-        logging.info("Running in remote mode.")
-        return secretmanager.SecretManagerServiceClient()
-
-
-# Get the secrets and decode the data
-def get_secret(secret_id, secret_client):
-    return secret_client.access_secret_version(
-        request={"name": f"projects/{settings.project_id}/secrets/{secret_id}/versions/latest"}
-    ).payload.data.decode("UTF-8")
-
-
-# Get the service account and initialize the Firebase app
-def initialize_firebase(service_account):
-    credential = credentials.Certificate(json.loads(service_account))
-    return firebase_admin.initialize_app(credential=credential, name="admin")
-
-
-def get_lab_ids_from_payload(request_json):
-    lab_ids = request_json.get('lab_ids', [])
-    logging.info(f"Found {len(lab_ids)} lab_ids in request: {lab_ids}")
-    return lab_ids
-
-
-def get_lab_ids_from_firestore(app):
-    db = firestore.client(app)
-    docs = db.collection("districts").get()
-    # Filter out test data
-    lab_ids = [doc.id for doc in docs if not doc.to_dict().get('testData')]
-    logging.info(f"Found {len(lab_ids)} docs in Firestore: {lab_ids}")
-    return lab_ids
-
-
-# Get lab_ids from request or Firestore; request for testing locally
-def get_lab_ids(_request, app):
-    if _request and _request.method == 'POST':
-        request_json = _request.get_json(silent=True)
-        if request_json.get('is_test', False):
-            # This clause allows testing the function locally with a POST request
-            logging.info("Running in test mode with preset lab_ids.")
-            return get_lab_ids_from_payload(request_json)
-        else:
-            # This clause allows triggering the function manually with a POST request
-            logging.info("Running in manual mode with lab_ids from Firestore.")
-            return get_lab_ids_from_firestore(app)
-    else:
-        # This clause allows the function to run as a scheduled Cloud job
-        logging.info("Running in scheduled mode with lab_ids from Firestore.")
-        return get_lab_ids_from_firestore(app)
-
-
 def generate_query_description(table_name, collection_source, date_field=None, start_date=None, end_date=None,
                                filter_field=None, filter_list=None):
     description = {
@@ -317,3 +279,12 @@ def stringify_values_in_dicts(dict_list: list):
             dct[key] = str(dct[key])
 
     return dict_list
+
+
+def schema_signature(doc):
+    typed_keys = {
+        k: type(v).__name__ if v is not None else 'NoneType'
+        for k, v in doc.items()
+    }
+    schema_str = json.dumps(typed_keys, sort_keys=True)
+    return hashlib.md5(schema_str.encode()).hexdigest()

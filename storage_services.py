@@ -1,5 +1,4 @@
 from google.cloud import storage
-from google.oauth2 import service_account
 import datetime
 import json
 import os
@@ -9,37 +8,13 @@ import settings
 
 logging.basicConfig(level=logging.INFO)
 
-# Create a client
-if 'local' in os.environ['ENV']:
-    cred = service_account.Credentials.from_service_account_file(filename=os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'))
-    storage_client = storage.Client(credentials=cred)
-else:
-    storage_client = storage.Client()
-
-gcp_bucket = storage_client.bucket(settings.config['CORE_DATA_BUCKET_NAME'])
-
-
-def upload_blob_from_memory(data, destination_blob_name, content_type):
-    """
-        Uploads a file from memory to Google Cloud Storage.
-
-        Args:
-        - bucket_name (str): Name of the GCS bucket.
-        - data (bytes or str): Data to upload.
-        - destination_blob_name (str): Desired name for the file in the bucket.
-        - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
-        """
-    # Create a blob object
-    blob = gcp_bucket.blob(destination_blob_name)
-
-    # Upload the file
-    blob.upload_from_string(data, content_type=content_type)
-
 
 class StorageServices:
     storage_prefix = None
 
-    def __init__(self, dataset_id: str, is_forced_uploading_redivis: bool = False):
+    def __init__(self, cred, dataset_id: str, is_forced_uploading_redivis: bool = False):
+        self.storage_client = storage.Client(credentials=cred)
+        self.gcp_bucket = self.storage_client.bucket(os.getenv('CORE_DATA_BUCKET_NAME'))
         self.dataset_id = dataset_id
         self.storage_prefix = f"{self.dataset_id}/"
         self.is_new_version_needed = is_forced_uploading_redivis
@@ -62,8 +37,24 @@ class StorageServices:
         self.upload_to_GCP_log['new_version_needed'] = self.is_new_version_needed
         self.upload_to_GCP_log['blob_file_counts'] = len(self.list_table_names_in_blob())
 
+    def upload_blob_from_memory(self, data, destination_blob_name, content_type):
+        """
+            Uploads a file from memory to Google Cloud Storage.
+
+            Args:
+            - bucket_name (str): Name of the GCS bucket.
+            - data (bytes or str): Data to upload.
+            - destination_blob_name (str): Desired name for the file in the bucket.
+            - content_type (str): Content type of the file (e.g., 'application/json', 'text/csv').
+            """
+        # Create a blob object
+        blob = self.gcp_bucket.blob(destination_blob_name)
+
+        # Upload the file
+        blob.upload_from_string(data, content_type=content_type)
+
     def check_if_same_file(self, table_name, local_data_list):
-        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+        blob = self.gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
 
         if not blob.exists():
             logging.info(f"creating_{self.dataset_id}/{table_name}.json")
@@ -89,7 +80,7 @@ class StorageServices:
         data_json = json.dumps(data, cls=CustomJSONEncoder)
         destination_blob_name = f"{self.dataset_id}/{table_name}.json"
         try:
-            upload_blob_from_memory(data=data_json,
+            self.upload_blob_from_memory(data=data_json,
                                     destination_blob_name=destination_blob_name,
                                     content_type='application/json')
         except Exception as e:
@@ -97,7 +88,7 @@ class StorageServices:
 
     def append_list_to_json_in_gcp(self, data: dict, file_name: str):
         # Initialize the GCP Storage client
-        blob = gcp_bucket.blob(f"{self.dataset_id}/{file_name}.json")
+        blob = self.gcp_bucket.blob(f"{self.dataset_id}/{file_name}.json")
 
         # Try to download the existing JSON file
         try:
@@ -121,7 +112,7 @@ class StorageServices:
 
     def list_blobs_with_prefix(self, delimiter=None):
         """Lists all the blobs in the bucket that begin with the prefix."""
-        blobs = storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix,
+        blobs = self.storage_client.list_blobs(settings.config['CORE_DATA_BUCKET_NAME'], prefix=self.storage_prefix,
                                           delimiter=delimiter)
 
         return [blob.name for blob in blobs if 'logs' not in blob.name]
@@ -132,7 +123,7 @@ class StorageServices:
 
     def delete_unmatched_json_files(self, data):
         # List all blobs in the specified bucket and folder
-        blobs = gcp_bucket.list_blobs(prefix=self.storage_prefix)
+        blobs = self.gcp_bucket.list_blobs(prefix=self.storage_prefix)
 
         # Iterate through each blob in the folder
         for blob in blobs:
@@ -155,7 +146,7 @@ class StorageServices:
 
     def check_and_delete_single_table(self, table_name):
         """Deletes a blob from the bucket."""
-        blob = gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+        blob = self.gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
         if blob.exists():
             blob.delete()
             logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")

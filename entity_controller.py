@@ -3,7 +3,7 @@ from pydantic import ValidationError
 import logging
 import core_models
 import settings
-from firestore_services import FirestoreServices, stringify_variables
+from firestore_services import firestore_services as fs, stringify_variables
 from utils import Organization
 
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +17,8 @@ class EntityController:
         self.org = org
 
         self.validation_log = {"org_info": str(org)}
+        self.trial_key_usage = {}
+
         self.valid_groups = []
         self.invalid_groups = []
         self.valid_administrations = []
@@ -110,39 +112,33 @@ class EntityController:
                                          validation_msg_trial=['schema_row']))
 
     def validate_data_from_firestore(self):
-        fs_assessment = FirestoreServices(app_name='assessment_site',
-                                          start_date=self.org.filters.date_filter.start_date,
-                                          end_date=self.org.filters.date_filter.end_date)
         # Determine whether it's using guest.
         if not self.org.is_guest:
-            fs_admin = FirestoreServices(app_name='admin_site',
-                                         start_date=self.org.filters.date_filter.start_date,
-                                         end_date=self.org.filters.date_filter.end_date)
-
             if self.org.filters.org_filter.key == 'districts':
-                self.process_districts(fs_admin)
-                self.process_schools(fs_admin)
-                self.process_classes(fs_admin)
+                self.process_districts()
+                self.process_schools()
+                self.process_classes()
             elif self.org.filters.org_filter.key == 'groups' or not self.org.filters.org_filter:
-                self.process_groups(fs_admin)
+                self.process_groups()
 
-            self.process_administration(fs_admin)
+            self.process_administration()
 
-            self.process_tasks_variants(fs_assessment)
+            self.process_tasks_variants()
 
-            self.process_users(fs=fs_admin)
-
-            if self.valid_users:
-                self.process_surveys(fs_admin)
-        else:
-            self.process_users(fs=fs_assessment)
+        self.process_users()
 
         if self.valid_users:
-            self.process_runs(fs=fs_assessment)
+            if not self.org.is_guest:
+                self.process_surveys()
+            self.process_runs()
             if self.valid_runs:
-                self.process_trials(fs=fs_assessment)
+                self.process_trials()
 
         self.adding_schema_row_to_data()
+
+        print(self.trial_key_usage)
+        # for task in self.valid_tasks:
+        #     self.update_task_keys_in_use_to_firestore(fs_assessment, task.task_id)
 
     def get_validated_data(self):
         data = {
@@ -193,35 +189,38 @@ class EntityController:
 
         return invalid_list
 
-    def process_groups(self, fs_admin: FirestoreServices):
+    def process_groups(self):
         logging.info("Now Validating Groups...")
 
-        groups = fs_admin.get_groups(group_filter=self.org.filters.org_filter.value)
+        groups = fs.get_groups(date_filter=self.org.filters.date_filter, group_filter=self.org.filters.org_filter.value)
 
         self.set_groups(groups=groups)
 
-    def process_districts(self, fs_admin: FirestoreServices):
+        print(self.valid_groups)
+
+    def process_districts(self):
         logging.info("Now Validating Districts...")
 
-        districts = fs_admin.get_districts_by_district_name_list(district_name_list=self.org.filters.org_filter.value)
+        districts = fs.get_districts_by_district_name_list(date_filter=self.org.filters.date_filter,
+                                                           district_name_list=self.org.filters.org_filter.value)
 
         self.set_districts(districts=districts)
 
-    def process_schools(self, fs_admin: FirestoreServices):
+    def process_schools(self):
         logging.info("Now Validating Schools...")
 
-        schools = fs_admin.get_schools(district_id=self.valid_districts[0].district_id)
+        schools = fs.get_schools(district_id=self.valid_districts[0].district_id)
 
         self.set_schools(schools=schools)
 
-    def process_classes(self, fs_admin: FirestoreServices):
+    def process_classes(self):
         logging.info("Now Validating Classes...")
 
-        classes = fs_admin.get_classes(district_id=self.valid_districts[0].district_id)
+        classes = fs.get_classes(district_id=self.valid_districts[0].district_id)
 
         self.set_classes(classes=classes)
 
-    def process_administration(self, fs_admin: FirestoreServices):
+    def process_administration(self):
         logging.info("Now Validating Administration and AdministrationTasks...")
 
         if self.org.filters.org_filter.key == 'groups':
@@ -230,13 +229,13 @@ class EntityController:
             org_ids = [district.district_id for district in self.valid_districts]
         else:
             org_ids = []
-        administrations = fs_admin.get_administrations(org_key=self.org.filters.org_filter.key,
-                                                       org_operator=self.org.filters.org_filter.operator,
-                                                       org_value=org_ids)
+        administrations = fs.get_administrations(date_filter=self.org.filters.date_filter,
+                                                 org_filter=self.org.filters.org_filter,
+                                                 org_ids=org_ids)
 
         self.set_administrations(administrations=administrations)
 
-    def process_tasks_variants(self, fs_assessment: FirestoreServices):
+    def process_tasks_variants(self):
         logging.info("Now Validating Tasks and Variants...")
         task_variants = {}
         if self.valid_administration_tasks:
@@ -246,16 +245,16 @@ class EntityController:
                 if item.variant_id and item.variant_id not in task_variants[
                     item.task_id]:  # Only add non-None non-exists variant_id
                     task_variants[item.task_id].append(item.variant_id)
-        tasks = fs_assessment.get_tasks(task_filter=list(task_variants.keys()))
+        tasks = fs.get_tasks(task_filter=list(task_variants.keys()))
         self.set_tasks(tasks=tasks)
 
         if self.valid_tasks:
             for task in self.valid_tasks:
-                variants = fs_assessment.get_variants(task_id=task.task_id,
-                                                      variant_filter=task_variants.get(task.task_id, []))
+                variants = fs.get_variants(task_id=task.task_id,
+                                           variant_filter=task_variants.get(task.task_id, []))
                 self.set_variants(variants=variants, task_id=task.task_id)
 
-    def process_users(self, fs: FirestoreServices):
+    def process_users(self):
         logging.info("Now Validating Users and UserGroups...")
 
         if self.org.filters.org_filter.key == 'groups':
@@ -266,20 +265,19 @@ class EntityController:
             org_ids = []
 
         users = fs.get_users(is_guest=self.org.is_guest,
-                             org_key=self.org.filters.org_filter.key, org_operator=self.org.filters.org_filter.operator,
-                             org_value=org_ids,
-                             user_key=self.org.filters.user_filter.key,
-                             user_operator=self.org.filters.user_filter.operator,
-                             user_value=self.org.filters.user_filter.value,
-                             is_using_full_users_list=False)
+                             date_filter=self.org.filters.date_filter,
+                             org_filter=self.org.filters.org_filter,
+                             org_ids=org_ids,
+                             user_filter=self.org.filters.user_filter)
 
         self.set_users(users=users)
 
-    def process_surveys(self, fs_admin: FirestoreServices):
+    def process_surveys(self):
         logging.info("Now Validating Surveys...")
         for user in self.valid_users:
-            survey_responses = fs_admin.get_surveys(user_id=user.user_id,
-                                                    user_type=user.user_type)
+            survey_responses = fs.get_surveys(user_id=user.user_id,
+                                              user_type=user.user_type,
+                                              date_filter=self.org.filters.date_filter)
             if survey_responses:
                 self.set_survey_responses(user=user, survey_responses=survey_responses)
                 if user.user_type == 'student':
@@ -289,20 +287,21 @@ class EntityController:
                 elif user.user_type == 'parent':
                     self.survey_responses_stats["caregiver"] += 1
 
-    def process_runs(self, fs: FirestoreServices):
+    def process_runs(self):
         logging.info("Now Validating Runs...")
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
                                                                  is_guest=self.org.is_guest))
 
-    def process_trials(self, fs: FirestoreServices):
+    def process_trials(self):
         logging.info("Now Validating Trials...")
         for run in self.valid_runs:
             self.set_trials(run=run,
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,
                                                  task_id=run.task_id,
-                                                 is_guest=self.org.is_guest))
+                                                 is_guest=self.org.is_guest,
+                                                 trial_key_usage=self.trial_key_usage))
             run.validate_trials_in_run()
 
     def set_groups(self, groups: list):
