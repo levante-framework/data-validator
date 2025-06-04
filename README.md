@@ -66,9 +66,9 @@ https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
 
 local: 
 ```
-functions-framework --target=data_validator 
+flask --app main run
 ```
-Then send request to http://localhost:8080/
+Then send request to http://127.0.0.1:5000
 
 deploy data-validator to cloud:
 ```

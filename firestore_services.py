@@ -1,6 +1,6 @@
 from google.cloud import firestore
 from google.oauth2 import service_account
-from google.cloud.firestore_v1.base_query import FieldFilter
+from secret_services import secret_service
 
 import pytz
 from copy import deepcopy
@@ -51,20 +51,42 @@ def chunked_list(lst, n):
         yield lst[i:i + n]
 
 
-class _FirestoreServices:
+class FirestoreServices:
     def __init__(self):
+        self._admin_db = None
+        self._assessment_db = None
+        self._admin_credentials = None
+        self._assessment_credentials = None
 
-        admin_sa_info = json.loads(os.getenv('ADMIN_SA'))
-        assessment_sa_info = json.loads(os.getenv('ASSESSMENT_SA'))
+    @property
+    def admin_credentials(self):
+        if self._admin_credentials is None:
+            info = json.loads(
+                secret_service.get_secret_payload(secret_id=settings.config['ADMIN_SERVICE_ACCOUNT_SECRET_ID']))
+            self._admin_credentials = service_account.Credentials.from_service_account_info(info)
+        return self._admin_credentials
 
-        # Create credentials
-        self.admin_credentials = service_account.Credentials.from_service_account_info(admin_sa_info)
-        self.assessment_credentials = service_account.Credentials.from_service_account_info(assessment_sa_info)
+    @property
+    def assessment_credentials(self):
+        if self._assessment_credentials is None:
+            info = json.loads(
+                secret_service.get_secret_payload(secret_id=settings.config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID']))
+            self._assessment_credentials = service_account.Credentials.from_service_account_info(info)
+        return self._assessment_credentials
 
-        # Initialize Firestore clients
-        self.admin_db = firestore.Client(credentials=self.admin_credentials, project=admin_sa_info['project_id'])
-        self.assessment_db = firestore.Client(credentials=self.assessment_credentials,
-                                              project=assessment_sa_info['project_id'])
+    @property
+    def admin_db(self):
+        if self._admin_db is None:
+            self._admin_db = firestore.Client(credentials=self.admin_credentials,
+                                              project=self.admin_credentials.project_id)
+        return self._admin_db
+
+    @property
+    def assessment_db(self):
+        if self._assessment_db is None:
+            self._assessment_db = firestore.Client(credentials=self.assessment_credentials,
+                                                   project=self.assessment_credentials.project_id)
+        return self._assessment_db
 
     def set_logs_to_firebase(self, response, dataset_id):
         date_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d")
@@ -401,7 +423,7 @@ class _FirestoreServices:
 
         yield from process_docs(query=base_query)
 
-    def get_runs(self, user_id: str, is_guest: bool = False, chunk_size=100):
+    def get_runs(self, user_id: str, run_key_usage: dict, is_guest: bool = False, chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
         base_query = (self.assessment_db.collection(collection_name).document(user_id)
@@ -425,6 +447,27 @@ class _FirestoreServices:
                 for doc in docs:
                     doc_dict = doc.to_dict()
                     test_comp_scores = doc_dict.get('scores', {}).get('raw', {}).get('composite', {}).get('test', {})
+                    time_created = doc_dict.get("timeStarted", None)  # or handle __time__ if needed
+                    task_id = doc_dict.get('taskId', None)
+                    task_version = doc_dict.get('taskVersion', None)
+
+                    flattened = flatten_document(doc_dict, max_depth=None)
+                    task_dict = run_key_usage.setdefault(task_id, {})
+
+                    for key, value in flattened.items():
+                        new_meta = {
+                            "user_id": user_id,
+                            "run_id": doc.id,
+                            "task_version": task_version,
+                            "time_created": time_created
+                        }
+
+                        if key not in task_dict:
+                            task_dict[key] = new_meta
+                        else:
+                            prev_time = task_dict[key].get("time_created")
+                            if prev_time is None or (time_created and time_created > prev_time):
+                                task_dict[key] = new_meta
 
                     doc_dict.update({
                         'run_id': doc.id,
@@ -468,25 +511,32 @@ class _FirestoreServices:
                     f"trial chunks of run {run_id} for user {user_id}.")
                 for doc in docs:
                     doc_dict = doc.to_dict()
+                    time_created = doc_dict.get('serverTimestamp', None)
+
+                    flattened = flatten_document(doc_dict, max_depth=1)
+                    task_dict = trial_key_usage.setdefault(task_id, {})
+
+                    for key, value in flattened.items():
+                        new_meta = {
+                            "user_id": user_id,
+                            "run_id": run_id,
+                            "trial_id": doc.id,
+                            "time_created": time_created,
+                        }
+
+                        if key not in task_dict:
+                            task_dict[key] = new_meta
+                        else:
+                            prev_time = task_dict[key].get("time_created")
+                            if prev_time is None or (time_created and time_created > prev_time):
+                                task_dict[key] = new_meta
+
                     doc_dict.update({
                         'trial_id': doc.id,
                         'user_id': user_id,
                         'run_id': run_id,
                         'task_id': task_id,
                     })
-                    timestamp = doc_dict.get('serverTimestamp', None)
-                    sig = utils.schema_signature(doc_dict)
-                    task_dict = trial_key_usage.setdefault(task_id, {})
-
-                    # If this schema has not been seen before, store it
-                    if sig not in task_dict:
-                        task_dict[sig] = {
-                            'trial_doc': deepcopy(doc_dict),
-                            'user_id': user_id,
-                            'run_id': run_id,
-                            'trial_id': doc.id,
-                            'serverTimeStamp': timestamp
-                        }
 
                     # Add identifiers to the dictionary
                     if settings.config['INSTANCE'] == 'ROAR':
@@ -524,7 +574,7 @@ class _FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_surveys(self, user_id: str, user_type: str, date_filter: utils.DateFilter):
+    def get_surveys(self, user_id: str, user_type: str, date_filter: utils.DateFilter, survey_key_usage: dict):
         survey_responses = []
 
         def reformat_responses(data):
@@ -573,6 +623,24 @@ class _FirestoreServices:
 
             for doc in docs:
                 doc_dict = doc.to_dict()
+                time_created = doc_dict.get('createdAt', None)
+
+                flattened = flatten_document(doc=doc_dict, max_depth=2)
+                task_dict = survey_key_usage.setdefault(f'{user_type}_survey', {})
+
+                for key, value in flattened.items():
+                    new_meta = {
+                        "user_id": user_id,
+                        "survey_response_id": doc.id,
+                        "time_created": time_created,
+                    }
+
+                    if key not in task_dict:
+                        task_dict[key] = new_meta
+                    else:
+                        prev_time = task_dict[key].get("time_created")
+                        if prev_time is None or (time_created and time_created > prev_time):
+                            task_dict[key] = new_meta
 
                 survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
                 reformated_survey_responses = []
@@ -616,17 +684,36 @@ class _FirestoreServices:
             print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
         return survey_responses
 
-    def upload_trial_key_variants_to_firestore(self, trial_key_usage, task_id: str):
-        if task_id not in trial_key_usage:
-            logging.info(f"No trial key variants for task {task_id}")
+    def upload_task_schema_to_firestore(self, dict_type: str, schema_usage: dict, task_id: str,
+                                        new_schemas: list):
+        if task_id not in schema_usage and task_id != "survey":
             return
 
-        trial_keys_ref = self.assessment_db.collection('tasks').document(task_id).collection('trialKeys')
+        task_doc_ref = self.assessment_db.collection('tasks').document(task_id)
+        task_doc = task_doc_ref.get().to_dict() or {}
+        stored_dict = task_doc.get(dict_type, {})
 
-        for schema_hash, record in trial_key_usage[task_id].items():
-            record_with_hash = record.copy()
-            record_with_hash['schema_hash'] = schema_hash
-            trial_keys_ref.add(record_with_hash)
+        task_type = dict_type if task_id == "survey" else task_id
+
+        updated = False
+        is_new_data_fields = False
+        for key, local_meta in schema_usage[task_type].items():
+            if key not in stored_dict:
+                stored_dict[key] = local_meta
+                updated = True
+                is_new_data_fields = True
+            else:
+                existing_ts = stored_dict[key].get("time_created")
+                new_ts = local_meta.get("time_created")
+                if new_ts and (existing_ts is None or new_ts > existing_ts):
+                    stored_dict[key] = local_meta
+                    updated = True
+
+        if updated:
+            task_doc_ref.update({dict_type: stored_dict})
+            msg = f"New {dict_type} to {task_doc_ref.id}.{task_type}"
+            if is_new_data_fields:
+                new_schemas.append(msg)
 
 
-firestore_services = _FirestoreServices()
+firestore_services = FirestoreServices()

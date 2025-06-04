@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.2.8',
+    'VERSION': '1.3.0',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -10,6 +10,7 @@ config = {
     'REDIVIS_IDENTITY_ACCOUNT_SECRET_ID': 'redivisIdentityEmailAccount',
 }
 
+slack_web_hook_url = 'https://hooks.slack.com/services/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'
 # Global configuration variables
 # config = {
 #     'VERSION': '1.2.8',

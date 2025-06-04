@@ -1,5 +1,5 @@
 Flask==3.0.3
-functions-framework==3.8.3
+functions-framework==3.5.0
 
 # Firebase and GCP
 google-api-core==2.19.0

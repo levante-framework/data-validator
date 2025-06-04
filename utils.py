@@ -9,8 +9,15 @@ import json
 import requests
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Literal
 from datetime import datetime
+
+
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return json.JSONEncoder.default(self, obj)
 
 
 class DateFilter(BaseModel):
@@ -101,6 +108,7 @@ class DatasetParameters(BaseModel):
     dataset_id: str = Field()
     is_save_to_storage: bool = Field(default=False)
     is_force_uploading_to_redivis: bool = Field(default=False)
+    slack_notification_mode: Literal['Full', 'New_Schema', 'None'] = Field(default='None')
     orgs: List[Organization] = Field()
 
     def to_dict(self):
@@ -122,11 +130,13 @@ class DatasetParameters(BaseModel):
             'dataset_id': self.dataset_id,
             'is_save_to_storage': self.is_save_to_storage,
             'is_force_uploading_to_redivis': self.is_force_uploading_to_redivis,
+            'slack_notification_mode': self.slack_notification_mode,
             'orgs': full_description_org,
         }
 
 
 def setup_project_environment():
+    print("Setting up project Environments...")
     try:
         response = requests.get(
             "http://metadata.google.internal/computeMetadata/v1/project/project-id",
@@ -143,6 +153,13 @@ def setup_project_environment():
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
         with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
             os.environ['project_id'] = json.load(sa).get('project_id', None)
+    settings.config[
+        'CORE_DATA_BUCKET_NAME'] = f'levante-roar-data-bucket-{'dev' if 'dev' in os.environ['project_id'] else 'prod'}'
+    print(
+        f"running version {settings.config['VERSION']}, "
+        f"project_id: {os.getenv('project_id')}, "
+        f"instance: {settings.config['INSTANCE']}"
+    )
 
 
 def merge_dictionaries(dict1, dict2):
@@ -281,10 +298,60 @@ def stringify_values_in_dicts(dict_list: list):
     return dict_list
 
 
-def schema_signature(doc):
-    typed_keys = {
-        k: type(v).__name__ if v is not None else 'NoneType'
-        for k, v in doc.items()
-    }
-    schema_str = json.dumps(typed_keys, sort_keys=True)
+def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth: int | None = None, current_depth: int = 0) -> dict:
+    items = {}
+    if max_depth is not None and current_depth >= max_depth:
+        return {parent_key: type(doc).__name__} if parent_key else {"": type(doc).__name__}
+
+    for k, v in doc.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_document(v, new_key, sep, max_depth, current_depth + 1))
+        elif isinstance(v, list) and v and isinstance(v[0], dict):
+            items.update(flatten_document(v[0], new_key, sep, max_depth, current_depth + 1))
+        else:
+            items[new_key] = type(v).__name__
+    return items
+
+def schema_signature(doc: dict, max_depth: Optional[int] = 1) -> str:
+    """
+    Generate a hash representing the schema of a Firestore-style document.
+    Supports nested dicts and lists of dicts, up to a specified depth.
+
+    :param doc: Document as dict
+    :param max_depth: Maximum depth to explore. None = full depth.
+    :return: Hash string of the flattened schema
+    """
+
+    def flatten(obj, prefix='', level=0):
+        if isinstance(obj, dict) and (max_depth is None or level < max_depth):
+            for k, v in obj.items():
+                path = f"{prefix}.{k}" if prefix else k
+                yield from flatten(v, path, level + 1)
+
+        elif isinstance(obj, list) and (max_depth is None or level < max_depth):
+            path = prefix or "[]"
+            # If list contains dicts, inspect one layer deeper (all elements assumed to have same structure)
+            if obj and all(isinstance(i, dict) for i in obj):
+                for k, v in obj[0].items():  # Use first element to infer structure
+                    sub_path = f"{path}[].{k}"
+                    yield from flatten(v, sub_path, level + 2)
+            else:
+                yield (path, 'list')
+
+        else:
+            yield (prefix, type(obj).__name__ if obj is not None else 'NoneType')
+
+    flat_schema = dict(flatten(doc))
+    schema_str = json.dumps(flat_schema, sort_keys=True)
     return hashlib.md5(schema_str.encode()).hexdigest()
+
+
+def notify_slack(message: str):
+    message = {
+        "text": message
+    }
+    response = requests.post(settings.slack_web_hook_url, json=message)
+
+    if response.status_code != 200:
+        raise Exception(f"Slack notification failed: {response.text}")

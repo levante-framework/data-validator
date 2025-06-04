@@ -4,7 +4,8 @@ import logging
 import core_models
 import settings
 from firestore_services import firestore_services as fs, stringify_variables
-from utils import Organization
+import utils
+import json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -13,11 +14,14 @@ now_utc = datetime.now(timezone.utc).isoformat()
 
 class EntityController:
 
-    def __init__(self, org: Organization):
+    def __init__(self, org: utils.Organization):
         self.org = org
 
         self.validation_log = {"org_info": str(org)}
+        self.run_key_usage = {}
         self.trial_key_usage = {}
+        self.survey_key_usage = {}
+        self.new_schemas = {"runs": [], "trials": [], "surveys": []}
 
         self.valid_groups = []
         self.invalid_groups = []
@@ -136,9 +140,20 @@ class EntityController:
 
         self.adding_schema_row_to_data()
 
-        print(self.trial_key_usage)
-        # for task in self.valid_tasks:
-        #     self.update_task_keys_in_use_to_firestore(fs_assessment, task.task_id)
+        # Track schema
+        for task in self.valid_tasks:
+            if task.task_id == 'survey':
+                for survey_type, schema_dict in self.survey_key_usage.items():
+                    fs.upload_task_schema_to_firestore(dict_type=survey_type, schema_usage=self.survey_key_usage,
+                                                       task_id=task.task_id, new_schemas=self.new_schemas['surveys'])
+            else:
+                fs.upload_task_schema_to_firestore(dict_type='runKeys', schema_usage=self.run_key_usage,
+                                                   task_id=task.task_id, new_schemas=self.new_schemas['runs'])
+                fs.upload_task_schema_to_firestore(dict_type='trialKeys', schema_usage=self.trial_key_usage,
+                                                   task_id=task.task_id, new_schemas=self.new_schemas['trials'])
+
+        # with open('new_schemas.json', 'w', encoding='utf-8') as f:
+        #     json.dump(self.new_schemas, f, cls=utils.CustomJSONEncoder)
 
     def get_validated_data(self):
         data = {
@@ -195,8 +210,6 @@ class EntityController:
         groups = fs.get_groups(date_filter=self.org.filters.date_filter, group_filter=self.org.filters.org_filter.value)
 
         self.set_groups(groups=groups)
-
-        print(self.valid_groups)
 
     def process_districts(self):
         logging.info("Now Validating Districts...")
@@ -277,7 +290,8 @@ class EntityController:
         for user in self.valid_users:
             survey_responses = fs.get_surveys(user_id=user.user_id,
                                               user_type=user.user_type,
-                                              date_filter=self.org.filters.date_filter)
+                                              date_filter=self.org.filters.date_filter,
+                                              survey_key_usage=self.survey_key_usage)
             if survey_responses:
                 self.set_survey_responses(user=user, survey_responses=survey_responses)
                 if user.user_type == 'student':
@@ -291,6 +305,7 @@ class EntityController:
         logging.info("Now Validating Runs...")
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
+                                                                 run_key_usage=self.run_key_usage,
                                                                  is_guest=self.org.is_guest))
 
     def process_trials(self):

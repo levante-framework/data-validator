@@ -1,8 +1,8 @@
 from google.cloud import storage
-import datetime
 import json
 import os
 import logging
+import utils
 
 import settings
 
@@ -14,7 +14,7 @@ class StorageServices:
 
     def __init__(self, cred, dataset_id: str, is_forced_uploading_redivis: bool = False):
         self.storage_client = storage.Client(credentials=cred)
-        self.gcp_bucket = self.storage_client.bucket(os.getenv('CORE_DATA_BUCKET_NAME'))
+        self.gcp_bucket = self.storage_client.bucket(f'levante-roar-data-bucket-{'dev' if 'dev' in os.environ['project_id'] else 'prod'}')
         self.dataset_id = dataset_id
         self.storage_prefix = f"{self.dataset_id}/"
         self.is_new_version_needed = is_forced_uploading_redivis
@@ -77,7 +77,7 @@ class StorageServices:
         return is_same_length
 
     def save_to_storage(self, table_name: str, data):
-        data_json = json.dumps(data, cls=CustomJSONEncoder)
+        data_json = json.dumps(data, cls=utils.CustomJSONEncoder)
         destination_blob_name = f"{self.dataset_id}/{table_name}.json"
         try:
             self.upload_blob_from_memory(data=data_json,
@@ -104,7 +104,7 @@ class StorageServices:
         existing_data.append(data)
         try:
             # Write back to the JSON file
-            blob.upload_from_string(data=json.dumps(existing_data, cls=CustomJSONEncoder),
+            blob.upload_from_string(data=json.dumps(existing_data, cls=utils.CustomJSONEncoder),
                                     content_type='application/json')
             logging.info(f"Save to daily_log file.")
         except Exception as e:
@@ -151,9 +151,3 @@ class StorageServices:
             blob.delete()
             logging.info(f"Blob {self.dataset_id}/{table_name} deleted.")
 
-
-class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        return json.JSONEncoder.default(self, obj)

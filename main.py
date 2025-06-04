@@ -1,32 +1,28 @@
-import os
 import logging
 import time
 import json
 import settings
-import functions_framework
-from flask import request
+from flask import Flask, request, jsonify
 import utils
+
 utils.setup_project_environment()
 
 logging.basicConfig(level=logging.INFO)
-
-from secret_services import secret_services
-from firestore_services import firestore_services
-from entity_controller import EntityController
-from storage_services import StorageServices
-from redivis_services import RedivisServices
+app = Flask(__name__)
 
 
-@functions_framework.http
-def data_validator(request):
+@app.route('/', methods=['POST'])
+def data_validator():
     start_time = time.time()
-    logging.info(
-        f"running version {settings.config['VERSION']}, "
-        f"project_id: {os.getenv('project_id')}, "
-        f"instance: {settings.config['INSTANCE']}"
-    )
+    from secret_services import secret_service
+    from entity_controller import EntityController
+    from firestore_services import firestore_services
+    from storage_services import StorageServices
+    from redivis_services import RedivisServices
 
-    admin_api_key = os.environ.get("ADMIN_API_KEY").strip().lower()
+    admin_api_key = secret_service.get_secret_payload(
+        secret_id=settings.config['VALIDATOR_API_SECRET_ID'],
+        version_id="latest").strip().lower()
 
     # Sanitize API Keys
     api_key = request.headers.get('API-Key')
@@ -48,6 +44,7 @@ def data_validator(request):
                 return 'No dataset params are given.', 400
             else:
                 validated_data = {}
+                new_version_release = False
                 total_validation_stats = {
                     'groups': 0,
                     'administrations': 0,
@@ -69,10 +66,12 @@ def data_validator(request):
                         'caregiver': 0,
                     },
                     'invalid_data_count': 0,
+                    'new_schemas': {"runs": [], "trials": [], "surveys": []},
                     'orgs': {}
                 }
                 logging.info(
                     f'Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.')
+
                 # Processing validation
                 for org in dataset_parameters.orgs:
                     logging.info(f'Getting data from Firestore for org_id: {org.org_id}.')
@@ -117,7 +116,9 @@ def data_validator(request):
                     total_validation_stats['survey_responses']['caregiver'] += org_validation_stats['survey_responses'][
                         'caregiver']
                     total_validation_stats['invalid_data_count'] += org_validation_stats['invalid_data_count']
-
+                    total_validation_stats['new_schemas']['runs'].extend(ec.new_schemas['runs'])
+                    total_validation_stats['new_schemas']['trials'].extend(ec.new_schemas['trials'])
+                    total_validation_stats['new_schemas']['surveys'].extend(ec.new_schemas['surveys'])
                     validated_data = utils.merge_dictionaries(validated_data, org_validated_data)
 
                 validated_data = utils.reduce_duplication_by_keys(data=validated_data,
@@ -138,10 +139,11 @@ def data_validator(request):
                               'is_force_uploading_to_redivis': dataset_parameters.is_force_uploading_to_redivis,
                               'total_validation_stats': total_validation_stats,
                               }
-                    logging.info(json.dumps(output))
-                    return json.dumps(output), 200
+                    logging.info(json.dumps(output, cls=utils.CustomJSONEncoder))
+                    return json.dumps(output, cls=utils.CustomJSONEncoder), 200
                 else:  # Start to process on GCP and redivis
                     logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
+
                     storage = StorageServices(cred=firestore_services.admin_credentials,
                                               dataset_id=dataset_parameters.dataset_id,
                                               is_forced_uploading_redivis=dataset_parameters.is_force_uploading_to_redivis)
@@ -149,8 +151,11 @@ def data_validator(request):
 
                     # redivis service
                     if storage.is_new_version_needed:
+                        new_version_release = storage.is_new_version_needed
                         logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
+
                         rs = RedivisServices()
+
                         rs.set_dataset(dataset_id=dataset_parameters.dataset_id)
                         rs.create_dateset_version(params=dataset_parameters.to_dict()['orgs'])
                         if rs.upload_to_redivis_log['dataset_fails']:
@@ -184,12 +189,26 @@ def data_validator(request):
                             'gcp_logs': storage.upload_to_GCP_log,
                         }
                 elapsed_time = time.time() - start_time
-                response = {'dataset_parameters': dataset_parameters.to_dict(),
-                            'logs': output,
-                            'elapsed_time': elapsed_time,
-                            'api_version': settings.config['VERSION']}
+                response = {
+                    'dataset_parameters': dataset_parameters.to_dict(),
+                    'logs': output,
+                    'elapsed_time': elapsed_time,
+                    'api_version': settings.config['VERSION'],
+                    'new_version_release': new_version_release,
+                }
                 logging.info(json.dumps(response))
                 firestore_services.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
+
+                notification_mode = dataset_parameters.slack_notification_mode.lower()
+
+                if notification_mode != 'none':
+                    if new_version_release:
+                        utils.notify_slack(message=json.dumps(response))
+                    elif any(total_validation_stats['new_schemas'].values()):
+                        utils.notify_slack(
+                            message=json.dumps(response if notification_mode == 'full' else total_validation_stats['new_schemas'])
+                        )
+
                 return json.dumps(response), 200
         else:
             return 'Request body is not received properly', 500
@@ -198,6 +217,4 @@ def data_validator(request):
 
 
 if __name__ == "__main__":
-    import functions_framework
-
-    print("Running locally with functions-framework...")
+    app.run(port=8080)

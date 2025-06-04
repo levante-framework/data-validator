@@ -2,7 +2,7 @@ import redivis
 import logging
 import settings
 import os
-
+from secret_services import secret_service
 
 logging.basicConfig(level=logging.INFO)
 
@@ -19,6 +19,12 @@ class RedivisServices:
             'upload_fails': [],
             'dataset_fails': []
         }
+        os.environ["REDIVIS_API_TOKEN"] = secret_service.get_secret_payload(
+            secret_id=settings.config['REDIVIS_API_TOKEN_SECRET_ID'],
+            version_id="latest")
+        os.environ['REDIVIS_IDENTITY'] = secret_service.get_secret_payload(
+            secret_id=settings.config['REDIVIS_IDENTITY_ACCOUNT_SECRET_ID'],
+            version_id="latest")
 
     def set_dataset(self, dataset_id: str):
         self.dataset_id = dataset_id
@@ -69,7 +75,8 @@ class RedivisServices:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
             else:
-                self.dataset.create(description=f"Dataset_id: {self.dataset_id}, params: {params}", public_access_level="overview")
+                self.dataset.create(description=f"Dataset_id: {self.dataset_id}, params: {params}",
+                                    public_access_level="overview")
         except Exception as e:
             logging.info(f"Failed on create_dateset_version: {e}")
             self.upload_to_redivis_log['dataset_fails'].append(f"create_dateset_version: {e}")
