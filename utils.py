@@ -351,7 +351,9 @@ def notify_slack(message: str):
     message = {
         "text": message
     }
-    response = requests.post(settings.slack_web_hook_url, json=message)
+    from secret_services import secret_service
+    slack_web_hook_url = secret_service.get_secret_payload(secret_id=settings.config['SLACK_NOTIFICATION_WEB_HOOK'])
+    response = requests.post(slack_web_hook_url, json=message)
 
     if response.status_code != 200:
         raise Exception(f"Slack notification failed: {response.text}")

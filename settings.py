@@ -8,9 +8,9 @@ config = {
     'VALIDATOR_API_SECRET_ID': 'validatorApiKey',
     'REDIVIS_API_TOKEN_SECRET_ID': 'firebaseRedivisPipelineAccessToken',
     'REDIVIS_IDENTITY_ACCOUNT_SECRET_ID': 'redivisIdentityEmailAccount',
+    'SLACK_NOTIFICATION_WEB_HOOK': 'slackNotificationWebHook'
 }
 
-slack_web_hook_url = 'https://hooks.slack.com/services/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'
 # Global configuration variables
 # config = {
 #     'VERSION': '1.2.8',
