@@ -11,8 +11,7 @@ logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
 
-@app.route('/', methods=['POST'])
-def data_validator():
+def process(req):
     start_time = time.time()
     from secret_services import secret_service
     from entity_controller import EntityController
@@ -25,14 +24,14 @@ def data_validator():
         version_id="latest").strip().lower()
 
     # Sanitize API Keys
-    api_key = request.headers.get('API-Key')
+    api_key = req.headers.get('API-Key')
     api_key = api_key.strip().lower()
     #
     if api_key != admin_api_key:
         return 'Invalid API Key', 403
 
-    if request.method == 'POST':
-        request_json = request.get_json(silent=True)
+    if req.method == 'POST':
+        request_json = req.get_json(silent=True)
         if request_json:
             try:
                 dataset_parameters = utils.DatasetParameters(**request_json)
@@ -206,7 +205,8 @@ def data_validator():
                         utils.notify_slack(message=json.dumps(response))
                     elif any(total_validation_stats['new_schemas'].values()):
                         utils.notify_slack(
-                            message=json.dumps(response if notification_mode == 'full' else total_validation_stats['new_schemas'])
+                            message=json.dumps(
+                                response if notification_mode == 'full' else total_validation_stats['new_schemas'])
                         )
 
                 return json.dumps(response), 200
@@ -214,6 +214,17 @@ def data_validator():
             return 'Request body is not received properly', 500
     else:
         return 'Function needs to receive POST request', 500
+
+
+# Cloud Functions entry point
+def data_validator(request):  # GCP will call this directly
+    return process(request)
+
+
+# Flask route for local testing
+@app.route('/', methods=['POST'])
+def local_run():
+    return process(request)
 
 
 if __name__ == "__main__":
