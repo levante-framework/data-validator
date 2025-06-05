@@ -255,8 +255,7 @@ class EntityController:
             for item in self.valid_administration_tasks:
                 if item.task_id not in task_variants:
                     task_variants[item.task_id] = []
-                if item.variant_id and item.variant_id not in task_variants[
-                    item.task_id]:  # Only add non-None non-exists variant_id
+                if item.variant_id and item.variant_id not in task_variants[item.task_id]:  # Only add non-None non-exists variant_id
                     task_variants[item.task_id].append(item.variant_id)
         tasks = fs.get_tasks(task_filter=list(task_variants.keys()))
         self.set_tasks(tasks=tasks)

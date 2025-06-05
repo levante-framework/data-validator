@@ -296,7 +296,7 @@ class FirestoreServices:
         # Apply the org range filters
         if org_filter.key:
             if org_filter.operator == "array_contains_any":
-                base_query = base_query.where(f"{org_filter.key}.minimalOrgs", org_filter.operator, org_ids)
+                base_query = base_query.where(f"minimalOrgs.{org_filter.key}", org_filter.operator, org_ids)
         base_query = base_query.order_by('dateCreated')
 
         def process_docs(query):
