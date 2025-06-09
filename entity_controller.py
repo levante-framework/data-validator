@@ -103,7 +103,7 @@ class EntityController:
             self.valid_trials.append(
                 core_models.LevanteTrial(trial_id='schema_row', run_id='schema_row', user_id='schema_row',
                                          task_id='schema_row', assessment_stage='schema_row',
-                                         trial_index=0, item='', item_id='',
+                                         trial_index=0, item='', item_id='', item_uid='',
                                          answer='', response='', correct=False,
                                          difficulty=0.0001, response_source='', time_elapsed=0,
                                          rt='', server_timestamp=now_utc, is_practice_trial=False,

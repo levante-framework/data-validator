@@ -55,6 +55,7 @@ class TrialBase(BaseModel):
     trial_index: Optional[Any] = None
     item: Optional[Any] = None
     item_id: Optional[str] = None
+    item_uid: Optional[str] = None
     answer: Optional[Any] = None
     response: Optional[Any] = None
     correct: Optional[bool] = None
