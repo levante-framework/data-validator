@@ -179,13 +179,13 @@ def process(req):
 
                         rs.upload_to_redivis_log['table_counts'] = rs.count_tables()
                         output = {
-                            'validation_logs': total_validation_stats,
+                            'total_validation_stats': total_validation_stats,
                             'gcp_logs': storage.upload_to_GCP_log,
                             'redivis_logs': rs.upload_to_redivis_log,
                         }
                     else:
                         output = {
-                            'validation_logs': total_validation_stats,
+                            'total_validation_stats': total_validation_stats,
                             'gcp_logs': storage.upload_to_GCP_log,
                         }
                 elapsed_time = time.time() - start_time

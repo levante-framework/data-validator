@@ -556,6 +556,11 @@ class FirestoreServices:
                         doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
                         converted_doc_dict = doc_dict
                     else:
+                        trial_mode = doc_dict.get('trialMode', None)
+                        assessment_stage = doc_dict.get('assessment_stage', None)
+                        if trial_mode == 'display' or assessment_stage == 'instructions':
+                            continue
+
                         answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         rt = doc_dict.get('rt', '')
                         doc_dict.update({
