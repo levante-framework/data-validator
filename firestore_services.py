@@ -224,7 +224,7 @@ class FirestoreServices:
 
     def get_tasks(self, task_filter: list, chunk_size=100):
         last_doc = None
-        base_query = self.assessment_db.collection('tasks')
+        base_query = self.admin_db.collection('tasks')
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
@@ -256,7 +256,7 @@ class FirestoreServices:
 
     def get_variants(self, task_id: str, variant_filter: list, chunk_size=100):
         last_doc = None
-        base_query = self.assessment_db.collection('tasks').document(task_id).collection('variants')
+        base_query = self.admin_db.collection('tasks').document(task_id).collection('variants')
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
@@ -343,7 +343,7 @@ class FirestoreServices:
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         if is_guest:
             collection_name = 'guests'
-            base_query = self.assessment_db.collection(collection_name)
+            base_query = self.admin_db.collection(collection_name)
         else:
             collection_name = 'users'
             base_query = self.admin_db.collection(collection_name)
@@ -426,7 +426,7 @@ class FirestoreServices:
     def get_runs(self, user_id: str, run_key_usage: dict, is_guest: bool = False, chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
-        base_query = (self.assessment_db.collection(collection_name).document(user_id)
+        base_query = (self.admin_db.collection(collection_name).document(user_id)
                       .collection('runs'))
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
@@ -490,7 +490,7 @@ class FirestoreServices:
                    chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
-        base_query = (self.assessment_db.collection(collection_name).document(user_id)
+        base_query = (self.admin_db.collection(collection_name).document(user_id)
                       .collection('runs').document(run_id)
                       .collection('trials'))
         total_docs = base_query.get()
@@ -694,7 +694,7 @@ class FirestoreServices:
         if task_id not in schema_usage and task_id != "survey":
             return
 
-        task_doc_ref = self.assessment_db.collection('tasks').document(task_id)
+        task_doc_ref = self.admin_db.collection('tasks').document(task_id)
         task_doc = task_doc_ref.get().to_dict() or {}
         stored_dict = task_doc.get(dict_type, {})
 
