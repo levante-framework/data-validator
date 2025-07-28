@@ -353,7 +353,7 @@ class FirestoreServices:
         base_query = base_query.where(date_field, '<=', to_datetime(date_filter.start_date, 'end'))
         if org_filter.key:
             if org_filter.operator == "array_contains_any":
-                base_query = base_query.where(f"{org_filter.key}.all", org_filter.operator, org_ids)
+                base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_ids)
 
         base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
 
