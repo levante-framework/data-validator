@@ -85,15 +85,16 @@ class LevanteTrial(TrialBase):
     theta_se2: Optional[float] = None
 
     valid_trial: Optional[bool] = None
-    validation_msg_trial: Optional[list] = []
-    warning_msg_trial: Optional[list] = []
+    validation_msg_trial: Optional[str] = None
+    warning_msg_trial: Optional[str] = None
 
     @model_validator(mode='after')
     def check_rt(self):
         rt_min = 100
         rt_max = 10000
+        msg = []
 
-        if self.assessment_stage not in ['instructions', 'practice_response']:
+        if self not in ['instructions', 'practice_response']:
             if self.rt not in ["", "{}", "0", 0]:
                 if isinstance(self.rt, int):
                     if self.task_id in ['matrix-reasoning']:
@@ -103,30 +104,32 @@ class LevanteTrial(TrialBase):
                         rt_max = 60000
 
                     if self.rt < rt_min:
-                        self.validation_msg_trial.append(f"fast_rt_{rt_min / 1000}s")
+                        msg.append(f"fast_rt_{rt_min / 1000}s")
                     elif self.rt > rt_max:
-                        self.validation_msg_trial.append(f"slow_rt_{rt_max / 1000}s")
+                        msg.append(f"slow_rt_{rt_max / 1000}s")
                 elif isinstance(self.rt, str):
                     try:
                         rt_dict = ast.literal_eval(self.rt)
                         if not all([value > rt_min for value in rt_dict.values()]):
-                            self.validation_msg_trial.append(f"fast_rt_{rt_min / 1000}s")
+                            msg.append(f"fast_rt_{rt_min / 1000}s")
                         if not all([value < rt_max for value in rt_dict.values()]):
-                            self.validation_msg_trial.append(f"slow_rt_{rt_max / 1000}s")
+                            msg.append(f"slow_rt_{rt_max / 1000}s")
                     except Exception as e:
-                        self.validation_msg_trial.append(f"rt string converted to dict failed as {e}")
+                        msg.append(f"rt string converted to dict failed as {e}")
 
             else:
-                self.validation_msg_trial.append("rt_missing")
+                msg.append("rt_missing")
+        if msg:
+            self.validation_msg_trial = ";".join(msg)
         return self
 
     @model_validator(mode='after')
     def check_trial_index(self):
         if self.trial_index:
             if not isinstance(self.trial_index, int):
-                self.warning_msg_trial.append(f"trial_index_not_int")
+                self.warning_msg_trial = f"trial_index_not_int"
         else:
-            self.warning_msg_trial.append(f"trial_index_missing")
+            self.warning_msg_trial = f"trial_index_missing"
         return self
 
     @model_validator(mode='after')
@@ -162,8 +165,8 @@ class LevanteRun(RunBase):
     test_comp_theta_se: Optional[float] = None
 
     valid_run: Optional[bool] = None
-    validation_msg_run: Optional[list] = []
-    warning_msg_run: Optional[list] = []
+    validation_msg_run: Optional[str] = None
+    warning_msg_run: Optional[str] = None
 
     _non_practice_trials: Optional[list[LevanteTrial]] = []
 
@@ -172,9 +175,10 @@ class LevanteRun(RunBase):
 
     def check_non_practice_trials_count(self):
         trial_len_min = 10
+        msg = []
 
         if len(self._non_practice_trials) < trial_len_min:
-            self.validation_msg_run.append(f"less_than_{trial_len_min}_test_trials")
+            self.validation_msg_run = f"less_than_{trial_len_min}_test_trials"
 
     def check_straight_line_trials(self):
         def sort_key(trial):
@@ -203,7 +207,10 @@ class LevanteRun(RunBase):
 
         consecutive_identical_min = 10
         if has_consecutive_identical(response_location, consecutive_identical_min):
-            self.validation_msg_run.append(f"straightlining_{consecutive_identical_min}")
+            if self.validation_msg_run:
+                self.validation_msg_run = self.validation_msg_run + f"; straightlining_{consecutive_identical_min}"
+            else:
+                self.validation_msg_run = f"straightlining_{consecutive_identical_min}"
 
     def update_valid_run(self):
         self.valid_run = True if not self.validation_msg_run else False
@@ -240,7 +247,7 @@ class LevanteUser(UserBase):
     grade: Optional[int] = None
 
     valid_user: Optional[bool] = None
-    validation_msg_user: Optional[list] = []
+    validation_msg_user: Optional[str] = None
 
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 
@@ -250,17 +257,20 @@ class LevanteUser(UserBase):
 
     @model_validator(mode='after')
     def check_birth_year_month(self):
+        msg = []
         if self.user_type == 'student':
             if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
                     self.birth_month, int):
                 if self.birth_month not in range(1, 13):
-                    self.validation_msg_user.append("birth_month_error")
+                    msg.append("birth_month_error")
                 if self.birth_year < 2000:
-                    self.validation_msg_user.append("birth_year_under_2000")
+                    msg.append("birth_year_under_2000")
                 if self.birth_year > 2050:
-                    self.validation_msg_user.append("birth_year_greater_2050")
+                    msg.append("birth_year_greater_2050")
             else:
-                self.validation_msg_user.append("birth_year_month_missing")
+                msg.append("birth_year_month_missing")
+        if msg:
+            self.validation_msg_user = ";".join(msg)
         return self
 
     @model_validator(mode='after')
