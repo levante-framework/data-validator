@@ -88,7 +88,7 @@ class EntityController:
                                         email_verified=False, created_at=now_utc, last_updated=now_utc,
                                         parent1_id='', parent2_id='',
                                         teacher_id='', birth_year=0, birth_month=0, sex='', grade=0,
-                                        validation_msg_user=['schema_row']))
+                                        validation_msg_user='schema_row'))
         if self.valid_runs:
             self.valid_runs.append(
                 core_models.LevanteRun(run_id='schema_row', user_id='schema_row', task_id='schema_row',
@@ -98,7 +98,7 @@ class EntityController:
                                        time_finished=now_utc,
                                        num_attempted=0, num_correct=0, test_comp_theta_estimate=0.0001,
                                        test_comp_theta_se=0.0001, valid_run=False,
-                                       warning_msg_run=['schema_row'], validation_msg_run=['schema_row']))
+                                       warning_msg_run='schema_row', validation_msg_run='schema_row'))
         if self.valid_trials:
             self.valid_trials.append(
                 core_models.LevanteTrial(trial_id='schema_row', run_id='schema_row', user_id='schema_row',
@@ -112,8 +112,8 @@ class EntityController:
                                          distractors='', theta_estimate=0.0001,
                                          theta_estimate2=0.0001,
                                          theta_se=0.0001, theta_se2=0.0001, valid_trial=False,
-                                         warning_msg_trial=['schema_row'],
-                                         validation_msg_trial=['schema_row']))
+                                         warning_msg_trial='schema_row',
+                                         validation_msg_trial='schema_row'))
 
     def validate_data_from_firestore(self):
         # Determine whether it's using guest.
