@@ -170,7 +170,7 @@ def process(req):
                             table_names_in_redivis = [table.name for table in rs.dataset.list_tables()]
                             table_names_in_gcp_bucket = [name.split('/')[-1].split('.')[0] for name in file_names]
 
-                            exception_tables = ['invalid_data']
+                            exception_tables = ['invalid_data', 'administration_tasks']
                             for table_name in exception_tables:
                                 if table_name in table_names_in_redivis and table_name not in table_names_in_gcp_bucket:
                                     rs.delete_table(table_name=table_name)
