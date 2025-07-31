@@ -52,8 +52,8 @@ class EntityController:
 
         self.valid_user_groups = []
         self.invalid_user_groups = []
-        self.valid_administration_tasks = []
-        self.invalid_administration_tasks = []
+        # self.valid_administration_tasks = []
+        # self.invalid_administration_tasks = []
 
         self.valid_user_assignments = []
         self.invalid_user_assignments = []
@@ -165,7 +165,7 @@ class EntityController:
             'trials': [obj.model_dump() for obj in self.valid_trials],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
+            # 'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
         }
         invalid_data = self.get_invalid_data()
         if invalid_data:
@@ -452,23 +452,6 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_administrations.append({**error, 'id': administration['assignment_id']})
 
-    def set_administration_task(self, administration: dict):
-        administration_id = administration.get('administration_id', None)
-        tasks = administration.get('assessments', [])
-        for task in tasks:
-            task_id = task.get('taskId', None)
-            variant_id = task.get('variantId', None)
-            try:
-                self.valid_administration_tasks.append(
-                    core_models.AdministrationTask(administration_id=administration_id,
-                                                   task_id=task_id,
-                                                   variant_id=variant_id))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_administration_tasks.append(
-                        {**error,
-                         'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})
-
     def set_runs(self, user_id: str, runs: list):
         for run in runs:
             try:
@@ -520,3 +503,20 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_user_assignments.append(
                         {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
+
+    # def set_administration_task(self, administration: dict):
+    #     administration_id = administration.get('administration_id', None)
+    #     tasks = administration.get('assessments', [])
+    #     for task in tasks:
+    #         task_id = task.get('taskId', None)
+    #         variant_id = task.get('variantId', None)
+    #         try:
+    #             self.valid_administration_tasks.append(
+    #                 core_models.AdministrationTask(administration_id=administration_id,
+    #                                                task_id=task_id,
+    #                                                variant_id=variant_id))
+    #         except ValidationError as e:
+    #             for error in e.errors():
+    #                 self.invalid_administration_tasks.append(
+    #                     {**error,
+    #                      'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})
