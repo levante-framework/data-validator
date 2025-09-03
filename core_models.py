@@ -5,15 +5,41 @@ from zoneinfo import ZoneInfo
 import ast
 
 
+class DistrictBase(BaseModel):
+    district_id: str
+    abbreviation: Optional[str] = None
+    name: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class SchoolBase(BaseModel):
+    school_id: str
+    district_id: str
+    abbreviation: Optional[str] = None
+    name: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ClassBase(BaseModel):
+    class_id: str
+    school_id: str
+    district_id: str
+    abbreviation: Optional[str] = None
+    name: str
+    grade: Optional[Union[str, int]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 class GroupBase(BaseModel):
     group_id: str
     name: str
     abbreviation: Optional[str] = None
     tags: Optional[str] = None
-
-
-class LevanteGroup(GroupBase):
     created_at: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
 
 
 class TaskBase(BaseModel):
@@ -307,19 +333,6 @@ class AdministrationBase(BaseModel):
     date_opened: datetime
 
 
-class AdministrationTask(BaseModel):
-    administration_id: str
-    task_id: str
-    variant_id: Optional[str] = None
-
-
-class UserAssignment(BaseModel):
-    user_id: str
-    assignment_id: str
-    started: bool
-    date_time: datetime
-
-
 class UserClass(BaseModel):
     user_id: str
     class_id: str
@@ -332,127 +345,14 @@ class UserGroup(BaseModel):
     is_active: bool
 
 
-class DistrictBase(BaseModel):
-    district_id: str
-    name: str
-    district_contact: Optional[dict] = None
-    last_sync: Optional[datetime] = None
-    launch_date: Optional[datetime] = None
+class AdministrationTask(BaseModel):
+    administration_id: str
+    task_id: str
+    variant_id: Optional[str] = None
 
 
-class RoarDistrict(DistrictBase):
-    abbreviation: Optional[str] = None
-    clever: Optional[bool] = None
-    current_activation_code: Optional[str] = None
-    valid_activation_codes: Optional[list] = None
-    portal_url: Optional[str] = None
-    login_methods: Optional[list] = None
-    mdr_number: Optional[str] = None
-    pause_end_date: Optional[datetime] = None
-    pause_start_date: Optional[datetime] = None
-    schools: Optional[list] = None
-    sis_type: Optional[str] = None
-    last_updated: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-    tags: Optional[list] = None
-
-
-class SchoolBase(BaseModel):
-    school_id: str
-    district_id: str
-    name: str
-    school_number: Optional[str] = None
-    state_id: Optional[str] = None
-    high_grade: Optional[Union[int, str]] = None
-    low_grade: Optional[Union[int, str]] = None
-    location: Optional[dict] = None
-    phone: Optional[str] = None
-    principal: Optional[dict] = None
-    created: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-
-
-class RoarSchool(SchoolBase):
-    abbreviation: Optional[str] = None
-    clever: Optional[bool] = None
-    current_activation_code: Optional[str] = None
-    valid_activation_codes: Optional[list] = None
-    mdr_number: Optional[str] = None
-    nces_id: Optional[str] = None
-    last_updated: Optional[datetime] = None
-    tags: Optional[list] = None
-
-
-class ClassBase(BaseModel):
-    class_id: str
-    school_id: str
-    district_id: str
-    name: str
-    subject: Optional[str] = None
-    grade: Optional[Union[str, int]] = None
-    created: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-
-
-class RoarClass(ClassBase):
-    abbreviation: Optional[str] = None
-    class_link: Optional[bool] = None
-    class_link_app_id: Optional[str] = None
-    current_activation_code: Optional[str] = None
-    valid_activation_codes: Optional[list] = None
-    grades: Optional[list] = None
-    section_number: Optional[str] = None
-    last_updated: Optional[datetime] = None
-    tags: Optional[list] = None
-
-
-class RoarGroup(GroupBase):
-    last_updated: Optional[datetime] = None
-    last_modified: Optional[datetime] = None
-    current_activation_code: Optional[str] = None
-    valid_activation_codes: Optional[list] = None
-
-
-class RoarTask(TaskBase):
-    game_config: Optional[dict] = None
-    image_url: Optional[str] = None
-    tutorial_video_url: Optional[str] = None
-    registered: Optional[bool] = None
-
-
-class RoarTrial(TrialBase):
-    trial_type: Optional[str] = None
-    # All other trial level data attributes
-    trial_attributes: Optional[dict] = None
-
-
-class RoarRun(RunBase):
-    scores: Optional[dict] = None
-    user_data: Optional[dict] = None
-    read_orgs: Optional[dict] = None
-    tags: Optional[list] = None
-
-
-class RoarUser(UserBase):
-    archived: Optional[bool] = None
-    classes: Optional[dict] = None
-    districts: Optional[dict] = None
-    families: Optional[dict] = None
-    grade: Optional[str] = None
-    groups: Optional[dict] = None
-    lab_id: Optional[str] = None
-    name: Optional[dict] = None
-    schools: Optional[dict] = None
-    student_data: Optional[dict] = None
-    legal: Optional[dict] = None
-    school_level: Optional[str] = None
-    user_type: Optional[str] = None
-    username: Optional[str] = None
-
-
-class RoarAdministration(AdministrationBase):
-    assessments: Optional[list] = None
-    districts: Optional[list] = None
-    schools: Optional[list] = None
-    classes: Optional[list] = None
-    families: Optional[list] = None
+class UserAssignment(BaseModel):
+    user_id: str
+    assignment_id: str
+    started: bool
+    date_time: datetime

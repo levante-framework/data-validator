@@ -52,16 +52,28 @@ class EntityController:
 
         self.valid_user_groups = []
         self.invalid_user_groups = []
+        self.valid_user_classes = []
+        self.invalid_user_classes = []
+
         # self.valid_administration_tasks = []
         # self.invalid_administration_tasks = []
-
-        self.valid_user_assignments = []
-        self.invalid_user_assignments = []
+        # self.valid_user_assignments = []
+        # self.invalid_user_assignments = []
 
     def adding_schema_row_to_data(self):
+        if self.valid_districts:
+            self.valid_districts.append(
+                core_models.DistrictBase(district_id='schema_row', name='schema_row', abbreviation='',
+                                         created_at=now_utc, updated_at=now_utc))
+        if self.valid_schools:
+            self.valid_schools.append(core_models.SchoolBase(school_id='schema_row', name='schema_row', abbreviation='',
+                                                             created_at=now_utc, updated_at=now_utc))
+        if self.valid_classes:
+            self.valid_classes.append(core_models.ClassBase(class_id='schema_row', name='schema_row', abbreviation='',
+                                                            created_at=now_utc, updated_at=now_utc))
         if self.valid_groups:
-            self.valid_groups.append(core_models.LevanteGroup(group_id='schema_row', name='schema_row', abbreviation='',
-                                                              tags='', created_at=now_utc))
+            self.valid_groups.append(core_models.GroupBase(group_id='schema_row', name='schema_row', abbreviation='',
+                                                           tags='', created_at=now_utc, updated_at=now_utc))
         if self.valid_tasks:
             self.valid_tasks.append(core_models.TaskBase(task_id='schema_row', name='schema_row', description='',
                                                          last_updated=now_utc))
@@ -122,7 +134,8 @@ class EntityController:
                 self.process_districts()
                 self.process_schools()
                 self.process_classes()
-            elif self.org.filters.org_filter.key == 'groups' or not self.org.filters.org_filter:
+                self.process_groups()
+            elif self.org.filters.org_filter.key == 'groups':
                 self.process_groups()
 
             self.process_administration()
@@ -203,13 +216,6 @@ class EntityController:
 
         return invalid_list
 
-    def process_groups(self):
-        logging.info("Now Validating Groups...")
-
-        groups = fs.get_groups(date_filter=self.org.filters.date_filter, group_filter=self.org.filters.org_filter.value)
-
-        self.set_groups(groups=groups)
-
     def process_districts(self):
         logging.info("Now Validating Districts...")
 
@@ -221,16 +227,29 @@ class EntityController:
     def process_schools(self):
         logging.info("Now Validating Schools...")
 
-        schools = fs.get_schools(district_id=self.valid_districts[0].district_id)
+        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
 
         self.set_schools(schools=schools)
 
     def process_classes(self):
         logging.info("Now Validating Classes...")
 
-        classes = fs.get_classes(district_id=self.valid_districts[0].district_id)
+        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools])
 
         self.set_classes(classes=classes)
+
+    def process_groups(self):
+        logging.info("Now Validating Groups...")
+
+        if self.org.filters.org_filter == 'districts':
+            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
+        elif self.org.filters.org_filter == 'groups':
+            groups = fs.get_groups_by_group_names(date_filter=self.org.filters.date_filter,
+                                                  group_names_list=self.org.filters.org_filter.value)
+        else:
+            groups = []
+
+        self.set_groups(groups=groups)
 
     def process_administration(self):
         logging.info("Now Validating Administration and AdministrationTasks...")
@@ -320,12 +339,7 @@ class EntityController:
     def set_groups(self, groups: list):
         for group in groups:
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    group = core_models.LevanteGroup(**group)
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    group = core_models.RoarGroup(**group)
-                else:
-                    group = core_models.GroupBase(**group)
+                group = core_models.GroupBase(**group)
                 self.valid_groups.append(group)
 
             except ValidationError as e:
@@ -365,12 +379,7 @@ class EntityController:
     def set_tasks(self, tasks: list):
         for task in tasks:
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    task = core_models.TaskBase(**task)
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    task = core_models.RoarTask(**task)
-                else:
-                    task = core_models.TaskBase(**task)
+                task = core_models.TaskBase(**task)
                 self.valid_tasks.append(task)
             except ValidationError as e:
                 for error in e.errors():
@@ -379,13 +388,7 @@ class EntityController:
     def set_variants(self, variants: list, task_id: str):
         for variant in variants:
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    variant = core_models.VariantBase(**variant)
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    variant = core_models.VariantBase(**variant)
-                else:
-                    variant = core_models.VariantBase(**variant)
-
+                variant = core_models.VariantBase(**variant)
                 self.valid_variants.append(variant)
             except ValidationError as e:
                 for error in e.errors():
@@ -399,12 +402,10 @@ class EntityController:
                 if settings.config['INSTANCE'] == 'LEVANTE':
                     core_models.LevanteUser.set_valid_groups(self.valid_groups)
                     user = core_models.LevanteUser(**user)
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    user = core_models.UserBase(**user)
                 else:
                     user = core_models.UserBase(**user)
                 self.valid_users.append(user)
-                self.set_user_group(user=user_dict)
+                self.set_user_group_class(user=user_dict)
 
             except ValidationError as e:
                 for error in e.errors():
@@ -419,11 +420,15 @@ class EntityController:
                     self.invalid_survey_responses.append(
                         {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response['survey_response_id']}"})
 
-    def set_user_group(self, user: dict):
+    def set_user_group_class(self, user: dict):
         user_id = user.get('user_id', None)
         user_groups = user.get('groups', {})
         all_groups = user_groups.get('all', [])
         current_groups = user_groups.get('current', [])
+
+        user_classes = user.get('classes', {})
+        all_classes = user_classes.get('all', [])
+        current_classes = user_classes.get('current', [])
 
         def append_to_groups(group_id, is_active):
             try:
@@ -436,12 +441,22 @@ class EntityController:
                     self.invalid_user_groups.append(
                         {**error, 'id': f"user_id: {user_id}, group_id: {group_id}"})
 
-        if self.org.is_guest:
-            append_to_groups(self.org.org_id, True)  # Guest users are always active in their org group
-        else:
+        def append_to_classes(class_id, is_active):
+            try:
+                self.valid_user_classes.append(core_models.UserClass(
+                    user_id=user_id,
+                    class_id=class_id,
+                    is_active=is_active))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_user_classes.append(
+                        {**error, 'id': f"user_id: {user_id}, class_id: {class_id}"})
+
+        if not self.org.is_guest:
             for group in all_groups:
-                append_to_groups(group,
-                                 group in current_groups)  # Set is_active based on presence in current_groups
+                append_to_groups(group, group in current_groups)  # Set is_active based on presence in current_groups
+            for classes in all_classes:
+                append_to_classes(classes, classes in current_classes)
 
     def set_administrations(self, administrations: list):
         for administration in administrations:
@@ -457,8 +472,6 @@ class EntityController:
             try:
                 if settings.config['INSTANCE'] == 'LEVANTE':
                     self.valid_runs.append(core_models.LevanteRun(**run))
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    self.valid_runs.append(core_models.RoarRun(**run))
                 else:
                     self.valid_trials.append(core_models.RunBase(**run))
             except ValidationError as e:
@@ -476,8 +489,6 @@ class EntityController:
                     # Execute action based on the condition
                     if is_test_trial:
                         run.add_non_practice_trials(trial_model)
-                elif settings.config['INSTANCE'] == 'ROAR':
-                    trial_model = core_models.RoarTrial(**trial)
                 else:
                     trial_model = core_models.TrialBase(**trial)
                 self.valid_trials.append(trial_model)
@@ -488,21 +499,21 @@ class EntityController:
                         {**error,
                          'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}, task_id:{trial.get('task_id', None)}"})
 
-    def set_user_assignment(self, user: dict):
-        user_id = user.get('user_id', None)
-        assignments_assigned = user.get('assignmentsAssigned', {})
-        assignments_started = user.get('assignmentsStarted', {})
-        for key, value in assignments_assigned.items():
-            try:
-                self.valid_user_assignments.append(core_models.UserAssignment(
-                    user_id=user_id,
-                    assignment_id=key,
-                    started=True if key in assignments_started.keys() else False,
-                    date_time=value))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_assignments.append(
-                        {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
+    # def set_user_assignment(self, user: dict):
+    #     user_id = user.get('user_id', None)
+    #     assignments_assigned = user.get('assignmentsAssigned', {})
+    #     assignments_started = user.get('assignmentsStarted', {})
+    #     for key, value in assignments_assigned.items():
+    #         try:
+    #             self.valid_user_assignments.append(core_models.UserAssignment(
+    #                 user_id=user_id,
+    #                 assignment_id=key,
+    #                 started=True if key in assignments_started.keys() else False,
+    #                 date_time=value))
+    #         except ValidationError as e:
+    #             for error in e.errors():
+    #                 self.invalid_user_assignments.append(
+    #                     {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
 
     # def set_administration_task(self, administration: dict):
     #     administration_id = administration.get('administration_id', None)

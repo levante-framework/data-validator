@@ -102,44 +102,6 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
-    def get_groups(self, date_filter: utils.DateFilter, group_filter):
-        result = []
-        try:
-            docs = (self.admin_db.collection('groups')
-                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                    .get())
-            for doc in docs:
-                doc_dict = doc.to_dict()  # Convert the document to a dictionary
-                name = doc_dict.get('name', None)
-                tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
-                if not group_filter or name in group_filter:
-                    doc_dict.update({
-                        'group_id': doc.id,
-                        'tags': tags
-                    })
-                    converted_doc_dict = utils.process_doc_dict(doc_dict=doc_dict)
-                    result.append(converted_doc_dict)
-        except Exception as e:
-            logging.error(f"Error in get_groups: {e}")
-        return result
-
-    def get_districts(self, lab_id: str):
-        # Does not need to be chunked since districts are unique
-        try:
-            doc = self.admin_db.collection('districts').document(lab_id).get()
-            doc_dict = doc.to_dict()
-            doc_dict.update({
-                'district_id': doc.id,
-            })
-            # Convert camelCase to snake_case and handle NaN values
-            converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-            # Return a list of dictionaries for EntityController functions to loop through
-            return [converted_doc_dict]
-        except Exception as e:
-            logging.error(f"Error in get_districts: {e}")
-            return {}
-
     def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list = None):
         result = []
         try:
@@ -160,67 +122,135 @@ class FirestoreServices:
             print(f"Error in get_districts_by_district_name_list: {e}")
         return result
 
-    def get_schools(self, district_id: str, chunk_size=100):
-        last_doc = None
-        total_docs = self.admin_db.collection('schools').where('districtId', '==', district_id).get()
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                query = (self.admin_db.collection('schools')
-                         .where('districtId', '==', district_id)
-                         .limit(chunk_size))
-                if last_doc:
-                    query = query.start_after(last_doc)
-                docs = query.get()
-                if not docs:
+    def get_groups_by_group_names(self, date_filter: utils.DateFilter, group_names_list: list):
+        result = []
+        try:
+            docs = (self.admin_db.collection('groups')
+                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                    .get())
+
+            for doc in docs:
+                doc_dict = doc.to_dict()  # Convert the document to a dictionary
+                name = doc_dict.get('name', None)
+                tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
+                if name in group_names_list:
+                    doc_dict.update({
+                        'group_id': doc.id,
+                        'tags': tags
+                    })
+                    converted_doc_dict = utils.process_doc_dict(doc_dict=doc_dict)
+                    result.append(converted_doc_dict)
+
+        except Exception as e:
+            logging.error(f"Error in get_groups: {e}")
+        return result
+
+    def get_groups_by_district_ids(self, district_ids: list, chunk_size=100):
+        def process_docs(query):
+            last_doc = None
+            total_docs = query.get()
+            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+            current_chunk = 0
+            while True:
+                try:
+                    query = query.limit(chunk_size)
+                    if last_doc:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+                    if not docs:
+                        break
+                    current_chunk += 1
+                    logging.info(f"Setting groups... processing chunk {current_chunk} of {total_chunks} groups chunks.")
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
+                        doc_dict.update({
+                            'group_id': doc.id,
+                            'tags': tags
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+                    last_doc = docs[-1]
+                except Exception as e:
+                    logging.error(f"Error in get_groups_by_district_id for {query}: {e}")
                     break
 
-                current_chunk += 1
-                logging.info(f"Setting schools... processing chunk {current_chunk} of {total_chunks} school chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'school_id': doc.id,
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_schools: {e}")
-                break
+        for district_id in district_ids:
+            base_query = (self.admin_db.collection('groups')
+                          .where('parentOrgType', '==', 'districts')
+                          .where('parentOrgId', '==', district_id))
+            yield from process_docs(base_query)
 
-    def get_classes(self, district_id: str, chunk_size=100):
-        last_doc = None
-        total_docs = self.admin_db.collection('classes').where('districtId', '==', district_id).get()
-        total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        current_chunk = 0
-        while True:
-            try:
-                query = (self.admin_db.collection('classes')
-                         .where('districtId', '==', district_id)
-                         .limit(chunk_size))
-                if last_doc:
-                    query = query.start_after(last_doc)
-                docs = query.get()
-                if not docs:
+    def get_schools_by_district_ids(self, district_ids: list, chunk_size=100):
+        def process_docs(query):
+            last_doc = None
+            total_docs = query.get()
+            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+            current_chunk = 0
+            while True:
+                try:
+                    query = query.limit(chunk_size)
+                    if last_doc:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+                    if not docs:
+                        break
+                    current_chunk += 1
+                    logging.info(
+                        f"Setting schools... processing chunk {current_chunk} of {total_chunks} school chunks.")
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        doc_dict.update({
+                            'school_id': doc.id,
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+                    last_doc = docs[-1]
+                except Exception as e:
+                    logging.error(f"Error in get_schools_by_district_ids for {query}: {e}")
                     break
 
-                current_chunk += 1
-                logging.info(f"Setting classes... processing chunk {current_chunk} of {total_chunks} class chunks.")
-                for doc in docs:
-                    doc_dict = doc.to_dict()
-                    doc_dict.update({
-                        'class_id': doc.id,
-                    })
-                    # Convert camelCase to snake_case and handle NaN values
-                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                    yield converted_doc_dict
-                last_doc = docs[-1]
-            except Exception as e:
-                logging.error(f"Error in get_classes: {e}")
-                break
+        for district_id in district_ids:
+            base_query = (self.admin_db.collection('schools')
+                          .where('districtId', '==', district_id))
+            yield from process_docs(base_query)
+
+    def get_classes_by_school_ids(self, school_ids: list, chunk_size=100):
+        def process_docs(query):
+            last_doc = None
+            total_docs = query.get()
+            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+            current_chunk = 0
+            while True:
+                try:
+                    query = query.limit(chunk_size)
+                    if last_doc:
+                        query = query.start_after(last_doc)
+                    docs = query.get()
+                    if not docs:
+                        break
+                    current_chunk += 1
+                    logging.info(f"Setting classes... processing chunk {current_chunk} of {total_chunks} class chunks.")
+                    for doc in docs:
+                        doc_dict = doc.to_dict()
+                        doc_dict.update({
+                            'class_id': doc.id,
+                        })
+                        # Convert camelCase to snake_case and handle NaN values
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        yield converted_doc_dict
+                    last_doc = docs[-1]
+                except Exception as e:
+                    logging.error(f"Error in get_classes_by_school_ids: {e}")
+                    break
+
+        for school_id in school_ids:
+            base_query = (self.admin_db.collection('classes')
+                          .where('schoolId', '==', school_id))
+            yield from process_docs(base_query)
 
     def get_tasks(self, task_filter: list, chunk_size=100):
         last_doc = None
@@ -722,3 +752,19 @@ class FirestoreServices:
 
 
 firestore_services = FirestoreServices()
+
+# def get_districts(self, lab_id: str):
+#     # Does not need to be chunked since districts are unique
+#     try:
+#         doc = self.admin_db.collection('districts').document(lab_id).get()
+#         doc_dict = doc.to_dict()
+#         doc_dict.update({
+#             'district_id': doc.id,
+#         })
+#         # Convert camelCase to snake_case and handle NaN values
+#         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+#         # Return a list of dictionaries for EntityController functions to loop through
+#         return [converted_doc_dict]
+#     except Exception as e:
+#         logging.error(f"Error in get_districts: {e}")
+#         return {}
