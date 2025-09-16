@@ -1,7 +1,7 @@
 from google.cloud import firestore
 from google.oauth2 import service_account
 from secret_services import secret_service
-
+from google.cloud.firestore_v1.base_query import FieldFilter, Or
 import pytz
 from copy import deepcopy
 
@@ -102,7 +102,7 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
-    def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list = None):
+    def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list):
         result = []
         try:
             docs = (self.admin_db.collection('districts')
@@ -112,7 +112,7 @@ class FirestoreServices:
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 name = doc_dict.get('name', None)
-                if not district_name_list or name in district_name_list:
+                if name in district_name_list:
                     doc_dict.update({
                         'district_id': doc.id,
                     })
@@ -182,6 +182,25 @@ class FirestoreServices:
                           .where('parentOrgType', '==', 'districts')
                           .where('parentOrgId', '==', district_id))
             yield from process_docs(base_query)
+        # result = []
+        # for district_id in district_ids:
+        #     try:
+        #         docs = (self.admin_db.collection('groups')
+        #                   .where('parentOrgType', '==', 'districts')
+        #                   .where('parentOrgId', '==', district_id)
+        #                   .get())
+        #         for doc in docs:
+        #             doc_dict = doc.to_dict()  # Convert the document to a dictionary
+        #             tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
+        #             doc_dict.update({
+        #                 'group_id': doc.id,
+        #                 'tags': tags
+        #             })
+        #             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+        #             result.append(converted_doc_dict)
+        #     except Exception as e:
+        #         print(f"Error in get_groups_by_district_ids: {e}")
+        # return result
 
     def get_schools_by_district_ids(self, district_ids: list, chunk_size=100):
         def process_docs(query):
@@ -318,15 +337,26 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, date_filter: utils.DateFilter, org_filter: utils.OrgFilter, org_ids, chunk_size=100):
+    def get_administrations(self, date_filter: utils.DateFilter, group_ids, district_ids, school_ids, chunk_size=100):
         base_query = self.admin_db.collection('administrations')
         # Apply the date range filters
         base_query = base_query.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
         base_query = base_query.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
+        filters = []
+        if group_ids:  # not None and not empty
+            filters.append(FieldFilter("minimalOrgs.groups", "array_contains_any", group_ids))
+        if district_ids:
+            filters.append(FieldFilter("minimalOrgs.districts", "array_contains_any", district_ids))
+        if school_ids:
+            filters.append(FieldFilter("minimalOrgs.schools", "array_contains_any", school_ids))
         # Apply the org range filters
-        if org_filter.key:
-            if org_filter.operator == "array_contains_any":
-                base_query = base_query.where(f"minimalOrgs.{org_filter.key}", org_filter.operator, org_ids)
+        # if org_filter.key:
+        #     if org_filter.operator == "array_contains_any":
+        #         base_query = base_query.where(f"minimalOrgs.{org_filter.key}", org_filter.operator, org_ids)
+        if len(filters) == 1:
+            base_query = base_query.where(filter=filters[0])
+        elif len(filters) > 1:
+            base_query = base_query.where(filter=Or(filters))
         base_query = base_query.order_by('dateCreated')
 
         def process_docs(query):

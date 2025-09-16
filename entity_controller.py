@@ -119,7 +119,7 @@ class EntityController:
                                          answer='', response='', correct=False,
                                          difficulty=0.0001, response_source='', time_elapsed=0,
                                          rt='', server_timestamp=now_utc, is_practice_trial=False,
-                                         corpus_trial_type='',
+                                         corpus_trial_type='', corpus_id='schema_row',
                                          response_type='', response_location='',
                                          distractors='', theta_estimate=0.0001,
                                          theta_estimate2=0.0001,
@@ -169,6 +169,9 @@ class EntityController:
 
     def get_validated_data(self):
         data = {
+            'districts': [obj.model_dump() for obj in self.valid_districts],
+            'schools': [obj.model_dump() for obj in self.valid_schools],
+            'classes': [obj.model_dump() for obj in self.valid_classes],
             'groups': [obj.model_dump() for obj in self.valid_groups],
             'administrations': [obj.model_dump() for obj in self.valid_administrations],
             'tasks': [obj.model_dump() for obj in self.valid_tasks],
@@ -178,7 +181,7 @@ class EntityController:
             'trials': [obj.model_dump() for obj in self.valid_trials],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            # 'administration_tasks': [obj.model_dump() for obj in self.valid_administration_tasks],
+            'user_classes': [obj.model_dump() for obj in self.valid_user_classes],
         }
         invalid_data = self.get_invalid_data()
         if invalid_data:
@@ -241,9 +244,9 @@ class EntityController:
     def process_groups(self):
         logging.info("Now Validating Groups...")
 
-        if self.org.filters.org_filter == 'districts':
+        if self.org.filters.org_filter.key == 'districts':
             groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
-        elif self.org.filters.org_filter == 'groups':
+        elif self.org.filters.org_filter.key == 'groups':
             groups = fs.get_groups_by_group_names(date_filter=self.org.filters.date_filter,
                                                   group_names_list=self.org.filters.org_filter.value)
         else:
@@ -252,19 +255,19 @@ class EntityController:
         self.set_groups(groups=groups)
 
     def process_administration(self):
-        logging.info("Now Validating Administration and AdministrationTasks...")
+        logging.info("Now Validating Administrations...")
 
-        if self.org.filters.org_filter.key == 'groups':
-            org_ids = [group.group_id for group in self.valid_groups]
-        elif self.org.filters.org_filter.key == 'districts':
-            org_ids = [district.district_id for district in self.valid_districts]
-        else:
-            org_ids = []
+        group_ids = [group.group_id for group in self.valid_groups]
+        district_ids = [district.district_id for district in self.valid_districts]
+        school_ids = [schools.school_id for schools in self.valid_schools]
         administrations = fs.get_administrations(date_filter=self.org.filters.date_filter,
-                                                 org_filter=self.org.filters.org_filter,
-                                                 org_ids=org_ids)
-
+                                                 group_ids=group_ids,
+                                                 district_ids=district_ids,
+                                                 school_ids=school_ids)
         self.set_administrations(administrations=administrations)
+        # input(f"districts: {[f"{d.name}+{d.district_id}" for d in self.valid_districts]}")
+        # input(f"groups: {[f"{g.name}+{g.group_id}" for g in self.valid_groups]}")
+        # input(f"admins: {[f"{a.name}+{a.administration_id}" for a in self.valid_administrations]}")
 
     def process_tasks_variants(self):
         logging.info("Now Validating Tasks and Variants...")

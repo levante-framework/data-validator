@@ -3,6 +3,7 @@ from typing import Optional, Union, List, Set, Any, Literal
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import ast
+from scipy.stats import binom
 
 
 class DistrictBase(BaseModel):
@@ -99,6 +100,7 @@ class TrialBase(BaseModel):
 
 class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
+    corpus_id: Optional[str] = None
     corpus_trial_type: Optional[Any] = None
     response_type: Optional[str] = None
     response_location: Optional[Any] = None
@@ -193,8 +195,46 @@ class LevanteRun(RunBase):
     valid_run: Optional[bool] = None
     validation_msg_run: Optional[str] = None
     warning_msg_run: Optional[str] = None
+    # bc_score: Optional[str] = None  # e.g., "3/12"
+    # bc_p_below: Optional[float] = None  # one-tailed p-value P[X <= k]
+    # flag_below_chance_0p05: Optional[bool] = None  # True if p <= .05
 
     _non_practice_trials: Optional[list[LevanteTrial]] = []
+
+    def compute_below_chance_flags_scipy(
+            self,
+            *,
+            default_afc: int = 4,  # 4AFC ⇒ chance p = 0.25
+            alpha: float = 0.05,  # flag threshold
+            min_trials: int = 8  # avoid noisy flags on tiny runs
+    ) -> None:
+        """
+        Compute a one-tailed binomial 'below-chance' p-value from this run's trials
+        and populate three lean fields: bc_score, bc_p_below, flag_below_chance_0p05.
+
+        Uses: self._non_practice_trials (Iterable of trial objects with .correct: bool)
+        """
+
+        trials = self._non_practice_trials or []
+        n = len(trials)
+        k = sum(1 for t in trials if getattr(t, "correct", None) is True)
+
+        # 3 lean columns
+        self.bc_score = f"{k}/{n}"
+        self.bc_p_below = None
+        self.flag_below_chance_0p05 = None
+
+        # Not enough data? leave as None
+        if n <= 0 or n < min_trials:
+            return
+
+        # Resolve chance level (4AFC by default). Replace with self.task_afc / self.n_options if you store them.
+        afc = default_afc
+        p = 1.0 / float(afc)
+
+        # One-tailed p-value: P[X <= k] for X ~ Binom(n, p)
+        self.bc_p_below = float(binom.cdf(k, n, p))
+        self.flag_below_chance_0p05 = (self.bc_p_below <= alpha)
 
     def add_non_practice_trials(self, trial: LevanteTrial):
         self._non_practice_trials.append(trial)
@@ -242,15 +282,11 @@ class LevanteRun(RunBase):
         self.valid_run = True if not self.validation_msg_run else False
         return self
 
-    # def update_system_info(self):
-    #     self.migration_datetime = datetime.now(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
-    #     self.api_version = settings.config['VERSION']
-    #     return self
-
     def validate_trials_in_run(self):
         self.check_non_practice_trials_count()
         self.check_straight_line_trials()
         self.update_valid_run()
+        # self.compute_below_chance_flags_scipy()
 
 
 class UserBase(BaseModel):
@@ -278,7 +314,7 @@ class LevanteUser(UserBase):
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
 
     @classmethod
-    def set_valid_groups(cls, groups: List[LevanteGroup]):
+    def set_valid_groups(cls, groups: List[GroupBase]):
         cls._valid_group_ids = {group.group_id for group in groups}
 
     @model_validator(mode='after')
