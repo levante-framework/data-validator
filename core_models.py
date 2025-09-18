@@ -3,7 +3,7 @@ from typing import Optional, Union, List, Set, Any, Literal
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import ast
-from scipy.stats import binom
+from scipy.stats import binom, binomtest
 
 
 class DistrictBase(BaseModel):
@@ -233,7 +233,7 @@ class LevanteRun(RunBase):
         p = 1.0 / float(afc)
 
         # One-tailed p-value: P[X <= k] for X ~ Binom(n, p)
-        self.bc_p_below = float(binom.cdf(k, n, p))
+        self.bc_p_below = float(binomtest(k, n, p, alternative='less').pvalue)
         self.flag_below_chance_0p05 = (self.bc_p_below <= alpha)
 
     def add_non_practice_trials(self, trial: LevanteTrial):

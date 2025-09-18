@@ -3,6 +3,7 @@ from google.oauth2 import service_account
 from secret_services import secret_service
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 import pytz
+from itertools import islice
 from copy import deepcopy
 
 import utils
@@ -46,9 +47,14 @@ def convert_to_integer(variable):
 
 
 # Helper function to split the list into chunks of max 30 items
-def chunked_list(lst, n):
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+
+def chunked(iterable):
+    it = iter(iterable)
+    while True:
+        chunk = list(islice(it, 30))
+        if not chunk:
+            break
+        yield chunk
 
 
 class FirestoreServices:
@@ -179,7 +185,6 @@ class FirestoreServices:
 
         for district_id in district_ids:
             base_query = (self.admin_db.collection('groups')
-                          .where('parentOrgType', '==', 'districts')
                           .where('parentOrgId', '==', district_id))
             yield from process_docs(base_query)
         # result = []
@@ -338,65 +343,113 @@ class FirestoreServices:
                 break
 
     def get_administrations(self, date_filter: utils.DateFilter, group_ids, district_ids, school_ids, chunk_size=100):
-        base_query = self.admin_db.collection('administrations')
-        # Apply the date range filters
-        base_query = base_query.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
-        base_query = base_query.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
-        filters = []
-        if group_ids:  # not None and not empty
-            filters.append(FieldFilter("minimalOrgs.groups", "array_contains_any", group_ids))
-        if district_ids:
-            filters.append(FieldFilter("minimalOrgs.districts", "array_contains_any", district_ids))
-        if school_ids:
-            filters.append(FieldFilter("minimalOrgs.schools", "array_contains_any", school_ids))
-        # Apply the org range filters
-        # if org_filter.key:
-        #     if org_filter.operator == "array_contains_any":
-        #         base_query = base_query.where(f"minimalOrgs.{org_filter.key}", org_filter.operator, org_ids)
-        if len(filters) == 1:
-            base_query = base_query.where(filter=filters[0])
-        elif len(filters) > 1:
-            base_query = base_query.where(filter=Or(filters))
-        base_query = base_query.order_by('dateCreated')
+        base = self.admin_db.collection('administrations')
+        base = base.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
+        base = base.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
+        base = base.order_by('dateCreated')
 
         def process_docs(query):
             last_doc = None
-            total_docs = query.get()
-            total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-            current_chunk = 0
-
             while True:
                 try:
-                    query = query.limit(chunk_size)
+                    q = query.limit(chunk_size)
                     if last_doc:
-                        query = query.start_after(last_doc)
-                    docs = query.get()
+                        q = q.start_after(last_doc)
+                    docs = q.get()
                     if not docs:
                         break
-                    current_chunk += 1
-                    logging.info(
-                        f"Getting administrations... processing chunk {current_chunk} of {total_chunks} administration chunks.")
                     for doc in docs:
-                        doc_dict = doc.to_dict()
-                        # if org_filter.key and org_filter.operator and org_filter.value:
-                        #     if org_filter.org_operator == "array_contains_any":
-                        #         org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_filter.key, [])
-                        #         if not org_value_firebase:
-                        #             continue  # Skip this document if the filter condition is not met
-                        #         elif set(org_value).isdisjoint(org_value_firebase):
-                        #             continue
-                        doc_dict.update({
-                            'administration_id': doc.id,
-                        })
-                        # Convert camelCase to snake_case and handle NaN values
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                        yield converted_doc_dict
+                        d = doc.to_dict()
+                        d.update({'administration_id': doc.id})
+                        yield process_doc_dict(doc_dict=d)
                     last_doc = docs[-1]
                 except Exception as e:
                     logging.error(f"Error in get_administrations: {e}")
                     break
+            # Build per-field chunked queries (<=30 values each)
 
-        yield from process_docs(query=base_query)
+        queries = []
+
+        if group_ids:
+            for chunk in chunked(group_ids):
+                queries.append(base.where(filter=FieldFilter("minimalOrgs.groups", "array_contains_any", chunk)))
+
+        if district_ids:
+            for chunk in chunked(district_ids):
+                queries.append(base.where(filter=FieldFilter("minimalOrgs.districts", "array_contains_any", chunk)))
+
+        if school_ids:
+            for chunk in chunked(school_ids):
+                queries.append(base.where(filter=FieldFilter("minimalOrgs.schools", "array_contains_any", chunk)))
+
+        # If no org filters provided, run the base query once
+        if not queries:
+            queries = [base]
+
+        # Run each query and de-dupe by doc id
+        seen = set()
+        for q in queries:
+            for row in process_docs(q):
+                doc_id = row.get('administration_id')
+                if doc_id in seen:
+                    continue
+                seen.add(doc_id)
+                yield row
+        # base_query = self.admin_db.collection('administrations')
+        # # Apply the date range filters
+        # base_query = base_query.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
+        # base_query = base_query.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
+        # filters = []
+        # if group_ids:  # not None and not empty
+        #     filters.append(FieldFilter("minimalOrgs.groups", "array_contains_any", group_ids))
+        # if district_ids:
+        #     filters.append(FieldFilter("minimalOrgs.districts", "array_contains_any", district_ids))
+        # if school_ids:
+        #     filters.append(FieldFilter("minimalOrgs.schools", "array_contains_any", school_ids))
+        # if len(filters) == 1:
+        #     base_query = base_query.where(filter=filters[0])
+        # elif len(filters) > 1:
+        #     base_query = base_query.where(filter=Or(filters))
+        # base_query = base_query.order_by('dateCreated')
+        #
+        # def process_docs(query):
+        #     last_doc = None
+        #     total_docs = query.get()
+        #     total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
+        #     current_chunk = 0
+        #
+        #     while True:
+        #         try:
+        #             query = query.limit(chunk_size)
+        #             if last_doc:
+        #                 query = query.start_after(last_doc)
+        #             docs = query.get()
+        #             if not docs:
+        #                 break
+        #             current_chunk += 1
+        #             logging.info(
+        #                 f"Getting administrations... processing chunk {current_chunk} of {total_chunks} administration chunks.")
+        #             for doc in docs:
+        #                 doc_dict = doc.to_dict()
+        #                 # if org_filter.key and org_filter.operator and org_filter.value:
+        #                 #     if org_filter.org_operator == "array_contains_any":
+        #                 #         org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_filter.key, [])
+        #                 #         if not org_value_firebase:
+        #                 #             continue  # Skip this document if the filter condition is not met
+        #                 #         elif set(org_value).isdisjoint(org_value_firebase):
+        #                 #             continue
+        #                 doc_dict.update({
+        #                     'administration_id': doc.id,
+        #                 })
+        #                 # Convert camelCase to snake_case and handle NaN values
+        #                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+        #                 yield converted_doc_dict
+        #             last_doc = docs[-1]
+        #         except Exception as e:
+        #             logging.error(f"Error in get_administrations: {e}")
+        #             break
+        #
+        # yield from process_docs(query=base_query)
 
     def get_users(self, is_guest: bool, date_filter: utils.DateFilter, org_filter: utils.OrgFilter, org_ids,
                   user_filter: utils.UserFilter, chunk_size=100):

@@ -66,10 +66,12 @@ class EntityController:
                 core_models.DistrictBase(district_id='schema_row', name='schema_row', abbreviation='',
                                          created_at=now_utc, updated_at=now_utc))
         if self.valid_schools:
-            self.valid_schools.append(core_models.SchoolBase(school_id='schema_row', name='schema_row', abbreviation='',
+            self.valid_schools.append(core_models.SchoolBase(school_id='schema_row', district_id='schema_row',
+                                                             name='schema_row', abbreviation='',
                                                              created_at=now_utc, updated_at=now_utc))
         if self.valid_classes:
-            self.valid_classes.append(core_models.ClassBase(class_id='schema_row', name='schema_row', abbreviation='',
+            self.valid_classes.append(core_models.ClassBase(class_id='schema_row', school_id='schema_row', grade='schema_row',
+                                                            district_id='schema_row', name='schema_row', abbreviation='',
                                                             created_at=now_utc, updated_at=now_utc))
         if self.valid_groups:
             self.valid_groups.append(core_models.GroupBase(group_id='schema_row', name='schema_row', abbreviation='',
