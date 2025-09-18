@@ -369,6 +369,12 @@ class AdministrationBase(BaseModel):
     date_opened: datetime
 
 
+class UserSchool(BaseModel):
+    user_id: str
+    school_id: str
+    is_active: bool
+
+
 class UserClass(BaseModel):
     user_id: str
     class_id: str

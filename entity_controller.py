@@ -54,6 +54,8 @@ class EntityController:
         self.invalid_user_groups = []
         self.valid_user_classes = []
         self.invalid_user_classes = []
+        self.valid_user_schools = []
+        self.invalid_user_schools = []
 
         # self.valid_administration_tasks = []
         # self.invalid_administration_tasks = []
@@ -183,6 +185,7 @@ class EntityController:
             'trials': [obj.model_dump() for obj in self.valid_trials],
             'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
             'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
+            'user_schools': [obj.model_dump() for obj in self.valid_user_schools],
             'user_classes': [obj.model_dump() for obj in self.valid_user_classes],
         }
         invalid_data = self.get_invalid_data()
@@ -200,7 +203,9 @@ class EntityController:
                         + [{**obj, "table_name": "assignments"} for obj in self.invalid_administrations]
                         + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_administrations]
                         + [{**obj, "table_name": "users"} for obj in self.invalid_users]
-                        + [{**obj, "table_name": "user_group"} for obj in self.invalid_user_groups]
+                        + [{**obj, "table_name": "user_groups"} for obj in self.invalid_user_groups]
+                        + [{**obj, "table_name": "user_schools"} for obj in self.invalid_user_schools]
+                        + [{**obj, "table_name": "user_classes"} for obj in self.invalid_user_classes]
                         + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
                         + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
                         + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
@@ -410,7 +415,7 @@ class EntityController:
                 else:
                     user = core_models.UserBase(**user)
                 self.valid_users.append(user)
-                self.set_user_group_class(user=user_dict)
+                self.set_user_joint_table(user=user_dict)
 
             except ValidationError as e:
                 for error in e.errors():
@@ -425,11 +430,15 @@ class EntityController:
                     self.invalid_survey_responses.append(
                         {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response['survey_response_id']}"})
 
-    def set_user_group_class(self, user: dict):
+    def set_user_joint_table(self, user: dict):
         user_id = user.get('user_id', None)
         user_groups = user.get('groups', {})
         all_groups = user_groups.get('all', [])
         current_groups = user_groups.get('current', [])
+
+        user_schools = user.get('schools', {})
+        all_schools = user_schools.get('all', [])
+        current_schools = user_schools.get('current', [])
 
         user_classes = user.get('classes', {})
         all_classes = user_classes.get('all', [])
@@ -446,6 +455,17 @@ class EntityController:
                     self.invalid_user_groups.append(
                         {**error, 'id': f"user_id: {user_id}, group_id: {group_id}"})
 
+        def append_to_schools(school_id, is_active):
+            try:
+                self.valid_user_schools.append(core_models.UserSchool(
+                    user_id=user_id,
+                    school_id=school_id,
+                    is_active=is_active))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_user_schools.append(
+                        {**error, 'id': f"user_id: {user_id}, school_id: {school_id}"})
+
         def append_to_classes(class_id, is_active):
             try:
                 self.valid_user_classes.append(core_models.UserClass(
@@ -460,8 +480,10 @@ class EntityController:
         if not self.org.is_guest:
             for group in all_groups:
                 append_to_groups(group, group in current_groups)  # Set is_active based on presence in current_groups
-            for classes in all_classes:
-                append_to_classes(classes, classes in current_classes)
+            for school in all_schools:
+                append_to_schools(school, school in current_schools)
+            for cla in all_classes:
+                append_to_classes(cla, cla in current_classes)
 
     def set_administrations(self, administrations: list):
         for administration in administrations:
