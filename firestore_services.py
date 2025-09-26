@@ -114,6 +114,7 @@ class FirestoreServices:
             docs = (self.admin_db.collection('districts')
                     .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
                     .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                    .order_by('createdAt')
                     .get())
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -134,6 +135,7 @@ class FirestoreServices:
             docs = (self.admin_db.collection('groups')
                     .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
                     .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                    .order_by('createdAt')
                     .get())
 
             for doc in docs:
@@ -152,7 +154,7 @@ class FirestoreServices:
             logging.error(f"Error in get_groups: {e}")
         return result
 
-    def get_groups_by_district_ids(self, district_ids: list, chunk_size=100):
+    def get_groups_by_district_ids(self, district_ids: list, date_filter: utils.DateFilter, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -185,29 +187,14 @@ class FirestoreServices:
 
         for district_id in district_ids:
             base_query = (self.admin_db.collection('groups')
-                          .where('parentOrgId', '==', district_id))
+                          .where('parentOrgId', '==', district_id)
+                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                          .order_by('createdAt')
+                          )
             yield from process_docs(base_query)
-        # result = []
-        # for district_id in district_ids:
-        #     try:
-        #         docs = (self.admin_db.collection('groups')
-        #                   .where('parentOrgType', '==', 'districts')
-        #                   .where('parentOrgId', '==', district_id)
-        #                   .get())
-        #         for doc in docs:
-        #             doc_dict = doc.to_dict()  # Convert the document to a dictionary
-        #             tags = str(doc_dict.get('tags')) if doc_dict.get('tags', []) else None
-        #             doc_dict.update({
-        #                 'group_id': doc.id,
-        #                 'tags': tags
-        #             })
-        #             converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-        #             result.append(converted_doc_dict)
-        #     except Exception as e:
-        #         print(f"Error in get_groups_by_district_ids: {e}")
-        # return result
 
-    def get_schools_by_district_ids(self, district_ids: list, chunk_size=100):
+    def get_schools_by_district_ids(self, district_ids: list, date_filter: utils.DateFilter, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -239,10 +226,14 @@ class FirestoreServices:
 
         for district_id in district_ids:
             base_query = (self.admin_db.collection('schools')
-                          .where('districtId', '==', district_id))
+                          .where('districtId', '==', district_id)
+                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                          .order_by('createdAt')
+                          )
             yield from process_docs(base_query)
 
-    def get_classes_by_school_ids(self, school_ids: list, chunk_size=100):
+    def get_classes_by_school_ids(self, school_ids: list, date_filter: utils.DateFilter, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -273,7 +264,11 @@ class FirestoreServices:
 
         for school_id in school_ids:
             base_query = (self.admin_db.collection('classes')
-                          .where('schoolId', '==', school_id))
+                          .where('schoolId', '==', school_id)
+                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
+                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                          .order_by('createdAt')
+                          )
             yield from process_docs(base_query)
 
     def get_tasks(self, task_filter: list, chunk_size=100):
@@ -463,7 +458,7 @@ class FirestoreServices:
 
         # Apply the date range filters
         base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
-        base_query = base_query.where(date_field, '<=', to_datetime(date_filter.start_date, 'end'))
+        base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
         if org_filter.key:
             if org_filter.operator == "array_contains_any":
                 base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_ids)
@@ -536,11 +531,15 @@ class FirestoreServices:
 
         yield from process_docs(query=base_query)
 
-    def get_runs(self, user_id: str, run_key_usage: dict, is_guest: bool = False, chunk_size=100):
+    def get_runs(self, user_id: str, run_key_usage: dict, date_filter: utils.DateFilter, is_guest: bool = False,
+                 chunk_size=100):
         last_doc = None
         collection_name = 'guests' if is_guest else 'users'
         base_query = (self.admin_db.collection(collection_name).document(user_id)
                       .collection('runs'))
+        base_query = base_query.where('timeStarted', '>=', to_datetime(date_filter.start_date, 'start'))
+        base_query = base_query.where('timeStarted', '<=', to_datetime(date_filter.end_date, 'end'))
+        base_query = base_query.order_by('timeStarted')
         total_docs = base_query.get()
         total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
         current_chunk = 0
@@ -736,7 +735,8 @@ class FirestoreServices:
         try:
             docs = (self.admin_db.collection('users').document(user_id).collection('surveyResponses')
                     .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                    .where('createdAt', '<=', to_datetime(date_filter.start_date, 'end'))
+                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
+                    .order_by('createdAt')
                     .get())
 
             for doc in docs:

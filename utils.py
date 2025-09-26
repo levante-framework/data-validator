@@ -11,6 +11,18 @@ import requests
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Union, Optional, Literal
 from datetime import datetime
+import hashlib, base64, re
+
+ID_FIELDS = {
+    "users": ["user_id", "parent1_id", "parent2_id", "teacher_id"],
+    "runs": ["user_id"],
+    "trials": ["user_id"],
+    "survey_responses": ["user_id", "child_id"],
+    "user_groups": ["user_id"],
+    "user_schools": ["user_id"],
+    "user_classes": ["user_id"],
+    # add any other tables/fields that reference a person-like ID
+}
 
 
 class CustomJSONEncoder(json.JSONEncoder):
@@ -101,6 +113,7 @@ class Filters(BaseModel):
 class Organization(BaseModel):
     org_id: str = Field()
     is_guest: bool = Field()
+    is_user_id_masked: bool = Field(default=False)
     filters: Optional[Filters] = Field(default_factory=Filters)
 
 
@@ -298,7 +311,8 @@ def stringify_values_in_dicts(dict_list: list):
     return dict_list
 
 
-def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth: int | None = None, current_depth: int = 0) -> dict:
+def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth: int | None = None,
+                     current_depth: int = 0) -> dict:
     items = {}
     if max_depth is not None and current_depth >= max_depth:
         return {parent_key: type(doc).__name__} if parent_key else {"": type(doc).__name__}
@@ -312,6 +326,7 @@ def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth:
         else:
             items[new_key] = type(v).__name__
     return items
+
 
 def schema_signature(doc: dict, max_depth: Optional[int] = 1) -> str:
     """
@@ -357,3 +372,42 @@ def notify_slack(message: str):
 
     if response.status_code != 200:
         raise Exception(f"Slack notification failed: {response.text}")
+
+
+def make_id_pseudonymizer(secret_salt: str):
+    cache = {}
+
+    def pseudonymize(raw: str) -> str:
+        if raw is None:
+            return None
+        if raw in cache:
+            return cache[raw]
+        # deterministic, same length & [A-Za-z0-9_-] friendly
+        h = hashlib.blake2b((raw + secret_salt).encode("utf-8"), digest_size=24).digest()
+        b32 = base64.b32encode(h).decode("utf-8").rstrip("=")  # uppercase A-Z2-7
+        # Trim/shape to roughly match original length/charset; fall back to 16 if too short
+        target_len = max(16, len(raw))
+        fake = b32[:target_len]
+        cache[raw] = fake
+        return fake
+
+    return pseudonymize
+
+
+def pseudonymize_dataset(data: dict, salt: str) -> dict:
+    pseudo = make_id_pseudonymizer(salt)
+    out = {}
+    for table, rows in data.items():
+        if not isinstance(rows, list):
+            out[table] = rows  # e.g., invalid_data blob
+            continue
+        fields = ID_FIELDS.get(table, [])
+        new_rows = []
+        for row in rows:
+            r = dict(row)
+            for f in fields:
+                if f in r:
+                    r[f] = pseudo(r[f])
+            new_rows.append(r)
+        out[table] = new_rows
+    return out

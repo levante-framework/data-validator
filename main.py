@@ -77,6 +77,9 @@ def process(req):
                     ec = EntityController(org=org)
                     ec.validate_data_from_firestore()
                     org_validated_data = ec.get_validated_data()
+                    if org.is_user_id_masked:
+                        org_validated_data = utils.pseudonymize_dataset(org_validated_data, salt="LEVANTE")
+                        logging.info("user_ids have been masked.")
 
                     org_validation_stats = {
                         'groups': len(ec.valid_groups) + len(ec.invalid_groups),
@@ -120,15 +123,17 @@ def process(req):
                     total_validation_stats['new_schemas']['surveys'].extend(ec.new_schemas['surveys'])
                     validated_data = utils.merge_dictionaries(validated_data, org_validated_data)
 
+                reduce_dup_keys = {'administrations': 'administration_id',
+                                   'groups': 'group_id',
+                                   'tasks': 'task_id',
+                                   'variants': 'variant_id',
+                                   "users": "user_id",
+                                   'runs': 'run_id',
+                                   'trials': 'trial_id',
+                                   }
+
                 validated_data = utils.reduce_duplication_by_keys(data=validated_data,
-                                                                  keys={'administrations': 'administration_id',
-                                                                        'groups': 'group_id',
-                                                                        'tasks': 'task_id',
-                                                                        'variants': 'variant_id',
-                                                                        'users': 'user_id',
-                                                                        'runs': 'run_id',
-                                                                        'trials': 'trial_id',
-                                                                        })
+                                                                  keys=reduce_dup_keys)
                 # GCP storage service
                 if not dataset_parameters.is_save_to_storage:
                     elapsed_time = time.time() - start_time

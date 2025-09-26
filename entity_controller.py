@@ -237,14 +237,16 @@ class EntityController:
     def process_schools(self):
         logging.info("Now Validating Schools...")
 
-        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
+        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts],
+                                                 date_filter=self.org.filters.date_filter)
 
         self.set_schools(schools=schools)
 
     def process_classes(self):
         logging.info("Now Validating Classes...")
 
-        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools])
+        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools],
+                                               date_filter=self.org.filters.date_filter)
 
         self.set_classes(classes=classes)
 
@@ -252,7 +254,8 @@ class EntityController:
         logging.info("Now Validating Groups...")
 
         if self.org.filters.org_filter.key == 'districts':
-            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
+            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts],
+                                                   date_filter=self.org.filters.date_filter)
         elif self.org.filters.org_filter.key == 'groups':
             groups = fs.get_groups_by_group_names(date_filter=self.org.filters.date_filter,
                                                   group_names_list=self.org.filters.org_filter.value)
@@ -309,7 +312,6 @@ class EntityController:
                              org_filter=self.org.filters.org_filter,
                              org_ids=org_ids,
                              user_filter=self.org.filters.user_filter)
-
         self.set_users(users=users)
 
     def process_surveys(self):
@@ -333,7 +335,8 @@ class EntityController:
         for user in self.valid_users:
             self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
                                                                  run_key_usage=self.run_key_usage,
-                                                                 is_guest=self.org.is_guest))
+                                                                 is_guest=self.org.is_guest,
+                                                                 date_filter=self.org.filters.date_filter))
 
     def process_trials(self):
         logging.info("Now Validating Trials...")
