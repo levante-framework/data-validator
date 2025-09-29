@@ -497,6 +497,8 @@ class FirestoreServices:
                                 continue
                             if user_type in ['teacher', 'parent'] and not survey_responses:
                                 continue
+                            if user_type in ['admin']:
+                                continue
 
                         # Check if user filter is being used
                         if user_filter.key:
