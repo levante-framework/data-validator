@@ -196,7 +196,7 @@ class LevanteRun(RunBase):
     validation_msg_run: Optional[str] = None
     warning_msg_run: Optional[str] = None
     # bc_score: Optional[str] = None  # e.g., "3/12"
-    # bc_p_below: Optional[float] = None  # one-tailed p-value P[X <= k]
+    bc_p_below: Optional[float] = None  # one-tailed p-value P[X <= k]
     # flag_below_chance_0p05: Optional[bool] = None  # True if p <= .05
 
     _non_practice_trials: Optional[list[LevanteTrial]] = []
@@ -220,9 +220,9 @@ class LevanteRun(RunBase):
         k = sum(1 for t in trials if getattr(t, "correct", None) is True)
 
         # 3 lean columns
-        self.bc_score = f"{k}/{n}"
+        # self.bc_score = f"{k}/{n}"
         self.bc_p_below = None
-        self.flag_below_chance_0p05 = None
+        # self.flag_below_chance_0p05 = None
 
         # Not enough data? leave as None
         if n <= 0 or n < min_trials:
@@ -234,7 +234,7 @@ class LevanteRun(RunBase):
 
         # One-tailed p-value: P[X <= k] for X ~ Binom(n, p)
         self.bc_p_below = float(binomtest(k, n, p, alternative='less').pvalue)
-        self.flag_below_chance_0p05 = (self.bc_p_below <= alpha)
+        # self.flag_below_chance_0p05 = (self.bc_p_below <= alpha)
 
     def add_non_practice_trials(self, trial: LevanteTrial):
         self._non_practice_trials.append(trial)
@@ -286,7 +286,7 @@ class LevanteRun(RunBase):
         self.check_non_practice_trials_count()
         self.check_straight_line_trials()
         self.update_valid_run()
-        # self.compute_below_chance_flags_scipy()
+        self.compute_below_chance_flags_scipy()
 
 
 class UserBase(BaseModel):
