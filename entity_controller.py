@@ -72,9 +72,10 @@ class EntityController:
                                                              name='schema_row', abbreviation='',
                                                              created_at=now_utc, updated_at=now_utc))
         if self.valid_classes:
-            self.valid_classes.append(core_models.ClassBase(class_id='schema_row', school_id='schema_row', grade='schema_row',
-                                                            district_id='schema_row', name='schema_row', abbreviation='',
-                                                            created_at=now_utc, updated_at=now_utc))
+            self.valid_classes.append(
+                core_models.ClassBase(class_id='schema_row', school_id='schema_row', grade='schema_row',
+                                      district_id='schema_row', name='schema_row', abbreviation='',
+                                      created_at=now_utc, updated_at=now_utc))
         if self.valid_groups:
             self.valid_groups.append(core_models.GroupBase(group_id='schema_row', name='schema_row', abbreviation='',
                                                            tags='', created_at=now_utc, updated_at=now_utc))
@@ -229,8 +230,8 @@ class EntityController:
     def process_districts(self):
         logging.info("Now Validating Districts...")
 
-        districts = fs.get_districts_by_district_name_list(date_filter=self.org.filters.date_filter,
-                                                           district_name_list=self.org.filters.org_filter.value)
+        districts = fs.get_districts_by_district_id_list(date_filter=self.org.filters.date_filter,
+                                                         district_id_list=self.org.filters.org_filter.value)
 
         self.set_districts(districts=districts)
 

@@ -108,6 +108,31 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
+    def get_districts_by_district_id_list(self, date_filter: utils.DateFilter, district_id_list: list):
+        result = []
+        try:
+            start_dt = to_datetime(date_filter.start_date, 'start').replace(tzinfo=None)
+            start_dt = pst_timezone.localize(start_dt)
+
+            end_dt = to_datetime(date_filter.end_date, 'end').replace(tzinfo=None)
+            end_dt = pst_timezone.localize(end_dt)
+
+            for district_id in district_id_list:
+                doc_ref = self.admin_db.collection('districts').document(district_id)
+                doc = doc_ref.get()
+                if doc.exists:
+                    doc_dict = doc.to_dict()
+                    created_at = doc_dict.get("createdAt")
+                    if created_at and start_dt <= created_at <= end_dt:
+                        doc_dict.update({
+                            'district_id': doc.id,
+                        })
+                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        result.append(converted_doc_dict)
+        except Exception as e:
+            print(f"Error in get_districts_by_district_id_list: {e}")
+        return result
+
     def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list):
         result = []
         try:
@@ -119,7 +144,7 @@ class FirestoreServices:
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 name = doc_dict.get('name', None)
-                if name in district_name_list:
+                if name in district_name_list or not district_name_list:
                     doc_dict.update({
                         'district_id': doc.id,
                     })
