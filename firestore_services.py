@@ -14,8 +14,6 @@ import warnings
 warnings.filterwarnings("ignore", message="Detected filter using positional arguments")
 logging.basicConfig(level=logging.INFO)
 
-pst_timezone = pytz.timezone('America/Los_Angeles')
-
 default_start_date = datetime(2024, 1, 1)
 default_end_date = datetime(2050, 1, 1)
 
@@ -95,6 +93,7 @@ class FirestoreServices:
         return self._assessment_db
 
     def set_logs_to_firebase(self, response, dataset_id):
+        pst_timezone = pytz.timezone('America/Los_Angeles')
         date_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d")
         datetime_doc_name = datetime.now(pst_timezone).strftime("%Y-%m-%d %H:%M:%S")
         try:
@@ -108,39 +107,29 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
-    def get_districts_by_district_id_list(self, date_filter: utils.DateFilter, district_id_list: list):
+    def get_districts_by_district_id_list(self, district_id_list: list):
         result = []
         try:
-            start_dt = to_datetime(date_filter.start_date, 'start').replace(tzinfo=None)
-            start_dt = pst_timezone.localize(start_dt)
-
-            end_dt = to_datetime(date_filter.end_date, 'end').replace(tzinfo=None)
-            end_dt = pst_timezone.localize(end_dt)
-
             for district_id in district_id_list:
                 doc_ref = self.admin_db.collection('districts').document(district_id)
                 doc = doc_ref.get()
                 if doc.exists:
                     doc_dict = doc.to_dict()
-                    created_at = doc_dict.get("createdAt")
-                    if created_at and start_dt <= created_at <= end_dt:
-                        doc_dict.update({
-                            'district_id': doc.id,
-                        })
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                        result.append(converted_doc_dict)
+
+                    doc_dict.update({
+                        'district_id': doc.id,
+                    })
+                    converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                    result.append(converted_doc_dict)
+
         except Exception as e:
             print(f"Error in get_districts_by_district_id_list: {e}")
         return result
 
-    def get_districts_by_district_name_list(self, date_filter: utils.DateFilter, district_name_list: list):
+    def get_districts_by_district_name_list(self, district_name_list: list):
         result = []
         try:
-            docs = (self.admin_db.collection('districts')
-                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                    .order_by('createdAt')
-                    .get())
+            docs = self.admin_db.collection('districts').get()
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
                 name = doc_dict.get('name', None)
@@ -154,14 +143,10 @@ class FirestoreServices:
             print(f"Error in get_districts_by_district_name_list: {e}")
         return result
 
-    def get_groups_by_group_names(self, date_filter: utils.DateFilter, group_names_list: list):
+    def get_groups_by_group_names(self, group_names_list: list):
         result = []
         try:
-            docs = (self.admin_db.collection('groups')
-                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                    .order_by('createdAt')
-                    .get())
+            docs = self.admin_db.collection('groups').get()
 
             for doc in docs:
                 doc_dict = doc.to_dict()  # Convert the document to a dictionary
@@ -179,7 +164,7 @@ class FirestoreServices:
             logging.error(f"Error in get_groups: {e}")
         return result
 
-    def get_groups_by_district_ids(self, district_ids: list, date_filter: utils.DateFilter, chunk_size=100):
+    def get_groups_by_district_ids(self, district_ids: list, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -211,15 +196,10 @@ class FirestoreServices:
                     break
 
         for district_id in district_ids:
-            base_query = (self.admin_db.collection('groups')
-                          .where('parentOrgId', '==', district_id)
-                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                          .order_by('createdAt')
-                          )
+            base_query = self.admin_db.collection('groups').where('parentOrgId', '==', district_id)
             yield from process_docs(base_query)
 
-    def get_schools_by_district_ids(self, district_ids: list, date_filter: utils.DateFilter, chunk_size=100):
+    def get_schools_by_district_ids(self, district_ids: list, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -250,15 +230,10 @@ class FirestoreServices:
                     break
 
         for district_id in district_ids:
-            base_query = (self.admin_db.collection('schools')
-                          .where('districtId', '==', district_id)
-                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                          .order_by('createdAt')
-                          )
+            base_query = self.admin_db.collection('schools').where('districtId', '==', district_id)
             yield from process_docs(base_query)
 
-    def get_classes_by_school_ids(self, school_ids: list, date_filter: utils.DateFilter, chunk_size=100):
+    def get_classes_by_school_ids(self, school_ids: list, chunk_size=100):
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
@@ -290,9 +265,6 @@ class FirestoreServices:
         for school_id in school_ids:
             base_query = (self.admin_db.collection('classes')
                           .where('schoolId', '==', school_id)
-                          .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                          .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                          .order_by('createdAt')
                           )
             yield from process_docs(base_query)
 
@@ -362,11 +334,8 @@ class FirestoreServices:
                 logging.error(f"Error in get_variants: {e}")
                 break
 
-    def get_administrations(self, date_filter: utils.DateFilter, group_ids, district_ids, school_ids, chunk_size=100):
+    def get_administrations(self, group_ids, district_ids, school_ids, chunk_size=100):
         base = self.admin_db.collection('administrations')
-        base = base.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
-        base = base.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
-        base = base.order_by('dateCreated')
 
         def process_docs(query):
             last_doc = None
@@ -415,72 +384,16 @@ class FirestoreServices:
                     continue
                 seen.add(doc_id)
                 yield row
-        # base_query = self.admin_db.collection('administrations')
-        # # Apply the date range filters
-        # base_query = base_query.where('dateCreated', '>=', to_datetime(date_filter.start_date, 'start'))
-        # base_query = base_query.where('dateCreated', '<=', to_datetime(date_filter.end_date, 'end'))
-        # filters = []
-        # if group_ids:  # not None and not empty
-        #     filters.append(FieldFilter("minimalOrgs.groups", "array_contains_any", group_ids))
-        # if district_ids:
-        #     filters.append(FieldFilter("minimalOrgs.districts", "array_contains_any", district_ids))
-        # if school_ids:
-        #     filters.append(FieldFilter("minimalOrgs.schools", "array_contains_any", school_ids))
-        # if len(filters) == 1:
-        #     base_query = base_query.where(filter=filters[0])
-        # elif len(filters) > 1:
-        #     base_query = base_query.where(filter=Or(filters))
-        # base_query = base_query.order_by('dateCreated')
-        #
-        # def process_docs(query):
-        #     last_doc = None
-        #     total_docs = query.get()
-        #     total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
-        #     current_chunk = 0
-        #
-        #     while True:
-        #         try:
-        #             query = query.limit(chunk_size)
-        #             if last_doc:
-        #                 query = query.start_after(last_doc)
-        #             docs = query.get()
-        #             if not docs:
-        #                 break
-        #             current_chunk += 1
-        #             logging.info(
-        #                 f"Getting administrations... processing chunk {current_chunk} of {total_chunks} administration chunks.")
-        #             for doc in docs:
-        #                 doc_dict = doc.to_dict()
-        #                 # if org_filter.key and org_filter.operator and org_filter.value:
-        #                 #     if org_filter.org_operator == "array_contains_any":
-        #                 #         org_value_firebase = doc_dict.get("minimalOrgs", {}).get(org_filter.key, [])
-        #                 #         if not org_value_firebase:
-        #                 #             continue  # Skip this document if the filter condition is not met
-        #                 #         elif set(org_value).isdisjoint(org_value_firebase):
-        #                 #             continue
-        #                 doc_dict.update({
-        #                     'administration_id': doc.id,
-        #                 })
-        #                 # Convert camelCase to snake_case and handle NaN values
-        #                 converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-        #                 yield converted_doc_dict
-        #             last_doc = docs[-1]
-        #         except Exception as e:
-        #             logging.error(f"Error in get_administrations: {e}")
-        #             break
-        #
-        # yield from process_docs(query=base_query)
 
     def get_users(self, is_guest: bool, date_filter: utils.DateFilter, org_filter: utils.OrgFilter, org_ids,
                   user_filter: utils.UserFilter, chunk_size=100):
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         if is_guest:
             collection_name = 'guests'
-            base_query = self.admin_db.collection(collection_name)
         else:
             collection_name = 'users'
-            base_query = self.admin_db.collection(collection_name)
 
+        base_query = self.admin_db.collection(collection_name)
         # Apply the date range filters
         base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
         base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
@@ -695,11 +608,6 @@ class FirestoreServices:
                         doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
                         converted_doc_dict = doc_dict
                     else:
-                        trial_mode = doc_dict.get('trialMode', None)
-                        assessment_stage = doc_dict.get('assessment_stage', None)
-                        if trial_mode == 'display' or assessment_stage == 'instructions':
-                            continue
-
                         answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
                         rt = doc_dict.get('rt', '')
                         doc_dict.update({
@@ -862,19 +770,3 @@ class FirestoreServices:
 
 
 firestore_services = FirestoreServices()
-
-# def get_districts(self, lab_id: str):
-#     # Does not need to be chunked since districts are unique
-#     try:
-#         doc = self.admin_db.collection('districts').document(lab_id).get()
-#         doc_dict = doc.to_dict()
-#         doc_dict.update({
-#             'district_id': doc.id,
-#         })
-#         # Convert camelCase to snake_case and handle NaN values
-#         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-#         # Return a list of dictionaries for EntityController functions to loop through
-#         return [converted_doc_dict]
-#     except Exception as e:
-#         logging.error(f"Error in get_districts: {e}")
-#         return {}

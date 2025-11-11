@@ -65,35 +65,37 @@ class EntityController:
     def adding_schema_row_to_data(self):
         if self.valid_districts:
             self.valid_districts.append(
-                core_models.DistrictBase(district_id='schema_row', name='schema_row', abbreviation='',
+                core_models.DistrictBase(district_id='schema_row', name='schema_row', abbreviation='schema_row',
                                          created_at=now_utc, updated_at=now_utc))
         if self.valid_schools:
             self.valid_schools.append(core_models.SchoolBase(school_id='schema_row', district_id='schema_row',
-                                                             name='schema_row', abbreviation='',
+                                                             name='schema_row', abbreviation='schema_row',
                                                              created_at=now_utc, updated_at=now_utc))
         if self.valid_classes:
             self.valid_classes.append(
                 core_models.ClassBase(class_id='schema_row', school_id='schema_row', grade='schema_row',
-                                      district_id='schema_row', name='schema_row', abbreviation='',
+                                      district_id='schema_row', name='schema_row', abbreviation='schema_row',
                                       created_at=now_utc, updated_at=now_utc))
         if self.valid_groups:
             self.valid_groups.append(core_models.GroupBase(group_id='schema_row', name='schema_row', abbreviation='',
                                                            tags='', created_at=now_utc, updated_at=now_utc))
         if self.valid_tasks:
-            self.valid_tasks.append(core_models.TaskBase(task_id='schema_row', name='schema_row', description='',
-                                                         last_updated=now_utc))
+            self.valid_tasks.append(
+                core_models.TaskBase(task_id='schema_row', name='schema_row', description='schema_row',
+                                     last_updated=now_utc))
         if self.valid_administrations:
             self.valid_administrations.append(
-                core_models.AdministrationBase(administration_id='schema_row', name='schema_row', public_name='',
+                core_models.AdministrationBase(administration_id='schema_row', name='schema_row',
+                                               public_name='schema_row',
                                                sequential=False,
                                                created_by='schema_row', date_created=now_utc, date_closed=now_utc,
                                                date_opened=now_utc))
         if self.valid_variants:
             self.valid_variants.append(
-                core_models.VariantBase(variant_id='schema_row', task_id='schema_row', name='', age=0,
-                                        button_layout='',
-                                        corpus='', key_helpers=False, language='', max_incorrect=0,
-                                        max_time=0, num_of_practice_trials=0,
+                core_models.VariantBase(variant_id='schema_row', task_id='schema_row', name='schema_row',
+                                        button_layout='schema_row',
+                                        corpus='schema_row', key_helpers=False, language='schema_row', adaptive=False,
+                                        max_incorrect=0, max_time=0, num_of_practice_trials=0,
                                         number_of_trials=0, sequential_practice=False, sequential_stimulus=False,
                                         skip_instructions=False,
                                         stimulus_blocks=0, store_item_id=False, last_updated=now_utc))
@@ -101,10 +103,10 @@ class EntityController:
         if self.valid_users:
             self.valid_users.append(
                 core_models.LevanteUser(user_id='schema_row', user_type='schema_row', assessment_pid='schema_row',
-                                        assessment_uid='schema_row', email='',
+                                        assessment_uid='schema_row', email='schema_row',
                                         email_verified=False, created_at=now_utc, last_updated=now_utc,
-                                        parent1_id='', parent2_id='',
-                                        teacher_id='', birth_year=0, birth_month=0, sex='', grade=0,
+                                        parent1_id='schema_row', parent2_id='schema_row',
+                                        teacher_id='schema_row', birth_year=0, birth_month=0, sex='schema_row', grade=0,
                                         validation_msg_user='schema_row'))
         if self.valid_runs:
             self.valid_runs.append(
@@ -120,13 +122,14 @@ class EntityController:
             self.valid_trials.append(
                 core_models.LevanteTrial(trial_id='schema_row', run_id='schema_row', user_id='schema_row',
                                          task_id='schema_row', assessment_stage='schema_row',
-                                         trial_index=0, item='', item_id='', item_uid='',
-                                         answer='', response='', correct=False,
-                                         difficulty=0.0001, response_source='', time_elapsed=0,
-                                         rt='', server_timestamp=now_utc, is_practice_trial=False,
+                                         trial_index=0, item='schema_row', item_id='schema_row', item_uid='schema_row',
+                                         answer='schema_row', response='schema_row', correct=False,
+                                         difficulty=0.0001, response_source='schema_row', time_elapsed=0,
+                                         rt='schema_row', rt_numeric=0, server_timestamp=now_utc,
+                                         is_practice_trial=False,
                                          corpus_trial_type='', corpus_id='schema_row',
-                                         response_type='', response_location='',
-                                         distractors='', theta_estimate=0.0001,
+                                         response_type='schema_row', response_location='schema_row',
+                                         distractors='schema_row', theta_estimate=0.0001,
                                          theta_estimate2=0.0001,
                                          theta_se=0.0001, theta_se2=0.0001, valid_trial=False,
                                          warning_msg_trial='schema_row',
@@ -168,9 +171,6 @@ class EntityController:
                                                    task_id=task.task_id, new_schemas=self.new_schemas['runs'])
                 fs.upload_task_schema_to_firestore(dict_type='trialKeys', schema_usage=self.trial_key_usage,
                                                    task_id=task.task_id, new_schemas=self.new_schemas['trials'])
-
-        # with open('new_schemas.json', 'w', encoding='utf-8') as f:
-        #     json.dump(self.new_schemas, f, cls=utils.CustomJSONEncoder)
 
     def get_validated_data(self):
         data = {
@@ -230,24 +230,21 @@ class EntityController:
     def process_districts(self):
         logging.info("Now Validating Districts...")
 
-        districts = fs.get_districts_by_district_id_list(date_filter=self.org.filters.date_filter,
-                                                         district_id_list=self.org.filters.org_filter.value)
+        districts = fs.get_districts_by_district_id_list(district_id_list=self.org.filters.org_filter.value)
 
         self.set_districts(districts=districts)
 
     def process_schools(self):
         logging.info("Now Validating Schools...")
 
-        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts],
-                                                 date_filter=self.org.filters.date_filter)
+        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
 
         self.set_schools(schools=schools)
 
     def process_classes(self):
         logging.info("Now Validating Classes...")
 
-        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools],
-                                               date_filter=self.org.filters.date_filter)
+        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools])
 
         self.set_classes(classes=classes)
 
@@ -255,11 +252,9 @@ class EntityController:
         logging.info("Now Validating Groups...")
 
         if self.org.filters.org_filter.key == 'districts':
-            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts],
-                                                   date_filter=self.org.filters.date_filter)
+            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
         elif self.org.filters.org_filter.key == 'groups':
-            groups = fs.get_groups_by_group_names(date_filter=self.org.filters.date_filter,
-                                                  group_names_list=self.org.filters.org_filter.value)
+            groups = fs.get_groups_by_group_names(group_names_list=self.org.filters.org_filter.value)
         else:
             groups = []
 
@@ -271,8 +266,7 @@ class EntityController:
         group_ids = [group.group_id for group in self.valid_groups]
         district_ids = [district.district_id for district in self.valid_districts]
         school_ids = [schools.school_id for schools in self.valid_schools]
-        administrations = fs.get_administrations(date_filter=self.org.filters.date_filter,
-                                                 group_ids=group_ids,
+        administrations = fs.get_administrations(group_ids=group_ids,
                                                  district_ids=district_ids,
                                                  school_ids=school_ids)
         self.set_administrations(administrations=administrations)
@@ -334,10 +328,10 @@ class EntityController:
     def process_runs(self):
         logging.info("Now Validating Runs...")
         for user in self.valid_users:
-            self.set_runs(user_id=user.user_id, runs=fs.get_runs(user_id=user.user_id,
-                                                                 run_key_usage=self.run_key_usage,
-                                                                 is_guest=self.org.is_guest,
-                                                                 date_filter=self.org.filters.date_filter))
+            self.set_runs(user=user, runs=fs.get_runs(user_id=user.user_id,
+                                                      run_key_usage=self.run_key_usage,
+                                                      is_guest=self.org.is_guest,
+                                                      date_filter=self.org.filters.date_filter))
 
     def process_trials(self):
         logging.info("Now Validating Trials...")
@@ -498,30 +492,35 @@ class EntityController:
                 for error in e.errors():
                     self.invalid_administrations.append({**error, 'id': administration['assignment_id']})
 
-    def set_runs(self, user_id: str, runs: list):
+    def set_runs(self, user: core_models.LevanteUser, runs: list):
         for run in runs:
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    self.valid_runs.append(core_models.LevanteRun(**run))
-                else:
-                    self.valid_trials.append(core_models.RunBase(**run))
+                run_model = core_models.LevanteRun(**run)
+                # remove intro runs.
+                if run_model.task_id == "intro":
+                    continue
+                run_model.add_age_from_users(birth_year=user.birth_year, birth_month=user.birth_month)
+                self.valid_runs.append(run_model)
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_runs.append(
-                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user_id}"})
+                        {**error, 'id': f"run_id: {run['run_id']}, user_id: {user.user_id}"})
 
     def set_trials(self, run: core_models.RunBase, trials: list):
         for trial in trials:
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    trial_model = core_models.LevanteTrial(**trial)
-                    is_test_trial = (trial_model.assessment_stage == 'test_response' or
-                                     (trial_model.is_practice_trial is not None and not trial_model.is_practice_trial))
-                    # Execute action based on the condition
-                    if is_test_trial:
-                        run.add_non_practice_trials(trial_model)
-                else:
-                    trial_model = core_models.TrialBase(**trial)
+                trial_model = core_models.LevanteTrial(**trial)
+                # remove instruction and training
+                if ("instruction" in str(trial_model.assessment_stage or "").lower() or
+                        "display" in str(trial_model.trial_mode or "").lower() or
+                        "training" in str(trial_model.corpus_trial_type or "").lower()):
+                    continue
+                is_test_trial = (trial_model.assessment_stage == 'test_response' or
+                                 (trial_model.is_practice_trial is not None and not trial_model.is_practice_trial))
+                # Execute action based on the condition
+                if is_test_trial:
+                    run.add_non_practice_trials(trial_model)
+
                 self.valid_trials.append(trial_model)
 
             except ValidationError as e:

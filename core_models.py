@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any, Literal
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 import ast
 from scipy.stats import binom, binomtest
+from math import isnan
 
 
 class DistrictBase(BaseModel):
@@ -54,11 +54,11 @@ class VariantBase(BaseModel):
     variant_id: str
     task_id: str
     name: Optional[str] = None
-    age: Optional[int] = None
     button_layout: Optional[str] = None
     corpus: Optional[str] = None
     key_helpers: Optional[bool] = None
     language: Optional[str] = None
+    adaptive: bool = False
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
     num_of_practice_trials: Optional[int] = None
@@ -69,6 +69,42 @@ class VariantBase(BaseModel):
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
     last_updated: Optional[datetime] = None
+
+    @field_validator("language", mode="before")
+    def normalize_language(cls, v):
+        """
+        Normalize language codes:
+        - en -> en-US
+        - es -> es-CO
+        - de -> de-DE
+        - others -> Other(<original>)
+        """
+        if v is None:
+            return None
+
+        code = str(v).strip()
+        if code == "":
+            return None
+
+        lower = code.lower()
+        if lower == "en":
+            return "en-US"
+        if lower == "es":
+            return "es-CO"
+        if lower == "de":
+            return "de-DE"
+
+        # everything else
+        return f"Other({code})"
+
+    @model_validator(mode="after")
+    def set_adaptive_from_name(self):
+        """
+        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
+        """
+        name = (self.name or "").lower()
+        self.adaptive = "adaptive" in name
+        return self
 
 
 class TrialBase(BaseModel):
@@ -95,6 +131,7 @@ class TrialBase(BaseModel):
 
     # Time related fields
     rt: Optional[Any] = None
+    rt_numeric: Optional[int] = None
     server_timestamp: Optional[datetime] = None
 
 
@@ -105,6 +142,7 @@ class LevanteTrial(TrialBase):
     response_type: Optional[str] = None
     response_location: Optional[Any] = None
     distractors: Optional[str] = None
+    trial_mode: Optional[str] = None
 
     # For some roar tasks
     theta_estimate: Optional[float] = None  # Union[float, str]
@@ -115,6 +153,39 @@ class LevanteTrial(TrialBase):
     valid_trial: Optional[bool] = None
     validation_msg_trial: Optional[str] = None
     warning_msg_trial: Optional[str] = None
+
+    @field_validator("response", mode="before")
+    def normalize_response_nan(cls, v):
+        """
+        Convert 'nan' strings or float('nan') to None (Firestore NULL).
+        """
+        if v is None:
+            return None
+
+        # Handle string "nan" / "NaN"
+        if isinstance(v, str) and v.strip().lower() == "nan":
+            return None
+
+        # Handle float('nan')
+        if isinstance(v, float) and isnan(v):
+            return None
+
+        return v
+
+    @model_validator(mode='after')
+    def set_is_practice_from_stage(self):
+        stage = str(self.assessment_stage or "").lower()
+        ctype = str(self.corpus_trial_type or "").lower()
+
+        if (
+                "practice" in stage
+                or "training" in stage
+                or "practice" in ctype
+                # or "training" in ctype
+        ):
+            self.is_practice_trial = True
+
+        return self
 
     @model_validator(mode='after')
     def check_rt(self):
@@ -151,6 +222,45 @@ class LevanteTrial(TrialBase):
             self.validation_msg_trial = ";".join(msg)
         return self
 
+    @model_validator(mode="after")
+    def set_rt_numeric(self):
+        """
+        Normalize rt into an integer (truncate decimals).
+        If conversion fails, rt_numeric is set to None.
+        """
+        v = self.rt
+
+        # Handle obvious null / empty cases
+        if v in (None, "", "{}", "0", 0):
+            self.rt_numeric = None
+            return self
+
+        # numeric types
+        if isinstance(v, (int, float)):
+            if isinstance(v, float) and isnan(v):
+                self.rt_numeric = None
+            else:
+                # 🔹 Truncate decimals
+                self.rt_numeric = int(float(v))
+            return self
+
+        # string
+        if isinstance(v, str):
+            s = v.strip()
+            if s in ("", "{}", "0"):
+                self.rt_numeric = None
+                return self
+
+            try:
+                self.rt_numeric = int(float(s))
+                return self
+            except ValueError:
+                self.rt_numeric = None
+                return self
+
+        self.rt_numeric = None
+        return self
+
     @model_validator(mode='after')
     def check_trial_index(self):
         if self.trial_index:
@@ -178,6 +288,7 @@ class RunBase(BaseModel):
     task_id: str
     variant_id: str
     administration_id: Optional[str] = None
+    age: Optional[float] = None
     reliable: Optional[bool] = None
     completed: Optional[bool] = None
     best_run: Optional[bool] = None
@@ -235,6 +346,19 @@ class LevanteRun(RunBase):
         # One-tailed p-value: P[X <= k] for X ~ Binom(n, p)
         self.bc_p_below = float(binomtest(k, n, p, alternative='less').pvalue)
         # self.flag_below_chance_0p05 = (self.bc_p_below <= alpha)
+
+    def add_age_from_users(self, birth_month: int, birth_year: int):
+        if not (birth_year and birth_month and self.time_started):
+            return None
+        birth_date = datetime(
+            birth_year,
+            birth_month,
+            15,  # assume middle of the month
+            tzinfo=timezone.utc
+        )
+        run_date = self.time_started.astimezone(timezone.utc)
+        diff_days = (run_date - birth_date).days
+        self.age = round(diff_days / 365.25, 1)  # or use 365.25 for more precision
 
     def add_non_practice_trials(self, trial: LevanteTrial):
         self._non_practice_trials.append(trial)
@@ -312,6 +436,7 @@ class LevanteUser(UserBase):
     validation_msg_user: Optional[str] = None
 
     _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
+    _district_ids: Set[str] = set()
 
     @classmethod
     def set_valid_groups(cls, groups: List[GroupBase]):
@@ -324,12 +449,41 @@ class LevanteUser(UserBase):
             if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
                     self.birth_month, int):
                 if self.birth_month not in range(1, 13):
+                    self.birth_month = None
                     msg.append("birth_month_error")
                 if self.birth_year < 2000:
+                    self.birth_year = None
                     msg.append("birth_year_under_2000")
                 if self.birth_year > 2050:
+                    self.birth_year = None
                     msg.append("birth_year_greater_2050")
+
+                    # Only compute age if valid year/month
+                    if (
+                            self.birth_year
+                            and self.birth_month
+                            and 1 <= self.birth_month <= 12
+                            and 2000 <= self.birth_year <= 2050
+                    ):
+                        try:
+                            # assume birth day = 15th
+                            birth_date = datetime(
+                                self.birth_year,
+                                self.birth_month,
+                                15,
+                                tzinfo=timezone.utc
+                            )
+                            now_utc = datetime.now(timezone.utc)
+                            age_days = (now_utc - birth_date).days
+                            age_years = age_days / 365.25
+
+                            if age_years > 18:
+                                msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
+                        except Exception as e:
+                            msg.append(f"birthdate_calc_error: {e}")
             else:
+                self.birth_year = None
+                self.birth_month = None
                 msg.append("birth_year_month_missing")
         if msg:
             self.validation_msg_user = ";".join(msg)
