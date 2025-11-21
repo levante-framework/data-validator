@@ -23,12 +23,12 @@ class EntityController:
         self.survey_key_usage = {}
         self.new_schemas = {"runs": [], "trials": [], "surveys": []}
 
-        self.valid_groups = []
-        self.invalid_groups = []
+        self.valid_sites = []
+        self.invalid_sites = []
+        self.valid_cohorts = []
+        self.invalid_cohorts = []
         self.valid_administrations = []
         self.invalid_administrations = []
-        self.valid_districts = []
-        self.invalid_districts = []
         self.valid_schools = []
         self.invalid_schools = []
         self.valid_classes = []
@@ -41,7 +41,6 @@ class EntityController:
         self.valid_users = []
         self.invalid_users = []
         self.valid_runs = []
-
         self.invalid_runs = []
         self.valid_trials = []
         self.invalid_trials = []
@@ -50,106 +49,78 @@ class EntityController:
         self.invalid_survey_responses = []
         self.survey_responses_stats = {"student": 0, "teacher": 0, "caregiver": 0}
 
-        self.valid_user_groups = []
-        self.invalid_user_groups = []
-        self.valid_user_classes = []
-        self.invalid_user_classes = []
+        self.valid_user_sites = []
+        self.valid_user_cohorts = []
         self.valid_user_schools = []
-        self.invalid_user_schools = []
+        self.valid_user_classes = []
 
-        # self.valid_administration_tasks = []
-        # self.invalid_administration_tasks = []
-        # self.valid_user_assignments = []
-        # self.invalid_user_assignments = []
+        self.invalid_user_sites = []
+        self.invalid_user_cohorts = []
+        self.invalid_user_schools = []
+        self.invalid_user_classes = []
+
+        self._user_org_maps = {}
+
+        self.valid_user_administrations = []
+        self.invalid_user_administrations = []
+
+    @staticmethod
+    def _schema_registry():
+        """
+        Map export table name -> (controller list attribute, model class).
+        Adjust to match exactly the tables you want in Redivis.
+        """
+        # pick concrete user/run/trial classes based on INSTANCE
+        use_levante = settings.config.get("INSTANCE") == "LEVANTE"
+        UserCls = core_models.LevanteUser if use_levante else core_models.UserBase
+        RunCls = core_models.LevanteRun if use_levante else core_models.RunBase
+        TrialCls = core_models.LevanteTrial if use_levante else core_models.TrialBase
+
+        return {
+            # org dimensions
+            "sites": ("valid_sites", getattr(core_models, "SiteBase")),
+            "cohorts": ("valid_cohorts", getattr(core_models, "CohortBase")),
+            "schools": ("valid_schools", getattr(core_models, "SchoolBase")),
+            "classes": ("valid_classes", getattr(core_models, "ClassBase")),
+
+            # core dimensions
+            "administrations": ("valid_administrations", core_models.AdministrationBase),
+            "tasks": ("valid_tasks", core_models.TaskBase),
+            "variants": ("valid_variants", core_models.VariantBase),
+
+            # facts
+            "users": ("valid_users", UserCls),
+            "runs": ("valid_runs", RunCls),
+            "trials": ("valid_trials", TrialCls),
+            "survey_responses": ("valid_survey_responses", core_models.SurveyResponse),
+
+            # joins
+            "user_administrations": ("valid_user_administrations", core_models.UserAdministration),
+            "user_sites": ("valid_user_sites", core_models.UserSite),
+            "user_cohorts": ("valid_user_cohorts", core_models.UserCohort),
+            "user_schools": ("valid_user_schools", core_models.UserSchool),
+            "user_classes": ("valid_user_classes", core_models.UserClass),
+        }
 
     def adding_schema_row_to_data(self):
-        if self.valid_districts:
-            self.valid_districts.append(
-                core_models.DistrictBase(district_id='schema_row', name='schema_row', abbreviation='schema_row',
-                                         created_at=now_utc, updated_at=now_utc))
-        if self.valid_schools:
-            self.valid_schools.append(core_models.SchoolBase(school_id='schema_row', district_id='schema_row',
-                                                             name='schema_row', abbreviation='schema_row',
-                                                             created_at=now_utc, updated_at=now_utc))
-        if self.valid_classes:
-            self.valid_classes.append(
-                core_models.ClassBase(class_id='schema_row', school_id='schema_row', grade='schema_row',
-                                      district_id='schema_row', name='schema_row', abbreviation='schema_row',
-                                      created_at=now_utc, updated_at=now_utc))
-        if self.valid_groups:
-            self.valid_groups.append(core_models.GroupBase(group_id='schema_row', name='schema_row', abbreviation='',
-                                                           tags='', created_at=now_utc, updated_at=now_utc))
-        if self.valid_tasks:
-            self.valid_tasks.append(
-                core_models.TaskBase(task_id='schema_row', name='schema_row', description='schema_row',
-                                     last_updated=now_utc))
-        if self.valid_administrations:
-            self.valid_administrations.append(
-                core_models.AdministrationBase(administration_id='schema_row', name='schema_row',
-                                               public_name='schema_row',
-                                               sequential=False,
-                                               created_by='schema_row', date_created=now_utc, date_closed=now_utc,
-                                               date_opened=now_utc))
-        if self.valid_variants:
-            self.valid_variants.append(
-                core_models.VariantBase(variant_id='schema_row', task_id='schema_row', name='schema_row',
-                                        button_layout='schema_row',
-                                        corpus='schema_row', key_helpers=False, language='schema_row', adaptive=False,
-                                        max_incorrect=0, max_time=0, num_of_practice_trials=0,
-                                        number_of_trials=0, sequential_practice=False, sequential_stimulus=False,
-                                        skip_instructions=False,
-                                        stimulus_blocks=0, store_item_id=False, last_updated=now_utc))
-
-        if self.valid_users:
-            self.valid_users.append(
-                core_models.LevanteUser(user_id='schema_row', user_type='schema_row', assessment_pid='schema_row',
-                                        assessment_uid='schema_row', email='schema_row',
-                                        email_verified=False, created_at=now_utc, last_updated=now_utc,
-                                        parent1_id='schema_row', parent2_id='schema_row',
-                                        teacher_id='schema_row', birth_year=0, birth_month=0, sex='schema_row', grade=0,
-                                        validation_msg_user='schema_row'))
-        if self.valid_runs:
-            self.valid_runs.append(
-                core_models.LevanteRun(run_id='schema_row', user_id='schema_row', task_id='schema_row',
-                                       variant_id='schema_row', administration_id='schema_row',
-                                       reliable=False, completed=False, best_run=False,
-                                       task_version='', time_started=now_utc,
-                                       time_finished=now_utc,
-                                       num_attempted=0, num_correct=0, test_comp_theta_estimate=0.0001,
-                                       test_comp_theta_se=0.0001, valid_run=False,
-                                       warning_msg_run='schema_row', validation_msg_run='schema_row'))
-        if self.valid_trials:
-            self.valid_trials.append(
-                core_models.LevanteTrial(trial_id='schema_row', run_id='schema_row', user_id='schema_row',
-                                         task_id='schema_row', assessment_stage='schema_row',
-                                         trial_index=0, item='schema_row', item_id='schema_row', item_uid='schema_row',
-                                         answer='schema_row', response='schema_row', correct=False,
-                                         difficulty=0.0001, response_source='schema_row', time_elapsed=0,
-                                         rt='schema_row', rt_numeric=0, server_timestamp=now_utc,
-                                         is_practice_trial=False,
-                                         corpus_trial_type='', corpus_id='schema_row',
-                                         response_type='schema_row', response_location='schema_row',
-                                         distractors='schema_row', theta_estimate=0.0001,
-                                         theta_estimate2=0.0001,
-                                         theta_se=0.0001, theta_se2=0.0001, valid_trial=False,
-                                         warning_msg_trial='schema_row',
-                                         validation_msg_trial='schema_row'))
+        """
+        Ensure every table has at least one row: the 'schema_row'.
+        If a table already has rows, the schema_row is appended (last).
+        """
+        now = datetime.now(timezone.utc)
+        for table_name, (attr, model_cls) in self._schema_registry().items():
+            seq = getattr(self, attr, None)
+            if seq is None:
+                setattr(self, attr, [])
+                seq = getattr(self, attr)
+            # Always append a schema row (even if first/only row)
+            try:
+                seq.append(model_cls.schema_row(now=now))
+            except Exception as e:
+                logging.warning(f"schema_row append failed for {table_name} ({attr}): {e}")
 
     def validate_data_from_firestore(self):
-        # Determine whether it's using guest.
-        if not self.org.is_guest:
-            if self.org.filters.org_filter.key == 'districts':
-                self.process_districts()
-                self.process_schools()
-                self.process_classes()
-                self.process_groups()
-            elif self.org.filters.org_filter.key == 'groups':
-                self.process_groups()
-
-            self.process_administration()
-
         self.process_users()
-
         if self.valid_users:
             if not self.org.is_guest:
                 self.process_surveys()
@@ -157,6 +128,18 @@ class EntityController:
             if self.valid_runs:
                 self.process_trials()
                 self.process_tasks_variants()
+
+        # Determine whether it's using guest.
+        if not self.org.is_guest:
+            if self.org.filters.org_filter.key == 'districts':
+                self.process_sites()
+                self.process_cohorts()
+                self.process_schools()
+                self.process_classes()
+            elif self.org.filters.org_filter.key == 'groups':
+                self.process_cohorts()
+
+            self.process_administration()
 
         self.adding_schema_row_to_data()
 
@@ -173,46 +156,45 @@ class EntityController:
                                                    task_id=task.task_id, new_schemas=self.new_schemas['trials'])
 
     def get_validated_data(self):
-        data = {
-            'districts': [obj.model_dump() for obj in self.valid_districts],
-            'schools': [obj.model_dump() for obj in self.valid_schools],
-            'classes': [obj.model_dump() for obj in self.valid_classes],
-            'groups': [obj.model_dump() for obj in self.valid_groups],
-            'administrations': [obj.model_dump() for obj in self.valid_administrations],
-            'tasks': [obj.model_dump() for obj in self.valid_tasks],
-            'variants': [obj.model_dump() for obj in self.valid_variants],
-            'users': [obj.model_dump() for obj in self.valid_users],
-            'runs': [obj.model_dump() for obj in self.valid_runs],
-            'trials': [obj.model_dump() for obj in self.valid_trials],
-            'survey_responses': [obj.model_dump() for obj in self.valid_survey_responses],
-            'user_groups': [obj.model_dump() for obj in self.valid_user_groups],
-            'user_schools': [obj.model_dump() for obj in self.valid_user_schools],
-            'user_classes': [obj.model_dump() for obj in self.valid_user_classes],
-        }
+        data = {}
+        for table_name, (attr, _model_cls) in self._schema_registry().items():
+            data[table_name] = [obj.model_dump() for obj in getattr(self, attr, [])]
         invalid_data = self.get_invalid_data()
         if invalid_data:
-            data['invalid_data'] = invalid_data
+            data["invalid_data"] = invalid_data
         return data
 
     def get_invalid_data(self):
-        invalid_list = ([{**obj, "table_name": "groups"} for obj in self.invalid_groups]
-                        + [{**obj, "table_name": "districts"} for obj in self.invalid_districts]
-                        + [{**obj, "table_name": "schools"} for obj in self.invalid_schools]
-                        + [{**obj, "table_name": "classes"} for obj in self.invalid_classes]
-                        + [{**obj, "table_name": "tasks"} for obj in self.invalid_tasks]
-                        + [{**obj, "table_name": "variants"} for obj in self.invalid_variants]
-                        + [{**obj, "table_name": "assignments"} for obj in self.invalid_administrations]
-                        + [{**obj, "table_name": "assignment_tasks"} for obj in self.invalid_administrations]
-                        + [{**obj, "table_name": "users"} for obj in self.invalid_users]
-                        + [{**obj, "table_name": "user_groups"} for obj in self.invalid_user_groups]
-                        + [{**obj, "table_name": "user_schools"} for obj in self.invalid_user_schools]
-                        + [{**obj, "table_name": "user_classes"} for obj in self.invalid_user_classes]
-                        + [{**obj, "table_name": "survey_responses"} for obj in self.invalid_survey_responses]
-                        + [{**obj, "table_name": "runs"} for obj in self.invalid_runs]
-                        + [{**obj, "table_name": "trials"} for obj in self.invalid_trials]
-                        )
+        invalid_rows: list[dict] = []
 
-        for invalid_item in invalid_list:
+        def normalize_item(item):
+            # You already store dicts like {"id": "...", "errors": e.errors()}.
+            # Keep dicts as-is; coerce everything else to a simple message.
+            if isinstance(item, dict):
+                return item
+            try:
+                return {"error": str(item)}
+            except Exception:
+                return {"error": "unknown invalid item"}
+
+        registry = self._schema_registry() if hasattr(self, "_schema_registry") else {}
+
+        for table_name, (valid_attr, _model_cls) in registry.items():
+            # Derive invalid attr: valid_users -> invalid_users, valid_user_sites -> invalid_user_sites, etc.
+            inv_attr = None
+            if isinstance(valid_attr, str) and valid_attr.startswith("valid_"):
+                inv_attr = "invalid_" + valid_attr[len("valid_"):]
+            if not inv_attr or not hasattr(self, inv_attr):
+                continue
+
+            items = getattr(self, inv_attr, None) or []
+            for item in items:
+                row = normalize_item(item)
+                # Don’t override if caller already set table_name
+                row.setdefault("table_name", table_name)
+                invalid_rows.append(row)
+
+        for invalid_item in invalid_rows:
             if 'loc' in invalid_item:
                 invalid_item['invalid_key'] = stringify_variables(invalid_item.pop('loc')[0]) if len(
                     invalid_item['loc']) > 0 else stringify_variables(invalid_item.pop('loc'))
@@ -225,54 +207,49 @@ class EntityController:
             if 'ctx' in invalid_item:
                 invalid_item.pop('ctx')
 
-        return invalid_list
+        return invalid_rows
 
-    def process_districts(self):
-        logging.info("Now Validating Districts...")
+    def process_sites(self):
+        logging.info("Now Validating Sites...")
+        site_ids = sorted({x.site_id for x in self.valid_user_sites})
+        sites = fs.get_org_by_org_id_list(org_name="site", org_id_list=list(site_ids))
 
-        districts = fs.get_districts_by_district_id_list(district_id_list=self.org.filters.org_filter.value)
+        self.set_sites(sites=sites)
 
-        self.set_districts(districts=districts)
+    def process_cohorts(self):
+        logging.info("Now Validating Cohorts...")
+
+        cohort_ids = sorted({x.cohort_id for x in self.valid_user_cohorts})
+        cohorts = fs.get_org_by_org_id_list(org_name="cohort", org_id_list=list(cohort_ids))
+
+        self.set_cohorts(cohorts=cohorts)
 
     def process_schools(self):
         logging.info("Now Validating Schools...")
 
-        schools = fs.get_schools_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
+        school_ids = sorted({x.school_id for x in self.valid_user_schools})
+
+        schools = fs.get_org_by_org_id_list(org_name="school", org_id_list=list(school_ids))
 
         self.set_schools(schools=schools)
 
     def process_classes(self):
         logging.info("Now Validating Classes...")
 
-        classes = fs.get_classes_by_school_ids(school_ids=[s.school_id for s in self.valid_schools])
+        class_ids = sorted({x.class_id for x in self.valid_user_classes})
+
+        classes = fs.get_org_by_org_id_list(org_name="class", org_id_list=list(class_ids))
 
         self.set_classes(classes=classes)
 
-    def process_groups(self):
-        logging.info("Now Validating Groups...")
-
-        if self.org.filters.org_filter.key == 'districts':
-            groups = fs.get_groups_by_district_ids(district_ids=[d.district_id for d in self.valid_districts])
-        elif self.org.filters.org_filter.key == 'groups':
-            groups = fs.get_groups_by_group_names(group_names_list=self.org.filters.org_filter.value)
-        else:
-            groups = []
-
-        self.set_groups(groups=groups)
-
     def process_administration(self):
-        logging.info("Now Validating Administrations...")
-
-        group_ids = [group.group_id for group in self.valid_groups]
-        district_ids = [district.district_id for district in self.valid_districts]
-        school_ids = [schools.school_id for schools in self.valid_schools]
-        administrations = fs.get_administrations(group_ids=group_ids,
-                                                 district_ids=district_ids,
-                                                 school_ids=school_ids)
+        """
+        Must be called AFTER users are processed, since we now
+        derive administrations from the user_assignments table.
+        """
+        admin_ids = {ua.administration_id for ua in self.valid_user_administrations}
+        administrations = fs.get_administrations_by_ids(list(admin_ids))
         self.set_administrations(administrations=administrations)
-        # input(f"districts: {[f"{d.name}+{d.district_id}" for d in self.valid_districts]}")
-        # input(f"groups: {[f"{g.name}+{g.group_id}" for g in self.valid_groups]}")
-        # input(f"admins: {[f"{a.name}+{a.administration_id}" for a in self.valid_administrations]}")
 
     def process_tasks_variants(self):
         logging.info("Now Validating Tasks and Variants...")
@@ -293,19 +270,11 @@ class EntityController:
                 self.set_variants(variants=variants, task_id=task.task_id)
 
     def process_users(self):
-        logging.info("Now Validating Users and UserGroups...")
-
-        if self.org.filters.org_filter.key == 'groups':
-            org_ids = [group.group_id for group in self.valid_groups]
-        elif self.org.filters.org_filter.key == 'districts':
-            org_ids = [district.district_id for district in self.valid_districts]
-        else:
-            org_ids = []
+        logging.info("Now Validating Users...")
 
         users = fs.get_users(is_guest=self.org.is_guest,
                              date_filter=self.org.filters.date_filter,
                              org_filter=self.org.filters.org_filter,
-                             org_ids=org_ids,
                              user_filter=self.org.filters.user_filter)
         self.set_users(users=users)
 
@@ -344,25 +313,25 @@ class EntityController:
                                                  trial_key_usage=self.trial_key_usage))
             run.validate_trials_in_run()
 
-    def set_groups(self, groups: list):
-        for group in groups:
+    def set_cohorts(self, cohorts: list):
+        for cohort in cohorts:
             try:
-                group = core_models.GroupBase(**group)
-                self.valid_groups.append(group)
+                cohort = core_models.CohortBase(**cohort)
+                self.valid_cohorts.append(cohort)
 
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_groups.append({**error, 'id': group["group_id"]})
+                    self.invalid_cohorts.append({**error, 'id': cohort["cohort_id"]})
 
-    def set_districts(self, districts: list):
-        for district in districts:
+    def set_sites(self, sites: list):
+        for site in sites:
             try:
-                district = core_models.DistrictBase(**district)
-                self.valid_districts.append(district)
+                site = core_models.SiteBase(**site)
+                self.valid_sites.append(site)
 
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_districts.append({**error, 'id': district["district_id"]})
+                    self.invalid_sites.append({**error, 'id': site["site_id"]})
 
     def set_schools(self, schools: list):
         for school in schools:
@@ -403,21 +372,91 @@ class EntityController:
                     self.invalid_variants.append(
                         {**error, 'id': f"variant_id: {variant['variant_id']}, task_id: {task_id}"})
 
-    def set_users(self, users):
-        for user in users:
-            user_dict = user
+    def set_users(self, users: list[dict]):
+        for raw in users:
+            # keep original dict for assignment extraction
+            user_dict = dict(raw)
+            uid = user_dict.get('user_id') or user_dict.get('uid')
             try:
-                if settings.config['INSTANCE'] == 'LEVANTE':
-                    core_models.LevanteUser.set_valid_groups(self.valid_groups)
-                    user = core_models.LevanteUser(**user)
+                if settings.config.get('INSTANCE') == 'LEVANTE':
+                    user_model = core_models.LevanteUser(**user_dict)
                 else:
-                    user = core_models.UserBase(**user)
-                self.valid_users.append(user)
-                self.set_user_joint_table(user=user_dict)
-
+                    user_model = core_models.UserBase(**user_dict)
+                self.valid_users.append(user_model)
             except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_users.append({**error, 'id': user_dict['user_id']})
+                for err in e.errors():
+                    self.invalid_users.append({**err, 'id': uid})
+
+            # Build user_assignments from the user doc
+            self.set_user_administrations(user_dict)
+            self.process_user_org_joins(user_dict)
+
+    def set_user_administrations(self, user: dict):
+        user_id = user.get('user_id') or user.get('uid')
+        if not user_id:
+            return
+
+        assigned_map = user.get('assignments_assigned') or {}
+        started_map = user.get('assignments_started') or {}
+        completed_map = user.get('assignments_completed') or {}
+
+        for administration_id, assigned_payload in assigned_map.items():
+            try:
+                ua = core_models.UserAdministration(
+                    user_id=user_id,
+                    administration_id=administration_id,
+                    date_assigned=assigned_payload,
+                    date_started=started_map.get(administration_id),
+                    is_completed=(administration_id in completed_map),
+                )
+                self.valid_user_administrations.append(ua)
+            except ValidationError as e:
+                for err in e.errors():
+                    self.invalid_user_administrations.append(
+                        {**err, 'id': f"{user_id}:{administration_id}"}
+                    )
+
+    def process_user_org_joins(self, user: dict):
+        user_id = user.get('user_id') or user.get('uid')
+        if not user_id:
+            return
+
+        sites = user.get("districts", {})
+        cohorts = user.get("groups", {})
+        schools = user.get("schools", {})
+        classes = user.get("classes", {})
+
+        for site_id, is_active in utils.ids_with_active(org_map=sites):
+            try:
+                self.valid_user_sites.append(core_models.UserSite(
+                    user_id=user_id, site_id=site_id, is_active=is_active
+                ))
+            except ValidationError as e:
+                self.invalid_user_sites.append({'id': f'{user_id}:{site_id}', 'errors': e.errors()})
+
+        for cohort_id, is_active in utils.ids_with_active(org_map=cohorts):
+            try:
+                self.valid_user_cohorts.append(core_models.UserCohort(
+                    user_id=user_id, cohort_id=cohort_id, is_active=is_active
+                ))
+            except ValidationError as e:
+                self.invalid_user_cohorts.append({'id': f'{user_id}:{cohort_id}', 'errors': e.errors()})
+
+        for school_id, is_active in utils.ids_with_active(org_map=schools):
+            try:
+                self.valid_user_schools.append(core_models.UserSchool(
+                    user_id=user_id, school_id=school_id, is_active=is_active
+                ))
+            except ValidationError as e:
+                self.invalid_user_schools.append({'id': f'{user_id}:{school_id}', 'errors': e.errors()})
+
+        for class_id, is_active in utils.ids_with_active(org_map=classes):
+            try:
+                self.valid_user_classes.append(core_models.UserClass(
+                    user_id=user_id, class_id=class_id, is_active=is_active
+                ))
+            except ValidationError as e:
+                self.invalid_user_classes.append({'id': f'{user_id}:{class_id}', 'errors': e.errors()})
 
     def set_survey_responses(self, user: core_models.LevanteUser, survey_responses: list):
         for survey_response in survey_responses:
@@ -428,61 +467,6 @@ class EntityController:
                     self.invalid_survey_responses.append(
                         {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response['survey_response_id']}"})
 
-    def set_user_joint_table(self, user: dict):
-        user_id = user.get('user_id', None)
-        user_groups = user.get('groups', {})
-        all_groups = user_groups.get('all', [])
-        current_groups = user_groups.get('current', [])
-
-        user_schools = user.get('schools', {})
-        all_schools = user_schools.get('all', [])
-        current_schools = user_schools.get('current', [])
-
-        user_classes = user.get('classes', {})
-        all_classes = user_classes.get('all', [])
-        current_classes = user_classes.get('current', [])
-
-        def append_to_groups(group_id, is_active):
-            try:
-                self.valid_user_groups.append(core_models.UserGroup(
-                    user_id=user_id,
-                    group_id=group_id,
-                    is_active=is_active))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_groups.append(
-                        {**error, 'id': f"user_id: {user_id}, group_id: {group_id}"})
-
-        def append_to_schools(school_id, is_active):
-            try:
-                self.valid_user_schools.append(core_models.UserSchool(
-                    user_id=user_id,
-                    school_id=school_id,
-                    is_active=is_active))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_schools.append(
-                        {**error, 'id': f"user_id: {user_id}, school_id: {school_id}"})
-
-        def append_to_classes(class_id, is_active):
-            try:
-                self.valid_user_classes.append(core_models.UserClass(
-                    user_id=user_id,
-                    class_id=class_id,
-                    is_active=is_active))
-            except ValidationError as e:
-                for error in e.errors():
-                    self.invalid_user_classes.append(
-                        {**error, 'id': f"user_id: {user_id}, class_id: {class_id}"})
-
-        if not self.org.is_guest:
-            for group in all_groups:
-                append_to_groups(group, group in current_groups)  # Set is_active based on presence in current_groups
-            for school in all_schools:
-                append_to_schools(school, school in current_schools)
-            for cla in all_classes:
-                append_to_classes(cla, cla in current_classes)
-
     def set_administrations(self, administrations: list):
         for administration in administrations:
             try:
@@ -490,7 +474,7 @@ class EntityController:
                 self.valid_administrations.append(administration)
             except ValidationError as e:
                 for error in e.errors():
-                    self.invalid_administrations.append({**error, 'id': administration['assignment_id']})
+                    self.invalid_administrations.append({**error, 'id': administration['administration_id']})
 
     def set_runs(self, user: core_models.LevanteUser, runs: list):
         for run in runs:
@@ -528,36 +512,3 @@ class EntityController:
                     self.invalid_trials.append(
                         {**error,
                          'id': f"trial_id: {trial['trial_id']}, run_id: {run.run_id}, user_id: {run.user_id}, task_id:{trial.get('task_id', None)}"})
-
-    # def set_user_assignment(self, user: dict):
-    #     user_id = user.get('user_id', None)
-    #     assignments_assigned = user.get('assignmentsAssigned', {})
-    #     assignments_started = user.get('assignmentsStarted', {})
-    #     for key, value in assignments_assigned.items():
-    #         try:
-    #             self.valid_user_assignments.append(core_models.UserAssignment(
-    #                 user_id=user_id,
-    #                 assignment_id=key,
-    #                 started=True if key in assignments_started.keys() else False,
-    #                 date_time=value))
-    #         except ValidationError as e:
-    #             for error in e.errors():
-    #                 self.invalid_user_assignments.append(
-    #                     {**error, 'id': f"user_id: {user['user_id']}, assignment: {key}"})
-
-    # def set_administration_task(self, administration: dict):
-    #     administration_id = administration.get('administration_id', None)
-    #     tasks = administration.get('assessments', [])
-    #     for task in tasks:
-    #         task_id = task.get('taskId', None)
-    #         variant_id = task.get('variantId', None)
-    #         try:
-    #             self.valid_administration_tasks.append(
-    #                 core_models.AdministrationTask(administration_id=administration_id,
-    #                                                task_id=task_id,
-    #                                                variant_id=variant_id))
-    #         except ValidationError as e:
-    #             for error in e.errors():
-    #                 self.invalid_administration_tasks.append(
-    #                     {**error,
-    #                      'id': f"administration_id:{administration['administration_id']}, task_id:{task_id}, variant_id:{variant_id}"})

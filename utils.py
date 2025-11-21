@@ -49,14 +49,14 @@ class DateFilter(BaseModel):
 
 class UserFilter(BaseModel):
     key: Optional[str] = Field(default=None)
-    operator: Optional[str] = Field(default=None, pattern="^(contains|<=|>=|==)$")
+    operator: Optional[str] = Field(default=None, pattern="^(starts_with|<=|>=|==)$")
     value: Optional[Union[int, str]] = Field(default=None)
 
     @model_validator(mode='before')
     def validate_value(cls, data):
         if 'operator' in data:
-            if data['operator'] == 'contains' and not isinstance(data['value'], str):
-                raise TypeError("Value must be a string when operator is 'contains'")
+            if data['operator'] == 'starts_with' and not isinstance(data['value'], str):
+                raise TypeError("Value must be a string when operator is 'starts_with'")
             elif data['operator'] in ['<=', '>=', '=='] and not isinstance(data['value'], int):
                 raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
         return data
@@ -129,10 +129,10 @@ class DatasetParameters(BaseModel):
         org_summary = []
         for org in self.orgs:
             # Summarize organization details
-            group_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
+            org_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
             date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
             org_summary.append(
-                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): groups ({group_names}), Date range: {date_range}")
+                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}")
 
         # Join all summaries, but check length constraint
         full_description_org = "; ".join(org_summary)
@@ -250,6 +250,8 @@ def handle_nan(value):
         # Recursively handle NaN values in nested dictionaries
         return {key: handle_nan(val) for key, val in value.items()}
     elif isinstance(value, list):
+        if len(value) == 0:
+            return None
         # Recursively handle NaN values in nested lists
         return [handle_nan(val) for val in value]
     return value
@@ -411,3 +413,39 @@ def pseudonymize_dataset(data: dict, salt: str) -> dict:
             new_rows.append(r)
         out[table] = new_rows
     return out
+
+
+def ids_with_active(org_map):
+    """
+    Build (id, is_active) for *every* id in org_map['all'].
+    is_active is True iff the id also appears in org_map['current'].
+    Missing/empty 'current' -> all ids are False.
+    """
+    if not isinstance(org_map, dict):
+        return []
+
+    # Collect lists, tolerate non-list values
+    all_ids_raw = org_map.get('all') or []
+    current_raw = org_map.get('current') or []
+
+    if not isinstance(all_ids_raw, (list, tuple, set)):
+        all_ids_raw = [all_ids_raw] if all_ids_raw else []
+    if not isinstance(current_raw, (list, tuple, set)):
+        current_raw = [current_raw] if current_raw else []
+
+    # De-dup ALL while preserving original order; keep only truthy strings
+    all_ids = []
+    seen = set()
+    for x in all_ids_raw:
+        x = (x or "").strip() if isinstance(x, str) else x
+        if x and x not in seen:
+            seen.add(x)
+            all_ids.append(x)
+
+    # Current set (membership test only)
+    current_set = set(
+        (c or "").strip() if isinstance(c, str) else c
+        for c in current_raw if c
+    )
+
+    return [(oid, oid in current_set) for oid in all_ids]

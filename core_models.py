@@ -1,110 +1,9 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
-from typing import Optional, Union, List, Set, Any, Literal
+from typing import Optional, Union, List, Set, Any, Literal, get_origin, get_args
 from datetime import datetime, timezone
 import ast
 from scipy.stats import binom, binomtest
 from math import isnan
-
-
-class DistrictBase(BaseModel):
-    district_id: str
-    abbreviation: Optional[str] = None
-    name: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-class SchoolBase(BaseModel):
-    school_id: str
-    district_id: str
-    abbreviation: Optional[str] = None
-    name: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-class ClassBase(BaseModel):
-    class_id: str
-    school_id: str
-    district_id: str
-    abbreviation: Optional[str] = None
-    name: str
-    grade: Optional[Union[str, int]] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
-class GroupBase(BaseModel):
-    group_id: str
-    name: str
-    abbreviation: Optional[str] = None
-    tags: Optional[str] = None
-    created_at: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
-
-
-class TaskBase(BaseModel):
-    task_id: str
-    name: str
-    description: Optional[str] = None
-    last_updated: datetime
-
-
-class VariantBase(BaseModel):
-    variant_id: str
-    task_id: str
-    name: Optional[str] = None
-    button_layout: Optional[str] = None
-    corpus: Optional[str] = None
-    key_helpers: Optional[bool] = None
-    language: Optional[str] = None
-    adaptive: bool = False
-    max_incorrect: Optional[int] = None
-    max_time: Optional[int] = None
-    num_of_practice_trials: Optional[int] = None
-    number_of_trials: Optional[int] = None
-    sequential_practice: Optional[bool] = None
-    sequential_stimulus: Optional[bool] = None
-    skip_instructions: Optional[bool] = None
-    stimulus_blocks: Optional[int] = None
-    store_item_id: Optional[bool] = None
-    last_updated: Optional[datetime] = None
-
-    @field_validator("language", mode="before")
-    def normalize_language(cls, v):
-        """
-        Normalize language codes:
-        - en -> en-US
-        - es -> es-CO
-        - de -> de-DE
-        - others -> Other(<original>)
-        """
-        if v is None:
-            return None
-
-        code = str(v).strip()
-        if code == "":
-            return None
-
-        lower = code.lower()
-        if lower == "en":
-            return "en-US"
-        if lower == "es":
-            return "es-CO"
-        if lower == "de":
-            return "de-DE"
-
-        # everything else
-        return f"Other({code})"
-
-    @model_validator(mode="after")
-    def set_adaptive_from_name(self):
-        """
-        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
-        """
-        name = (self.name or "").lower()
-        self.adaptive = "adaptive" in name
-        return self
 
 
 class TrialBase(BaseModel):
@@ -435,13 +334,6 @@ class LevanteUser(UserBase):
     valid_user: Optional[bool] = None
     validation_msg_user: Optional[str] = None
 
-    _valid_group_ids: Set[str] = set()  # Private class attribute to hold valid group_ids
-    _district_ids: Set[str] = set()
-
-    @classmethod
-    def set_valid_groups(cls, groups: List[GroupBase]):
-        cls._valid_group_ids = {group.group_id for group in groups}
-
     @model_validator(mode='after')
     def check_birth_year_month(self):
         msg = []
@@ -512,15 +404,146 @@ class SurveyResponse(BaseModel):
     created_at: datetime
 
 
+class SiteBase(BaseModel):
+    site_id: str
+    site_abbreviation: Optional[str] = None
+    site_name: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class CohortBase(BaseModel):
+    cohort_id: str
+    cohort_name: str
+    cohort_abbreviation: Optional[str] = None
+    tags: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
+
+    @field_validator("tags", mode="before")
+    def normalize_response_nan(cls, v):
+        """
+        Convert 'nan' strings or float('nan') to None (Firestore NULL).
+        """
+        if v is None:
+            return None
+        else:
+            return str(v)
+
+
+class SchoolBase(BaseModel):
+    school_id: str
+    district_id: str
+    school_name: str
+    school_abbreviation: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ClassBase(BaseModel):
+    class_id: str
+    school_id: str
+    district_id: str
+    class_name: str
+    class_abbreviation: Optional[str] = None
+    grade: Optional[Union[str, int]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class TaskBase(BaseModel):
+    task_id: str
+    task_name: str
+    description: Optional[str] = None
+    last_updated: datetime
+
+
+class VariantBase(BaseModel):
+    variant_id: str
+    task_id: str
+    variant_name: Optional[str] = None
+    button_layout: Optional[str] = None
+    corpus: Optional[str] = None
+    key_helpers: Optional[bool] = None
+    language: Optional[str] = None
+    adaptive: bool = False
+    max_incorrect: Optional[int] = None
+    max_time: Optional[int] = None
+    num_of_practice_trials: Optional[int] = None
+    number_of_trials: Optional[int] = None
+    sequential_practice: Optional[bool] = None
+    sequential_stimulus: Optional[bool] = None
+    skip_instructions: Optional[bool] = None
+    stimulus_blocks: Optional[int] = None
+    store_item_id: Optional[bool] = None
+    last_updated: Optional[datetime] = None
+
+    @field_validator("language", mode="before")
+    def normalize_language(cls, v):
+        """
+        Normalize language codes:
+        - en -> en-US
+        - es -> es-CO
+        - de -> de-DE
+        - others -> Other(<original>)
+        """
+        if v is None:
+            return None
+
+        code = str(v).strip()
+        if code == "":
+            return None
+
+        lower = code.lower()
+        if lower == "en":
+            return "en-US"
+        if lower == "es":
+            return "es-CO"
+        if lower == "de":
+            return "de-DE"
+
+        # everything else
+        return f"Other({code})"
+
+    @model_validator(mode="after")
+    def set_adaptive_from_name(self):
+        """
+        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
+        """
+        name = (self.variant_name or "").lower()
+        self.adaptive = "adaptive" in name
+        return self
+
+
 class AdministrationBase(BaseModel):
     administration_id: str
-    name: str
+    administration_name: str
     public_name: Optional[str] = None
     sequential: bool
     created_by: str
     date_created: datetime
     date_closed: datetime
     date_opened: datetime
+
+
+class UserAdministration(BaseModel):
+    user_id: str
+    administration_id: str
+    date_assigned: Optional[datetime] = None
+    date_started: Optional[datetime] = None
+    is_completed: bool = False
+
+
+class UserSite(BaseModel):
+    user_id: str
+    site_id: str
+    is_active: bool
+
+
+class UserCohort(BaseModel):
+    user_id: str
+    cohort_id: str
+    is_active: bool
 
 
 class UserSchool(BaseModel):
@@ -535,20 +558,64 @@ class UserClass(BaseModel):
     is_active: bool
 
 
-class UserGroup(BaseModel):
-    user_id: str
-    group_id: str
-    is_active: bool
+def _schema_row_for_cls(cls, now: datetime | None = None):
+    """
+    Fabricate a one-row 'schema' sentinel instance for any Pydantic model.
+    Rules (sane defaults):
+      - str / Any -> "schema_row"
+      - int -> 0
+      - float -> 0.0001
+      - bool -> False
+      - datetime -> now (UTC)
+      - list/set/tuple -> []
+      - dict -> {}
+      - otherwise -> declared default if present else "schema_row"
+    """
+    now = now or datetime.now(timezone.utc)
+    vals: dict[str, Any] = {}
+    for name, f in cls.model_fields.items():
+        ann = f.annotation
+        origin = get_origin(ann)
+        base = ann
+
+        # unwrap Optional/Union[..., None]
+        if origin is Union:
+            args = [a for a in get_args(ann) if a is not type(None)]
+            base = args[0] if args else Any
+            origin = get_origin(base)
+
+        # choose sentinel
+        if base in (str, Any):
+            vals[name] = "schema_row"
+        elif base is int:
+            vals[name] = 0
+        elif base is float:
+            vals[name] = 0.0001
+        elif base is bool:
+            vals[name] = False
+        elif base is datetime:
+            vals[name] = now
+        elif origin in (list, set, tuple):
+            vals[name] = []
+        elif origin is dict:
+            vals[name] = {}
+        else:
+            vals[name] = f.default if f.default is not None else "schema_row"
+
+    try:
+        return cls(**vals)
+    except Exception:
+        # if validators complain, bypass validation (still fine for schema sentinel)
+        return cls.model_construct(**vals)
 
 
-class AdministrationTask(BaseModel):
-    administration_id: str
-    task_id: str
-    variant_id: Optional[str] = None
+# Attach schema_row to every BaseModel subclass defined in this module (once).
+for _name, _obj in list(globals().items()):
+    try:
+        from pydantic import BaseModel as _BM  # local alias
 
-
-class UserAssignment(BaseModel):
-    user_id: str
-    assignment_id: str
-    started: bool
-    date_time: datetime
+        if isinstance(_obj, type) and issubclass(_obj, _BM) and _obj is not _BM:
+            if not hasattr(_obj, "schema_row"):
+                setattr(_obj, "schema_row", classmethod(_schema_row_for_cls))
+    except Exception:
+        pass

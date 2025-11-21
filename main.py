@@ -45,7 +45,7 @@ def process(req):
                 validated_data = {}
                 new_version_release = False
                 total_validation_stats = {
-                    'groups': 0,
+                    'cohorts': 0,
                     'administrations': 0,
                     'users': {
                         'total': 0,
@@ -82,7 +82,7 @@ def process(req):
                         logging.info("user_ids have been masked.")
 
                     org_validation_stats = {
-                        'groups': len(ec.valid_groups) + len(ec.invalid_groups),
+                        'cohorts': len(ec.valid_cohorts) + len(ec.invalid_cohorts),
                         'administrations': len(ec.valid_administrations) + len(ec.invalid_administrations),
                         'users': {
                             'total': len(ec.valid_users) + len(ec.invalid_users),
@@ -101,7 +101,7 @@ def process(req):
                     }
                     total_validation_stats['orgs'][org.org_id] = org_validation_stats
 
-                    total_validation_stats['groups'] += org_validation_stats['groups']
+                    total_validation_stats['cohorts'] += org_validation_stats['cohorts']
                     total_validation_stats['administrations'] += org_validation_stats['administrations']
                     total_validation_stats['users']['total'] += org_validation_stats['users']['total']
                     total_validation_stats['users']['valid_users'] += org_validation_stats['users'][
@@ -123,14 +123,18 @@ def process(req):
                     total_validation_stats['new_schemas']['surveys'].extend(ec.new_schemas['surveys'])
                     validated_data = utils.merge_dictionaries(validated_data, org_validated_data)
 
-                reduce_dup_keys = {'administrations': 'administration_id',
-                                   'groups': 'group_id',
-                                   'tasks': 'task_id',
-                                   'variants': 'variant_id',
-                                   "users": "user_id",
-                                   'runs': 'run_id',
-                                   'trials': 'trial_id',
-                                   }
+                reduce_dup_keys = {
+                    'sites': 'site_id',
+                    'cohorts': 'cohort_id',
+                    'schools': 'school_id',
+                    'classes': 'class_id',
+                    'administrations': 'administration_id',
+                    'tasks': 'task_id',
+                    'variants': 'variant_id',
+                    "users": "user_id",
+                    'runs': 'run_id',
+                    'trials': 'trial_id',
+                }
 
                 validated_data = utils.reduce_duplication_by_keys(data=validated_data,
                                                                   keys=reduce_dup_keys)
@@ -175,7 +179,7 @@ def process(req):
                             table_names_in_redivis = [table.name for table in rs.dataset.list_tables()]
                             table_names_in_gcp_bucket = [name.split('/')[-1].split('.')[0] for name in file_names]
 
-                            exception_tables = ['invalid_data', 'administration_tasks']
+                            exception_tables = ['invalid_data']
                             for table_name in exception_tables:
                                 if table_name in table_names_in_redivis and table_name not in table_names_in_gcp_bucket:
                                     rs.delete_table(table_name=table_name)
