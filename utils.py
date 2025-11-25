@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import os
 import re
 import hashlib
 import math
 import settings
 import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 import json
 import requests
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Union, Optional, Literal
+from typing import List, Union, Optional, Literal, get_args, get_origin
 from datetime import datetime
 import hashlib, base64, re
 
@@ -328,6 +332,112 @@ def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth:
         else:
             items[new_key] = type(v).__name__
     return items
+
+
+def schema_registry():
+    """
+        Map export table name -> (controller list attribute, model class).
+        Adjust to match exactly the tables you want in Redivis.
+        """
+    import core_models
+    # pick concrete user/run/trial classes based on INSTANCE
+    use_levante = settings.config.get("INSTANCE") == "LEVANTE"
+    UserCls = core_models.LevanteUser if use_levante else core_models.UserBase
+    RunCls = core_models.LevanteRun if use_levante else core_models.RunBase
+    TrialCls = core_models.LevanteTrial if use_levante else core_models.TrialBase
+
+    return {
+        # org dimensions
+        "sites": ("valid_sites", getattr(core_models, "SiteBase")),
+        "cohorts": ("valid_cohorts", getattr(core_models, "CohortBase")),
+        "schools": ("valid_schools", getattr(core_models, "SchoolBase")),
+        "classes": ("valid_classes", getattr(core_models, "ClassBase")),
+
+        # core dimensions
+        "administrations": ("valid_administrations", core_models.AdministrationBase),
+        "tasks": ("valid_tasks", core_models.TaskBase),
+        "variants": ("valid_variants", core_models.VariantBase),
+
+        # facts
+        "users": ("valid_users", UserCls),
+        "runs": ("valid_runs", RunCls),
+        "trials": ("valid_trials", TrialCls),
+        "survey_responses": ("valid_survey_responses", core_models.SurveyResponse),
+
+        # joins
+        "user_administrations": ("valid_user_administrations", core_models.UserAdministration),
+        "user_sites": ("valid_user_sites", core_models.UserSite),
+        "user_cohorts": ("valid_user_cohorts", core_models.UserCohort),
+        "user_schools": ("valid_user_schools", core_models.UserSchool),
+        "user_classes": ("valid_user_classes", core_models.UserClass),
+    }
+
+
+def _sentinel_from_annotation(ann: Any, now: datetime) -> Any:
+    origin = get_origin(ann)
+    base = ann
+
+    # Unwrap Optional/Union[..., None]
+    if origin is Union:
+        args = [a for a in get_args(ann) if a is not type(None)]
+        base = args[0] if args else Any
+        origin = get_origin(base)
+
+    if base is str:
+        return "schema_row"
+    if base is int:
+        return 0
+    if base is float:
+        return 0.0001
+    if base is bool:
+        return False
+    if base is datetime:
+        return now
+    if origin in (list, set, tuple):
+        return []
+    if origin is dict:
+        return {}
+
+    return "schema_row"
+
+
+def append_schema_rows_to_validated_data(validated_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    For every table in validated_data that is a non-empty list of rows (list[dict]),
+    append a single 'schema row' inferred from existing columns/types.
+    Idempotent-by-convention: call this ONCE per export pipeline.
+    """
+
+    out: Dict[str, Any] = {}
+    reg = schema_registry()
+    now = datetime.now(timezone.utc)
+
+    for t_name in reg.keys():
+        validated_data.setdefault(t_name, [])
+
+    for table, rows in validated_data.items():
+        # leave invalid_data unchanged
+        if table == "invalid_data":
+            out[table] = rows
+            continue
+
+        # get model class from registry entry (table -> (attr, model_cls))
+        entry = reg.get(table)
+        model_cls = entry[1]
+        fields = getattr(model_cls, "model_fields", {}) or {}
+
+        # Build a typed schema row strictly from model annotations
+        schema_row = {name: _sentinel_from_annotation(f.annotation, now)
+                      for name, f in fields.items()}
+
+        # Always append exactly one schema row
+        if isinstance(rows, list):
+            out[table] = list(rows) + [schema_row]
+        else:
+            # Coerce non-list payloads into a single-row list with the schema row
+            out[table] = [schema_row]
+
+    return out
 
 
 def schema_signature(doc: dict, max_depth: Optional[int] = 1) -> str:

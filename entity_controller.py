@@ -64,51 +64,13 @@ class EntityController:
         self.valid_user_administrations = []
         self.invalid_user_administrations = []
 
-    @staticmethod
-    def _schema_registry():
-        """
-        Map export table name -> (controller list attribute, model class).
-        Adjust to match exactly the tables you want in Redivis.
-        """
-        # pick concrete user/run/trial classes based on INSTANCE
-        use_levante = settings.config.get("INSTANCE") == "LEVANTE"
-        UserCls = core_models.LevanteUser if use_levante else core_models.UserBase
-        RunCls = core_models.LevanteRun if use_levante else core_models.RunBase
-        TrialCls = core_models.LevanteTrial if use_levante else core_models.TrialBase
-
-        return {
-            # org dimensions
-            "sites": ("valid_sites", getattr(core_models, "SiteBase")),
-            "cohorts": ("valid_cohorts", getattr(core_models, "CohortBase")),
-            "schools": ("valid_schools", getattr(core_models, "SchoolBase")),
-            "classes": ("valid_classes", getattr(core_models, "ClassBase")),
-
-            # core dimensions
-            "administrations": ("valid_administrations", core_models.AdministrationBase),
-            "tasks": ("valid_tasks", core_models.TaskBase),
-            "variants": ("valid_variants", core_models.VariantBase),
-
-            # facts
-            "users": ("valid_users", UserCls),
-            "runs": ("valid_runs", RunCls),
-            "trials": ("valid_trials", TrialCls),
-            "survey_responses": ("valid_survey_responses", core_models.SurveyResponse),
-
-            # joins
-            "user_administrations": ("valid_user_administrations", core_models.UserAdministration),
-            "user_sites": ("valid_user_sites", core_models.UserSite),
-            "user_cohorts": ("valid_user_cohorts", core_models.UserCohort),
-            "user_schools": ("valid_user_schools", core_models.UserSchool),
-            "user_classes": ("valid_user_classes", core_models.UserClass),
-        }
-
     def adding_schema_row_to_data(self):
         """
         Ensure every table has at least one row: the 'schema_row'.
         If a table already has rows, the schema_row is appended (last).
         """
         now = datetime.now(timezone.utc)
-        for table_name, (attr, model_cls) in self._schema_registry().items():
+        for table_name, (attr, model_cls) in utils.schema_registry().items():
             seq = getattr(self, attr, None)
             if seq is None:
                 setattr(self, attr, [])
@@ -141,23 +103,23 @@ class EntityController:
 
             self.process_administration()
 
-        self.adding_schema_row_to_data()
+        # self.adding_schema_row_to_data()
 
         # Track schema
-        for task in self.valid_tasks:
-            if task.task_id == 'survey':
-                for survey_type, schema_dict in self.survey_key_usage.items():
-                    fs.upload_task_schema_to_firestore(dict_type=survey_type, schema_usage=self.survey_key_usage,
-                                                       task_id=task.task_id, new_schemas=self.new_schemas['surveys'])
-            else:
-                fs.upload_task_schema_to_firestore(dict_type='runKeys', schema_usage=self.run_key_usage,
-                                                   task_id=task.task_id, new_schemas=self.new_schemas['runs'])
-                fs.upload_task_schema_to_firestore(dict_type='trialKeys', schema_usage=self.trial_key_usage,
-                                                   task_id=task.task_id, new_schemas=self.new_schemas['trials'])
+        # for task in self.valid_tasks:
+        #     if task.task_id == 'survey':
+        #         for survey_type, schema_dict in self.survey_key_usage.items():
+        #             fs.upload_task_schema_to_firestore(dict_type=survey_type, schema_usage=self.survey_key_usage,
+        #                                                task_id=task.task_id, new_schemas=self.new_schemas['surveys'])
+        #     else:
+        #         fs.upload_task_schema_to_firestore(dict_type='runKeys', schema_usage=self.run_key_usage,
+        #                                            task_id=task.task_id, new_schemas=self.new_schemas['runs'])
+        #         fs.upload_task_schema_to_firestore(dict_type='trialKeys', schema_usage=self.trial_key_usage,
+        #                                            task_id=task.task_id, new_schemas=self.new_schemas['trials'])
 
     def get_validated_data(self):
         data = {}
-        for table_name, (attr, _model_cls) in self._schema_registry().items():
+        for table_name, (attr, _model_cls) in utils.schema_registry().items():
             data[table_name] = [obj.model_dump() for obj in getattr(self, attr, [])]
         invalid_data = self.get_invalid_data()
         if invalid_data:
@@ -177,7 +139,7 @@ class EntityController:
             except Exception:
                 return {"error": "unknown invalid item"}
 
-        registry = self._schema_registry() if hasattr(self, "_schema_registry") else {}
+        registry = utils.schema_registry() if hasattr(self, "_schema_registry") else {}
 
         for table_name, (valid_attr, _model_cls) in registry.items():
             # Derive invalid attr: valid_users -> invalid_users, valid_user_sites -> invalid_user_sites, etc.

@@ -138,6 +138,9 @@ def process(req):
 
                 validated_data = utils.reduce_duplication_by_keys(data=validated_data,
                                                                   keys=reduce_dup_keys)
+                # Append one schema row to each validated table
+                validated_data = utils.append_schema_rows_to_validated_data(validated_data)
+
                 # GCP storage service
                 if not dataset_parameters.is_save_to_storage:
                     elapsed_time = time.time() - start_time

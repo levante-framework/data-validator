@@ -14,8 +14,8 @@ import warnings
 warnings.filterwarnings("ignore", message="Detected filter using positional arguments")
 logging.basicConfig(level=logging.INFO)
 
-default_start_date = datetime(2024, 1, 1)
-default_end_date = datetime(2050, 1, 1)
+default_start_date = "2024-01-01"
+default_end_date = "2050-01-01"
 
 
 def stringify_variables(variable):
@@ -28,13 +28,20 @@ def stringify_variables(variable):
 
 
 def to_datetime(dt_str, dt_type):
-    if dt_str:
-        return datetime.strptime(dt_str, '%Y-%m-%d')
+    """
+    dt_str: 'YYYY-MM-DD' or None
+    dt_type: 'start' or 'end'
+    """
+    if not dt_str:
+        dt_str = default_start_date if dt_type == "start" else default_end_date
+
+    # parse as naive date, then make it UTC and clamp to day boundary
+    dt = datetime.strptime(dt_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+    if dt_type == "start":
+        return dt.replace(hour=0, minute=0, second=0, microsecond=0)
     else:
-        if dt_type == 'start':
-            return default_start_date
-        else:
-            return default_end_date
+        return dt.replace(hour=23, minute=59, second=59, microsecond=999999)
 
 
 def convert_to_integer(variable):
@@ -247,8 +254,8 @@ class FirestoreServices:
 
         base_query = self.admin_db.collection(collection_name)
         # Apply the date range filters
-        base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
-        base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
+        # base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
+        # base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
         if org_filter.key:
             if org_filter.operator == "array_contains_any":
                 base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_filter.value)
@@ -262,6 +269,24 @@ class FirestoreServices:
                 base_query = base_query.order_by(prefix_field)
 
         base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
+
+        # def _parse_iso_z(s: str):
+        #     try:
+        #         return datetime.fromisoformat(s.replace('Z', '+00:00'))
+        #     except Exception:
+        #         return None
+
+        def _any_assigned_between(assigned_map: dict, start_dt, end_dt) -> bool:
+            """
+            Returns True if ANY assignmentsAssigned entry has a __time__ within [start_dt, end_dt].
+            Supports values like {"__time__": "...Z"} or raw ISO strings.
+            """
+            if not isinstance(assigned_map, dict):
+                return False
+            for administration_id, assigned_time in assigned_map.items():
+                if assigned_time is not None and start_dt <= assigned_time <= end_dt:
+                    return True
+            return False
 
         def process_docs(query):
             last_doc = None
@@ -288,6 +313,12 @@ class FirestoreServices:
                             if not runs:  # Check if there are no documents in the runs subcollection
                                 continue
                         else:
+                            if not _any_assigned_between(
+                                    doc_dict.get('assignmentsAssigned', {}),
+                                    to_datetime(date_filter.start_date, 'start'),
+                                    to_datetime(date_filter.end_date, 'end')
+                            ):
+                                continue
                             user_type = doc_dict.get('userType', None)
                             assignments_started = doc_dict.get('assignmentsStarted', False)
                             survey_responses = doc.reference.collection('surveyResponses').limit(1).get()
