@@ -401,7 +401,7 @@ class SurveyResponse(BaseModel):
 
     is_complete: Optional[bool] = None
 
-    created_at: datetime
+    response_time: datetime
 
 
 class SiteBase(BaseModel):

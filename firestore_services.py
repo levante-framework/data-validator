@@ -523,37 +523,88 @@ class FirestoreServices:
         def reformat_responses(data):
             formatted_responses = []
 
-            def process_item(process_key, process_value):
+            def coerce_answer(v):
+                """Return (boolean_response, string_response, numeric_response)."""
                 boolean_response = None
                 string_response = None
                 numeric_response = None
-                # If value is a dictionary, process nested items
+
+                if v is None:
+                    return boolean_response, string_response, numeric_response
+
+                # If Firestore stores numbers as int already
+                if isinstance(v, bool):
+                    boolean_response = v
+                    return boolean_response, string_response, numeric_response
+
+                if isinstance(v, int):
+                    numeric_response = v
+                    return boolean_response, string_response, numeric_response
+
+                # Strings
+                if isinstance(v, str):
+                    s = v.strip()
+                    if s.lower() in ("yes", "no"):
+                        boolean_response = (s.lower() == "yes")
+                    else:
+                        # int-like (handles "3", "-1", etc.)
+                        try:
+                            numeric_response = int(s)
+                        except Exception:
+                            string_response = s
+                    return boolean_response, string_response, numeric_response
+
+                # Anything else -> string
+                string_response = str(v)
+                return boolean_response, string_response, numeric_response
+
+            def is_response_object(d):
+                """New format: {"responseTime": {...}, "responseValue": "..."}"""
+                return isinstance(d, dict) and ("responseValue" in d or "responseTime" in d)
+
+            def extract_response_value(d):
+                """Prefer responseValue if present; otherwise None."""
+                if not isinstance(d, dict):
+                    return d
+                return d.get("responseValue", None)
+
+            def extract_response_time(d):
+                """If you want it, return the raw responseTime object (or __time__)."""
+                if not isinstance(d, dict):
+                    return None
+                rt = d.get("responseTime")
+                if isinstance(rt, dict) and "__time__" in rt:
+                    return rt.get("__time__")
+                return rt
+
+            def process_item(process_key, process_value):
+                # Skip intro questions
+                if "intro" in (process_key or "").lower():
+                    return
+
+                # New response-object shape -> treat as a leaf answer (DON'T recurse)
+                response_time = None
+                if is_response_object(process_value):
+                    response_time = extract_response_time(process_value)
+                    process_value = extract_response_value(process_value)
+
+                # Generic dict (not the new response-object) -> recurse
                 if isinstance(process_value, dict):
                     for sub_key, sub_value in process_value.items():
                         process_item(sub_key, sub_value)
-                elif 'intro' not in process_key.lower():
-                    boolean_values = {"Yes", "No"}  # Set for quick lookup
+                    return
 
-                    if isinstance(process_value, (int, str)):
-                        if isinstance(process_value, int) or process_value.isdigit():
-                            numeric_response = int(process_value) if not isinstance(process_value,
-                                                                                    int) else process_value
-                        elif process_value in boolean_values:
-                            boolean_response = True if process_value == "Yes" else False
-                        else:
-                            string_response = process_value
-                    else:
-                        string_response = str(process_value)
+                boolean_response, string_response, numeric_response = coerce_answer(process_value)
 
-                    # Format and add to the list, converting values to integers when possible
-                    formatted_responses.append({
-                        "question_id": process_key,
-                        "boolean_response": boolean_response,
-                        "string_response": string_response,
-                        "numeric_response": numeric_response,
-                    })
+                formatted_responses.append({
+                    "question_id": process_key,
+                    "boolean_response": boolean_response,
+                    "string_response": string_response,
+                    "numeric_response": numeric_response,
+                    "response_time": response_time,
+                })
 
-            for key, value in data.items():
+            for key, value in (data or {}).items():
                 process_item(key, value)
 
             return formatted_responses
@@ -578,7 +629,6 @@ class FirestoreServices:
                         "survey_response_id": doc.id,
                         "time_created": time_created,
                     }
-
                     if key not in task_dict:
                         task_dict[key] = new_meta
                     else:
@@ -586,11 +636,21 @@ class FirestoreServices:
                         if prev_time is None or (time_created and time_created > prev_time):
                             task_dict[key] = new_meta
 
-                survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})
+                # --- UPDATED: accept multiple storage shapes ---
+                survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})  # legacy
                 reformated_survey_responses = []
-                if not survey_responses_dict:
+
+                if survey_responses_dict:
+                    # legacy "data.surveyResponses"
+                    reformated_survey_responses = reformat_responses(data=survey_responses_dict)
+                else:
                     general = doc_dict.get('general', {})
                     specific = doc_dict.get('specific', [])
+
+                    # NEW: sometimes the doc itself is {isComplete, responses}
+                    root_responses = doc_dict.get('responses', None)
+                    root_is_complete = doc_dict.get('isComplete', None)
+
                     if general:
                         is_complete = general.get('isComplete', None)
                         general_responses = general.get('responses', {})
@@ -599,6 +659,14 @@ class FirestoreServices:
                             for r in reformatted_g_data:
                                 r.update({'is_complete': is_complete})
                             reformated_survey_responses.extend(reformatted_g_data)
+
+                    elif root_responses:
+                        # root-level format
+                        reformatted_root = reformat_responses(data=root_responses)
+                        for r in reformatted_root:
+                            r.update({'is_complete': root_is_complete})
+                        reformated_survey_responses.extend(reformatted_root)
+
                     if specific:
                         for s in specific:
                             child_id = s.get('childId', None)
@@ -609,23 +677,26 @@ class FirestoreServices:
                                 for r in reformatted_s_data:
                                     r.update({'is_complete': is_complete, 'child_id': child_id})
                                 reformated_survey_responses.extend(reformatted_s_data)
-                else:
-                    reformated_survey_responses = reformat_responses(data=survey_responses_dict)
 
+                doc_created_at = doc_dict.get('createdAt', None)
                 # Processing responses:
                 for item in reformated_survey_responses:
+                    effective_response_time = item.get("response_time") or doc_created_at
+
                     item.update({
                         'survey_response_id': doc.id,
                         'user_id': user_id,
                         'administration_id': doc_dict.get('administrationId', None),
                         'survey_id': user_type if user_type != 'parent' else 'caregiver',
-                        'created_at': doc_dict.get('createdAt', None),
+                        'response_time': effective_response_time,
                         'updated_at': doc_dict.get('updatedAt', None),
                     })
 
                 survey_responses.extend(reformated_survey_responses)
+
         except Exception as e:
             print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
+
         return survey_responses
 
     def upload_task_schema_to_firestore(self, dict_type: str, schema_usage: dict, task_id: str,
