@@ -21,7 +21,8 @@ ID_FIELDS = {
     "users": ["user_id", "parent1_id", "parent2_id", "teacher_id"],
     "runs": ["user_id"],
     "trials": ["user_id"],
-    "survey_responses": ["user_id", "child_id"],
+    "surveys": ["user_id", "child_id"],
+    "survey_responses": [],
     "user_groups": ["user_id"],
     "user_schools": ["user_id"],
     "user_classes": ["user_id"],
@@ -327,8 +328,9 @@ def flatten_document(doc: dict, parent_key: str = '', sep: str = '.', max_depth:
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
             items.update(flatten_document(v, new_key, sep, max_depth, current_depth + 1))
-        elif isinstance(v, list) and v and isinstance(v[0], dict):
-            items.update(flatten_document(v[0], new_key, sep, max_depth, current_depth + 1))
+        elif isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+            for elem in v:
+                items.update(flatten_document(elem, new_key, sep, max_depth, current_depth + 1))
         else:
             items[new_key] = type(v).__name__
     return items
@@ -362,6 +364,7 @@ def schema_registry():
         "users": ("valid_users", UserCls),
         "runs": ("valid_runs", RunCls),
         "trials": ("valid_trials", TrialCls),
+        "surveys": ("valid_surveys", core_models.Survey),
         "survey_responses": ("valid_survey_responses", core_models.SurveyResponse),
 
         # joins

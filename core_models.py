@@ -387,21 +387,26 @@ class LevanteUser(UserBase):
         return self
 
 
-class SurveyResponse(BaseModel):
-    survey_response_id: str
-    administration_id: Optional[str] = None
+class Survey(BaseModel):
+    survey_id: str  # join id used by survey_responses
+    administration_id: str
     user_id: str
+    survey_part: Optional[str] = None
     child_id: Optional[str] = None
-    survey_id: str  # student, teacher, parent
-    question_id: str  # TeacherGender, TeacherEducation
+    survey_type: str  # caregiver, student, teacher
+    is_complete: Optional[bool] = None
+    created_at: datetime
+
+
+class SurveyResponse(BaseModel):
+    survey_id: str  # join id to surveys.survey_id
+    question: str
 
     boolean_response: Optional[bool] = None
     string_response: Optional[str] = None
     numeric_response: Optional[int] = None
 
-    is_complete: Optional[bool] = None
-
-    response_time: datetime
+    timestamp: datetime
 
 
 class SiteBase(BaseModel):

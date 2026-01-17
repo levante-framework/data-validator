@@ -45,6 +45,8 @@ class EntityController:
         self.valid_trials = []
         self.invalid_trials = []
 
+        self.valid_surveys = []
+        self.invalid_surveys = []
         self.valid_survey_responses = []
         self.invalid_survey_responses = []
         self.survey_responses_stats = {"student": 0, "teacher": 0, "caregiver": 0}
@@ -243,12 +245,19 @@ class EntityController:
     def process_surveys(self):
         logging.info("Now Validating Surveys...")
         for user in self.valid_users:
-            survey_responses = fs.get_surveys(user_id=user.user_id,
-                                              user_type=user.user_type,
-                                              date_filter=self.org.filters.date_filter,
-                                              survey_key_usage=self.survey_key_usage)
+            surveys, survey_responses = fs.get_surveys(user_id=user.user_id,
+                                                       user_type=user.user_type,
+                                                       date_filter=self.org.filters.date_filter,
+                                                       survey_key_usage=self.survey_key_usage)
+
+            if surveys:
+                self.set_surveys(user=user, surveys=surveys)
+
             if survey_responses:
                 self.set_survey_responses(user=user, survey_responses=survey_responses)
+
+            # Stats: count a user if they have at least one survey instance
+            if surveys:
                 if user.user_type == 'student':
                     self.survey_responses_stats["student"] += 1
                 elif user.user_type == 'teacher':
@@ -420,6 +429,15 @@ class EntityController:
             except ValidationError as e:
                 self.invalid_user_classes.append({'id': f'{user_id}:{class_id}', 'errors': e.errors()})
 
+    def set_surveys(self, user: core_models.LevanteUser, surveys: list):
+        for survey in surveys:
+            try:
+                self.valid_surveys.append(core_models.Survey(**survey))
+            except ValidationError as e:
+                for error in e.errors():
+                    self.invalid_surveys.append(
+                        {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey.get('survey_id')}"})
+
     def set_survey_responses(self, user: core_models.LevanteUser, survey_responses: list):
         for survey_response in survey_responses:
             try:
@@ -427,7 +445,7 @@ class EntityController:
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(
-                        {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response['survey_response_id']}"})
+                        {**error, 'id': f"user_id: {user.user_id}, survey_id: {survey_response.get('survey_id')}"})
 
     def set_administrations(self, administrations: list):
         for administration in administrations:

@@ -518,58 +518,40 @@ class FirestoreServices:
                 break
 
     def get_surveys(self, user_id: str, user_type: str, date_filter: utils.DateFilter, survey_key_usage: dict):
-        survey_responses = []
+        surveys: list[dict] = []
+        survey_responses: list[dict] = []
 
         def reformat_responses(data):
             formatted_responses = []
 
             def coerce_answer(v):
-                """Return (boolean_response, string_response, numeric_response)."""
                 boolean_response = None
                 string_response = None
                 numeric_response = None
 
                 if v is None:
                     return boolean_response, string_response, numeric_response
-
-                # If Firestore stores numbers as int already
                 if isinstance(v, bool):
-                    boolean_response = v
-                    return boolean_response, string_response, numeric_response
-
+                    return v, None, None
                 if isinstance(v, int):
-                    numeric_response = v
-                    return boolean_response, string_response, numeric_response
-
-                # Strings
+                    return None, None, v
                 if isinstance(v, str):
                     s = v.strip()
                     if s.lower() in ("yes", "no"):
-                        boolean_response = (s.lower() == "yes")
-                    else:
-                        # int-like (handles "3", "-1", etc.)
-                        try:
-                            numeric_response = int(s)
-                        except Exception:
-                            string_response = s
-                    return boolean_response, string_response, numeric_response
-
-                # Anything else -> string
-                string_response = str(v)
-                return boolean_response, string_response, numeric_response
+                        return (s.lower() == "yes"), None, None
+                    try:
+                        return None, None, int(s)
+                    except Exception:
+                        return None, s, None
+                return None, str(v), None
 
             def is_response_object(d):
-                """New format: {"responseTime": {...}, "responseValue": "..."}"""
                 return isinstance(d, dict) and ("responseValue" in d or "responseTime" in d)
 
             def extract_response_value(d):
-                """Prefer responseValue if present; otherwise None."""
-                if not isinstance(d, dict):
-                    return d
-                return d.get("responseValue", None)
+                return d.get("responseValue", None) if isinstance(d, dict) else d
 
             def extract_response_time(d):
-                """If you want it, return the raw responseTime object (or __time__)."""
                 if not isinstance(d, dict):
                     return None
                 rt = d.get("responseTime")
@@ -577,24 +559,32 @@ class FirestoreServices:
                     return rt.get("__time__")
                 return rt
 
-            def process_item(process_key, process_value):
+            def process_item(process_key, process_value, inherited_response_time=None):
                 # Skip intro questions
                 if "intro" in (process_key or "").lower():
                     return
 
-                # New response-object shape -> treat as a leaf answer (DON'T recurse)
-                response_time = None
+                response_time = inherited_response_time
+
+                # New response-object shape -> extract time + value
                 if is_response_object(process_value):
-                    response_time = extract_response_time(process_value)
+                    rt = extract_response_time(process_value)
+                    if rt is not None:
+                        response_time = rt
                     process_value = extract_response_value(process_value)
 
-                # Generic dict (not the new response-object) -> recurse
+                # If responseValue is a dict: recurse BUT keep the same response_time
                 if isinstance(process_value, dict):
                     for sub_key, sub_value in process_value.items():
-                        process_item(sub_key, sub_value)
+                        process_item(sub_key, sub_value, response_time)
                     return
 
-                boolean_response, string_response, numeric_response = coerce_answer(process_value)
+                # If responseValue is a list (e.g. TeacherGrad): store as JSON string (stable)
+                if isinstance(process_value, list):
+                    boolean_response, string_response, numeric_response = None, json.dumps(process_value,
+                                                                                           ensure_ascii=False), None
+                else:
+                    boolean_response, string_response, numeric_response = coerce_answer(process_value)
 
                 formatted_responses.append({
                     "question_id": process_key,
@@ -605,9 +595,17 @@ class FirestoreServices:
                 })
 
             for key, value in (data or {}).items():
-                process_item(key, value)
+                process_item(key, value, None)
 
             return formatted_responses
+
+        def make_survey_id(doc_id: str, scope: str, child_id: str | None = None) -> str:
+            # Ensure uniqueness across general vs per-child specific sections
+            if child_id:
+                return f"{doc_id}:{scope}:{child_id}"
+            return f"{doc_id}:{scope}"
+
+        survey_type = user_type if user_type != "parent" else "caregiver"
 
         try:
             docs = (self.admin_db.collection('users').document(user_id).collection('surveyResponses')
@@ -620,6 +618,7 @@ class FirestoreServices:
                 doc_dict = doc.to_dict()
                 time_created = doc_dict.get('createdAt', None)
 
+                # key usage tracking (unchanged)
                 flattened = flatten_document(doc=doc_dict, max_depth=2)
                 task_dict = survey_key_usage.setdefault(f'{user_type}_survey', {})
 
@@ -636,68 +635,98 @@ class FirestoreServices:
                         if prev_time is None or (time_created and time_created > prev_time):
                             task_dict[key] = new_meta
 
-                # --- UPDATED: accept multiple storage shapes ---
-                survey_responses_dict = doc_dict.get('data', {}).get('surveyResponses', {})  # legacy
-                reformated_survey_responses = []
+                doc_created_at = doc_dict.get('createdAt', None)
+                doc_updated_at = doc_dict.get('updatedAt', None)
+                administration_id = doc_dict.get('administrationId', None)
 
-                if survey_responses_dict:
-                    # legacy "data.surveyResponses"
-                    reformated_survey_responses = reformat_responses(data=survey_responses_dict)
+                survey_instances: list[dict] = []
+
+                # 1) legacy: data.surveyResponses
+                legacy_flat = doc_dict.get('data', {}).get('surveyResponses', {})
+                if legacy_flat:
+                    survey_instances.append({
+                        "scope": "data",
+                        "child_id": None,
+                        "is_complete": doc_dict.get("isComplete", None),
+                        "responses": legacy_flat,
+                    })
                 else:
+                    # 2) legacy: general/specific
                     general = doc_dict.get('general', {})
                     specific = doc_dict.get('specific', [])
 
-                    # NEW: sometimes the doc itself is {isComplete, responses}
-                    root_responses = doc_dict.get('responses', None)
-                    root_is_complete = doc_dict.get('isComplete', None)
+                    if general and isinstance(general, dict) and general.get('responses'):
+                        survey_instances.append({
+                            "scope": "general",
+                            "child_id": None,
+                            "is_complete": general.get('isComplete', None),
+                            "responses": general.get('responses', {}),
+                        })
 
-                    if general:
-                        is_complete = general.get('isComplete', None)
-                        general_responses = general.get('responses', {})
-                        if general_responses:
-                            reformatted_g_data = reformat_responses(data=general_responses)
-                            for r in reformatted_g_data:
-                                r.update({'is_complete': is_complete})
-                            reformated_survey_responses.extend(reformatted_g_data)
-
-                    elif root_responses:
-                        # root-level format
-                        reformatted_root = reformat_responses(data=root_responses)
-                        for r in reformatted_root:
-                            r.update({'is_complete': root_is_complete})
-                        reformated_survey_responses.extend(reformatted_root)
-
-                    if specific:
+                    if specific and isinstance(specific, list):
                         for s in specific:
-                            child_id = s.get('childId', None)
-                            is_complete = s.get('isComplete', None)
-                            specific_responses = s.get('responses', {})
-                            if specific_responses:
-                                reformatted_s_data = reformat_responses(data=specific_responses)
-                                for r in reformatted_s_data:
-                                    r.update({'is_complete': is_complete, 'child_id': child_id})
-                                reformated_survey_responses.extend(reformatted_s_data)
+                            if not isinstance(s, dict):
+                                continue
+                            if not s.get('responses'):
+                                continue
+                            survey_instances.append({
+                                "scope": "specific",
+                                "child_id": s.get('childId', None),
+                                "is_complete": s.get('isComplete', None),
+                                "responses": s.get('responses', {}),
+                            })
 
-                doc_created_at = doc_dict.get('createdAt', None)
-                # Processing responses:
-                for item in reformated_survey_responses:
-                    effective_response_time = item.get("response_time") or doc_created_at
+                    # 3) newer: root-level {isComplete, responses}
+                    if not survey_instances:
+                        root_responses = doc_dict.get('responses', None)
+                        if root_responses:
+                            survey_instances.append({
+                                "scope": "root",
+                                "child_id": None,
+                                "is_complete": doc_dict.get('isComplete', None),
+                                "responses": root_responses,
+                            })
 
-                    item.update({
-                        'survey_response_id': doc.id,
-                        'user_id': user_id,
-                        'administration_id': doc_dict.get('administrationId', None),
-                        'survey_id': user_type if user_type != 'parent' else 'caregiver',
-                        'response_time': effective_response_time,
-                        'updated_at': doc_dict.get('updatedAt', None),
+                for inst in survey_instances:
+                    scope = inst["scope"]  # "data" | "general" | "specific" | "root"
+                    child_id = inst.get("child_id")
+                    is_complete = inst.get("is_complete")
+                    responses_map = inst.get("responses", {}) or {}
+
+                    # survey_part: only "specific" is specific; everything else is general
+                    survey_part = "specific" if scope == "specific" else "general"
+
+                    sid = make_survey_id(doc.id, scope, child_id)
+
+                    surveys.append({
+                        "survey_id": sid,
+                        "administration_id": administration_id,
+                        "user_id": user_id,
+                        "child_id": child_id,
+                        "survey_type": survey_type,
+                        "survey_part": survey_part,  # <-- NEW
+                        "is_complete": is_complete,
+                        "created_at": doc_created_at,
+                        "updated_at": doc_updated_at,
                     })
 
-                survey_responses.extend(reformated_survey_responses)
+                    # survey_responses rows
+                    reformatted = reformat_responses(data=responses_map)
+                    for item in reformatted:
+                        effective_response_time = item.get("response_time") or doc_created_at
+                        survey_responses.append({
+                            "survey_id": sid,
+                            "question": item.get("question_id"),
+                            "boolean_response": item.get("boolean_response"),
+                            "string_response": item.get("string_response"),
+                            "numeric_response": item.get("numeric_response"),
+                            "timestamp": effective_response_time,
+                        })
 
         except Exception as e:
             print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
 
-        return survey_responses
+        return surveys, survey_responses
 
     def upload_task_schema_to_firestore(self, dict_type: str, schema_usage: dict, task_id: str,
                                         new_schemas: list):
