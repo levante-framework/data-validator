@@ -65,9 +65,7 @@ def chunked(iterable):
 class FirestoreServices:
     def __init__(self):
         self._admin_db = None
-        self._assessment_db = None
         self._admin_credentials = None
-        self._assessment_credentials = None
 
     @property
     def admin_credentials(self):
@@ -77,13 +75,6 @@ class FirestoreServices:
             self._admin_credentials = service_account.Credentials.from_service_account_info(info)
         return self._admin_credentials
 
-    @property
-    def assessment_credentials(self):
-        if self._assessment_credentials is None:
-            info = json.loads(
-                secret_service.get_secret_payload(secret_id=settings.config['ASSESSMENT_SERVICE_ACCOUNT_SECRET_ID']))
-            self._assessment_credentials = service_account.Credentials.from_service_account_info(info)
-        return self._assessment_credentials
 
     @property
     def admin_db(self):
@@ -92,12 +83,6 @@ class FirestoreServices:
                                               project=self.admin_credentials.project_id)
         return self._admin_db
 
-    @property
-    def assessment_db(self):
-        if self._assessment_db is None:
-            self._assessment_db = firestore.Client(credentials=self.assessment_credentials,
-                                                   project=self.assessment_credentials.project_id)
-        return self._assessment_db
 
     def set_logs_to_firebase(self, response, dataset_id):
         pst_timezone = pytz.timezone('America/Los_Angeles')
