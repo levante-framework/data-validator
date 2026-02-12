@@ -326,7 +326,7 @@ class LevanteUser(UserBase):
     parent1_id: Optional[str] = None
     parent2_id: Optional[str] = None
     teacher_id: Optional[str] = None
-    birth_year: Optional[int] = None  #Field(None, ge=1900, le=datetime.now().year)
+    birth_year: Optional[int] = None  # Field(None, ge=2000, le=current_year)
     birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
     sex: Optional[str] = None
     grade: Optional[int] = None
@@ -337,6 +337,7 @@ class LevanteUser(UserBase):
     @model_validator(mode='after')
     def check_birth_year_month(self):
         msg = []
+        current_year = datetime.now(timezone.utc).year
         if self.user_type == 'student':
             if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
                     self.birth_month, int):
@@ -346,33 +347,35 @@ class LevanteUser(UserBase):
                 if self.birth_year < 2000:
                     self.birth_year = None
                     msg.append("birth_year_under_2000")
-                if self.birth_year > 2050:
+                if self.birth_year > current_year:
                     self.birth_year = None
-                    msg.append("birth_year_greater_2050")
+                    msg.append("birth_year_greater_current_year")
 
-                    # Only compute age if valid year/month
-                    if (
-                            self.birth_year
-                            and self.birth_month
-                            and 1 <= self.birth_month <= 12
-                            and 2000 <= self.birth_year <= 2050
-                    ):
-                        try:
-                            # assume birth day = 15th
-                            birth_date = datetime(
-                                self.birth_year,
-                                self.birth_month,
-                                15,
-                                tzinfo=timezone.utc
-                            )
-                            now_utc = datetime.now(timezone.utc)
-                            age_days = (now_utc - birth_date).days
-                            age_years = age_days / 365.25
+                # Only compute age if valid year/month
+                if (
+                        self.birth_year
+                        and self.birth_month
+                        and 1 <= self.birth_month <= 12
+                        and 2000 <= self.birth_year <= current_year
+                ):
+                    try:
+                        # assume birth day = 15th
+                        birth_date = datetime(
+                            self.birth_year,
+                            self.birth_month,
+                            15,
+                            tzinfo=timezone.utc
+                        )
+                        now_utc = datetime.now(timezone.utc)
+                        age_days = (now_utc - birth_date).days
+                        age_years = age_days / 365.25
 
-                            if age_years > 18:
-                                msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
-                        except Exception as e:
-                            msg.append(f"birthdate_calc_error: {e}")
+                        if age_years < 3:
+                            msg.append(f"user_under_3yo ({age_years:.1f} yrs)")
+                        if age_years > 18:
+                            msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
+                    except Exception as e:
+                        msg.append(f"birthdate_calc_error: {e}")
             else:
                 self.birth_year = None
                 self.birth_month = None
