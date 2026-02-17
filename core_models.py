@@ -370,8 +370,8 @@ class LevanteUser(UserBase):
                         age_days = (now_utc - birth_date).days
                         age_years = age_days / 365.25
 
-                        if age_years < 3:
-                            msg.append(f"user_under_3yo ({age_years:.1f} yrs)")
+                        if age_years < 2:
+                            msg.append(f"user_under_2yo ({age_years:.1f} yrs)")
                         if age_years > 18:
                             msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
                     except Exception as e:
