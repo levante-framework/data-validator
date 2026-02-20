@@ -347,7 +347,7 @@ class LevanteUser(UserBase):
                 if self.birth_year < 2000:
                     self.birth_year = None
                     msg.append("birth_year_under_2000")
-                if self.birth_year > current_year:
+                if self.birth_year is not None and self.birth_year > current_year:
                     self.birth_year = None
                     msg.append("birth_year_greater_current_year")
 
