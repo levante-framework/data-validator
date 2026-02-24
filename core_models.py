@@ -392,7 +392,7 @@ class LevanteUser(UserBase):
 
 class Survey(BaseModel):
     survey_id: str  # join id used by survey_responses
-    administration_id: str
+    administration_id: Optional[str] = None
     user_id: str
     survey_part: Optional[str] = None
     child_id: Optional[str] = None

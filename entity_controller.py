@@ -141,7 +141,7 @@ class EntityController:
             except Exception:
                 return {"error": "unknown invalid item"}
 
-        registry = utils.schema_registry() if hasattr(self, "_schema_registry") else {}
+        registry = utils.schema_registry()
 
         for table_name, (valid_attr, _model_cls) in registry.items():
             # Derive invalid attr: valid_users -> invalid_users, valid_user_sites -> invalid_user_sites, etc.
