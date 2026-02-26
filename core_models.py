@@ -19,6 +19,7 @@ class TrialBase(BaseModel):
     item_id: Optional[str] = None
     item_uid: Optional[str] = None
     answer: Optional[Any] = None
+    subtask: Optional[str] = None
     response: Optional[Any] = None
     correct: Optional[bool] = None
     difficulty: Optional[float] = None
@@ -93,7 +94,7 @@ class LevanteTrial(TrialBase):
         msg = []
 
         if self not in ['instructions', 'practice_response']:
-            if self.rt not in ["", "{}", "0", 0]:
+            if self.rt not in [None, "", "{}", "0", 0]:
                 if isinstance(self.rt, int):
                     if self.task_id in ['matrix-reasoning']:
                         rt_min = 300
@@ -279,14 +280,14 @@ class LevanteRun(RunBase):
             return True, index  # Proper integers sorted normally
 
         def has_consecutive_identical(lst, n):
-            # Check if the list has fewer than n elements or all elements are ""
-            if len(lst) < n or all(x == "" for x in lst):
+            # Check if the list has fewer than n elements or all elements are blank
+            if len(lst) < n or all(x in ("", None) for x in lst):
                 return False
 
             # Loop through the list, stopping at the nth-to-last element
             for i in range(len(lst) - n + 1):
                 # Check if the n elements starting from index i are all the same
-                if all(lst[i] == lst[j] and lst[j] != "" for j in range(i, i + n)):
+                if all(lst[i] == lst[j] and lst[j] not in ("", None) for j in range(i, i + n)):
                     return True
             return False
 

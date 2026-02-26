@@ -484,16 +484,25 @@ class FirestoreServices:
                         doc_dict['trial_attributes'] = process_doc_dict(doc_dict, ignore_keys)
                         converted_doc_dict = doc_dict
                     else:
-                        answer = doc_dict.get('answer', doc_dict.get('sequence', doc_dict.get('word', None)))
-                        rt = doc_dict.get('rt', '')
+                        answer = doc_dict.get(
+                            'answer',
+                            doc_dict.get('goal', doc_dict.get('sequence', doc_dict.get('word', None)))
+                        )
+                        item = doc_dict.get('item')
+                        distractors = doc_dict.get('distractors')
+                        subtask = doc_dict.get('subtask')
+                        response = doc_dict.get('response')
+                        response_location = doc_dict.get('responseLocation')
+                        rt = doc_dict.get('rt')
                         doc_dict.update({
                             # 'corpus_trial_type': stringify_variables(doc_dict.get('corpus_trial_type', '')),
-                            'item': stringify_variables(doc_dict.get('item', '')),
-                            'distractors': stringify_variables(doc_dict.get('distractors', '')),
-                            'answer': stringify_variables(answer) if answer is not None else "",
-                            'response': stringify_variables(doc_dict.get('response', '')),
-                            'rt': rt if isinstance(rt, int) else stringify_variables(rt),
-                            'response_location': stringify_variables(doc_dict.get('responseLocation', '')),
+                            'item': stringify_variables(item) if item is not None else None,
+                            'distractors': stringify_variables(distractors) if distractors is not None else None,
+                            'answer': stringify_variables(answer) if answer is not None else None,
+                            'subtask': stringify_variables(subtask) if subtask is not None else None,
+                            'response': stringify_variables(response) if response is not None else None,
+                            'rt': rt if isinstance(rt, int) else (stringify_variables(rt) if rt is not None else None),
+                            'response_location': stringify_variables(response_location) if response_location is not None else None,
                         })
                         converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
                     yield converted_doc_dict
