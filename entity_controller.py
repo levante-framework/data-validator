@@ -39,6 +39,7 @@ class EntityController:
         self.invalid_variants = []
 
         self.valid_users = []
+        self._valid_user_ids = set()
         self.invalid_users = []
         self.valid_runs = []
         self.invalid_runs = []
@@ -239,7 +240,8 @@ class EntityController:
         users = fs.get_users(is_guest=self.org.is_guest,
                              date_filter=self.org.filters.date_filter,
                              org_filter=self.org.filters.org_filter,
-                             user_filter=self.org.filters.user_filter)
+                             user_filter=self.org.filters.user_filter,
+                             user_number_limit=self.org.user_number_limit)
         self.set_users(users=users)
 
     def process_surveys(self):
@@ -348,12 +350,15 @@ class EntityController:
             # keep original dict for assignment extraction
             user_dict = dict(raw)
             uid = user_dict.get('user_id') or user_dict.get('uid')
+            if not uid or uid in self._valid_user_ids:
+                continue
             try:
                 if settings.config.get('INSTANCE') == 'LEVANTE':
                     user_model = core_models.LevanteUser(**user_dict)
                 else:
                     user_model = core_models.UserBase(**user_dict)
                 self.valid_users.append(user_model)
+                self._valid_user_ids.add(uid)
             except ValidationError as e:
                 for err in e.errors():
                     self.invalid_users.append({**err, 'id': uid})
@@ -441,7 +446,19 @@ class EntityController:
     def set_survey_responses(self, user: core_models.LevanteUser, survey_responses: list):
         for survey_response in survey_responses:
             try:
-                self.valid_survey_responses.append(core_models.SurveyResponse(**survey_response))
+                survey_part = survey_response.get("survey_part")
+                survey_type = survey_response.get("survey_type")
+                survey_payload = {
+                    k: v for k, v in survey_response.items()
+                    if k not in {"survey_part", "survey_type"}
+                }
+
+                survey_response_model = core_models.SurveyResponse(**survey_payload)
+                survey_response_model.validate_response_against_schema(
+                    survey_part=survey_part,
+                    survey_type=survey_type
+                )
+                self.valid_survey_responses.append(survey_response_model)
             except ValidationError as e:
                 for error in e.errors():
                     self.invalid_survey_responses.append(

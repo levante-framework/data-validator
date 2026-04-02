@@ -5,6 +5,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter, Or
 import pytz
 from itertools import islice
 from copy import deepcopy
+import random
 
 import utils
 from utils import *
@@ -230,7 +231,7 @@ class FirestoreServices:
             return []
 
     def get_users(self, is_guest: bool, date_filter: utils.DateFilter, org_filter: utils.OrgFilter,
-                  user_filter: utils.UserFilter, chunk_size=100):
+                  user_filter: utils.UserFilter, user_number_limit: int | None = None, chunk_size=100):
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         if is_guest:
             collection_name = 'guests'
@@ -273,11 +274,64 @@ class FirestoreServices:
                     return True
             return False
 
+        def _has_activity(doc_ref, doc_dict: dict) -> bool:
+            start_dt = to_datetime(date_filter.start_date, 'start')
+            end_dt = to_datetime(date_filter.end_date, 'end')
+
+            # administrations: assignment exists in filtered date range
+            has_admin = _any_assigned_between(doc_dict.get('assignmentsAssigned', {}), start_dt, end_dt)
+
+            # runs in filtered date range
+            runs = (doc_ref.collection('runs')
+                    .where('timeStarted', '>=', start_dt)
+                    .where('timeStarted', '<=', end_dt)
+                    .limit(1).get())
+            has_runs = bool(runs)
+
+            # surveys in filtered date range
+            surveys = (doc_ref.collection('surveyResponses')
+                       .where('createdAt', '>=', start_dt)
+                       .where('createdAt', '<=', end_dt)
+                       .limit(1).get())
+            has_surveys = bool(surveys)
+
+            return has_admin or has_runs or has_surveys
+
+        def _normalize_user_doc(user_id: str, doc_dict: dict) -> dict:
+            doc_dict = dict(doc_dict or {})
+            doc_dict['user_id'] = user_id
+            doc_dict['birth_year'] = convert_to_integer(doc_dict.get('birthYear', None))
+            doc_dict['birth_month'] = convert_to_integer(doc_dict.get('birthMonth', None))
+
+            parent_ids = doc_dict.get('parentIds', [])
+            teacher_ids = doc_dict.get('teacherIds', [])
+            grade = doc_dict.get('grade', None)
+            doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else None
+            doc_dict['parent1_id'] = parent_ids[0] if parent_ids else None
+            doc_dict['parent2_id'] = parent_ids[1] if parent_ids and len(parent_ids) == 2 else None
+            doc_dict['grade'] = grade if doc_dict.get('grade', None) else None
+
+            if doc_dict.get('created', None):
+                doc_dict['created_at'] = doc_dict.get('created')
+            return process_doc_dict(doc_dict=doc_dict)
+
+        def _extract_related_user_ids(doc_dict: dict) -> set[str]:
+            related_ids: set[str] = set()
+            for key in ("parentIds", "teacherIds", "childIds"):
+                raw_ids = doc_dict.get(key, [])
+                if isinstance(raw_ids, list):
+                    for uid in raw_ids:
+                        if isinstance(uid, str) and uid:
+                            related_ids.add(uid)
+            return related_ids
+
         def process_docs(query):
             last_doc = None
             total_docs = query.get()
             total_chunks = len(total_docs) // chunk_size + (len(total_docs) % chunk_size > 0)
             current_chunk = 0
+            selected_by_id: dict[str, dict] = {}
+            related_user_ids: set[str] = set()
 
             while True:
                 try:
@@ -323,27 +377,41 @@ class FirestoreServices:
                         #         elif user_filter.value not in user_value_firebase:
                         #             continue
 
-                        doc_dict['user_id'] = doc.id
-                        doc_dict['birth_year'] = convert_to_integer(doc_dict.get('birthYear', None))
-                        doc_dict['birth_month'] = convert_to_integer(doc_dict.get('birthMonth', None))
-
-                        parent_ids = doc_dict.get('parentIds', [])
-                        teacher_ids = doc_dict.get('teacherIds', [])
-                        grade = doc_dict.get('grade', None)
-                        doc_dict['teacher_id'] = teacher_ids[0] if teacher_ids else None
-                        doc_dict['parent1_id'] = parent_ids[0] if parent_ids else None
-                        doc_dict['parent2_id'] = parent_ids[1] if parent_ids and len(parent_ids) == 2 else None
-                        doc_dict['grade'] = grade if doc_dict.get('grade', None) else None
-
-                        if doc_dict.get('created', None):
-                            doc_dict['created_at'] = doc_dict.get('created')
-                        # Convert camelCase to snake_case and handle NaN values
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
-                        yield converted_doc_dict
+                        converted_doc_dict = _normalize_user_doc(user_id=doc.id, doc_dict=doc_dict)
+                        related_user_ids.update(_extract_related_user_ids(doc_dict))
+                        if user_number_limit and user_number_limit > 0:
+                            if _has_activity(doc.reference, doc_dict):
+                                selected_by_id[converted_doc_dict["user_id"]] = converted_doc_dict
+                        else:
+                            selected_by_id[converted_doc_dict["user_id"]] = converted_doc_dict
                     last_doc = docs[-1]
                 except Exception as e:
                     logging.error(f"Error in get_users: {e}")
                     break
+
+            selected_users = list(selected_by_id.values())
+            if user_number_limit and user_number_limit > 0 and len(selected_users) > user_number_limit:
+                selected_users = random.sample(selected_users, user_number_limit)
+                selected_by_id = {u["user_id"]: u for u in selected_users}
+
+            # Backfill one-hop relationship-linked users even if they have no runs/surveys/admin activity.
+            missing_related_ids = related_user_ids - set(selected_by_id.keys())
+            if missing_related_ids:
+                rel_collection = self.admin_db.collection('users')
+                missing_related_ids = list(missing_related_ids)
+                random.shuffle(missing_related_ids)
+                rel_refs = [rel_collection.document(uid) for uid in missing_related_ids]
+                for snap in self.admin_db.get_all(rel_refs):
+                    if not snap.exists:
+                        continue
+                    if user_number_limit and user_number_limit > 0 and len(selected_by_id) >= user_number_limit:
+                        break
+                    rel_doc = snap.to_dict() or {}
+                    normalized = _normalize_user_doc(user_id=snap.id, doc_dict=rel_doc)
+                    selected_by_id[normalized["user_id"]] = normalized
+
+            for user in selected_by_id.values():
+                yield user
 
         yield from process_docs(query=base_query)
 
@@ -711,6 +779,8 @@ class FirestoreServices:
                         survey_responses.append({
                             "survey_id": sid,
                             "question": item.get("question_id"),
+                            "survey_part": survey_part,
+                            "survey_type": survey_type,
                             "boolean_response": item.get("boolean_response"),
                             "string_response": item.get("string_response"),
                             "numeric_response": item.get("numeric_response"),

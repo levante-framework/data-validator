@@ -1,9 +1,86 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any, Literal, get_origin, get_args
 from datetime import datetime, timezone
+from pathlib import Path
+import json
+import os
+import time
+import logging
 import ast
 from scipy.stats import binom, binomtest
 from math import isnan
+
+
+_SURVEY_Q_CACHE: Optional[dict] = None
+_SURVEY_Q_CACHE_TS: float = 0.0
+
+
+def _load_survey_questions_from_local_json() -> dict:
+    path = Path(__file__).with_name("survey_questions.json")
+    with path.open("r", encoding="utf-8") as f:
+        questions = json.load(f)
+    if not isinstance(questions, dict):
+        raise ValueError("survey_questions.json must contain a top-level object")
+    return questions
+
+
+def _load_survey_questions_from_redivis() -> dict:
+    import redivis
+    import settings
+    from secret_services import secret_service
+
+    if not os.getenv("REDIVIS_API_TOKEN"):
+        os.environ["REDIVIS_API_TOKEN"] = secret_service.get_secret_payload(
+            secret_id=settings.config["REDIVIS_API_TOKEN_SECRET_ID"],
+            version_id="latest",
+        )
+    if not os.getenv("REDIVIS_IDENTITY"):
+        os.environ["REDIVIS_IDENTITY"] = secret_service.get_secret_payload(
+            secret_id=settings.config["REDIVIS_IDENTITY_ACCOUNT_SECRET_ID"],
+            version_id="latest",
+        )
+
+    # Metadata dataset/table source of truth
+    org = redivis.organization(settings.config["INSTANCE"])
+    ds = org.dataset(name="levante-metadata-items")
+    table = ds.table("survey_items")
+    rows = table.to_pandas_dataframe().to_dict(orient="records")
+
+    questions: dict[str, dict] = {}
+    for row in rows:
+        variable = row.get("variable")
+        if not variable:
+            continue
+        questions[str(variable)] = {
+            "survey_section": row.get("survey_part"),
+            "question_survey_type": row.get("survey_type"),
+            "response_type": row.get("response_type"),
+            "response_options": row.get("values"),
+        }
+    if not questions:
+        raise ValueError("No survey items loaded from Redivis survey_items table")
+    return questions
+
+
+def get_survey_questions() -> dict:
+    global _SURVEY_Q_CACHE, _SURVEY_Q_CACHE_TS
+
+    ttl_seconds = int(os.getenv("SURVEY_QUESTIONS_TTL_SECONDS", "300"))
+    now = time.time()
+    if _SURVEY_Q_CACHE is not None and now - _SURVEY_Q_CACHE_TS < ttl_seconds:
+        return _SURVEY_Q_CACHE
+
+    try:
+        questions = _load_survey_questions_from_redivis()
+        logging.info(f"Loaded survey questions from Redivis survey_items table. count={len(questions)}")
+    except Exception as e:
+        logging.warning(f"Failed loading survey questions from Redivis, using local JSON fallback: {e}")
+        questions = _load_survey_questions_from_local_json()
+        logging.info(f"Loaded survey questions from local survey_questions.json fallback. count={len(questions)}")
+
+    _SURVEY_Q_CACHE = questions
+    _SURVEY_Q_CACHE_TS = now
+    return questions
 
 
 class TrialBase(BaseModel):
@@ -93,7 +170,7 @@ class LevanteTrial(TrialBase):
         rt_max = 10000
         msg = []
 
-        if self not in ['instructions', 'practice_response']:
+        if self.is_practice_trial is not True:
             if self.rt not in [None, "", "{}", "0", 0]:
                 if isinstance(self.rt, int):
                     if self.task_id in ['matrix-reasoning']:
@@ -163,7 +240,7 @@ class LevanteTrial(TrialBase):
 
     @model_validator(mode='after')
     def check_trial_index(self):
-        if self.trial_index:
+        if self.trial_index is not None:
             if not isinstance(self.trial_index, int):
                 self.warning_msg_trial = f"trial_index_not_int"
         else:
@@ -411,6 +488,51 @@ class SurveyResponse(BaseModel):
     numeric_response: Optional[int] = None
 
     timestamp: datetime
+    valid_response: Optional[bool] = None
+    validation_msg: Optional[str] = None
+
+    def validate_response_against_schema(self, survey_part: Optional[str] = None, survey_type: Optional[str] = None):
+        msg = []
+
+        def normalize_survey_type(v: Optional[str]) -> Optional[str]:
+            if v is None:
+                return None
+            v_norm = str(v).strip().lower()
+            # Normalize synonyms used across data sources/questions dictionary
+            if v_norm == "parent":
+                return "caregiver"
+            if v_norm == "student":
+                return "child"
+            return v_norm
+
+        question_meta = get_survey_questions().get(self.question)
+        if not question_meta:
+            msg.append("question_not_in_survey_questions")
+        else:
+            expected_section = question_meta.get("survey_section")
+            if expected_section and survey_part:
+                if str(expected_section).lower() != str(survey_part).lower():
+                    msg.append(
+                        f"survey_section_mismatch(expected:{expected_section}, got:{survey_part})"
+                    )
+
+            expected_type = normalize_survey_type(survey_type)
+            actual_type = normalize_survey_type(question_meta.get("question_survey_type"))
+            if expected_type and actual_type and expected_type != actual_type:
+                msg.append(
+                    f"question_survey_type_mismatch(expected:{expected_type}, got:{actual_type})"
+                )
+
+            # Temporarily pause strict response type checks.
+            # Keep question existence / section / survey-type validations active.
+
+        if msg:
+            self.valid_response = False
+            self.validation_msg = ";".join(msg)
+        else:
+            self.valid_response = True
+            self.validation_msg = None
+        return self
 
 
 class SiteBase(BaseModel):

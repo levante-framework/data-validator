@@ -18,15 +18,24 @@ from datetime import datetime
 import hashlib, base64, re
 
 ID_FIELDS = {
+    # core user-bearing tables
     "users": ["user_id", "parent1_id", "parent2_id", "teacher_id"],
     "runs": ["user_id"],
     "trials": ["user_id"],
     "surveys": ["user_id", "child_id"],
+
+    # survey_responses currently has no user_id column
     "survey_responses": [],
-    "user_groups": ["user_id"],
+
+    # join tables
+    "user_administrations": ["user_id"],
+    "user_sites": ["user_id"],
+    "user_cohorts": ["user_id"],
     "user_schools": ["user_id"],
     "user_classes": ["user_id"],
-    # add any other tables/fields that reference a person-like ID
+
+    # legacy alias kept for backward compatibility if present in any older exports
+    "user_groups": ["user_id"],
 }
 
 
@@ -51,6 +60,15 @@ class DateFilter(BaseModel):
                 raise ValueError("Date must be in format YYYY-MM-DD")
         return v
 
+    @model_validator(mode='after')
+    def check_date_range(self):
+        if self.start_date and self.end_date:
+            start = datetime.strptime(self.start_date, '%Y-%m-%d')
+            end = datetime.strptime(self.end_date, '%Y-%m-%d')
+            if start > end:
+                raise ValueError("start_date must be less than or equal to end_date")
+        return self
+
 
 class UserFilter(BaseModel):
     key: Optional[str] = Field(default=None)
@@ -59,10 +77,14 @@ class UserFilter(BaseModel):
 
     @model_validator(mode='before')
     def validate_value(cls, data):
-        if 'operator' in data:
-            if data['operator'] == 'starts_with' and not isinstance(data['value'], str):
+        if not isinstance(data, dict):
+            return data
+        operator = data.get('operator')
+        value = data.get('value')
+        if operator:
+            if operator == 'starts_with' and not isinstance(value, str):
                 raise TypeError("Value must be a string when operator is 'starts_with'")
-            elif data['operator'] in ['<=', '>=', '=='] and not isinstance(data['value'], int):
+            elif operator in ['<=', '>=', '=='] and not isinstance(value, int):
                 raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
         return data
 
@@ -84,6 +106,8 @@ class OrgFilter(BaseModel):
 
     @field_validator('value')
     def check_value_type(cls, v):
+        if v is None:
+            return v
         if not all(isinstance(element, str) for element in v):
             raise ValueError("Each item in value must be a string")
         elif len(v) > 30:
@@ -119,6 +143,7 @@ class Organization(BaseModel):
     org_id: str = Field()
     is_guest: bool = Field()
     is_user_id_masked: bool = Field(default=False)
+    user_number_limit: Optional[int] = Field(default=None, ge=1)
     filters: Optional[Filters] = Field(default_factory=Filters)
 
 
@@ -137,7 +162,7 @@ class DatasetParameters(BaseModel):
             org_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
             date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
             org_summary.append(
-                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}")
+                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}")
 
         # Join all summaries, but check length constraint
         full_description_org = "; ".join(org_summary)
