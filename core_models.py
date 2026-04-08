@@ -485,11 +485,75 @@ class SurveyResponse(BaseModel):
 
     boolean_response: Optional[bool] = None
     string_response: Optional[str] = None
-    numeric_response: Optional[int] = None
+    numeric_response: Optional[float] = None
 
     timestamp: datetime
     valid_response: Optional[bool] = None
     validation_msg: Optional[str] = None
+
+    def coerce_response_from_raw(self, response: Any = None, response_type: Optional[str] = None):
+        self.boolean_response = None
+        self.numeric_response = None
+        self.string_response = None
+
+        if response is None:
+            return self
+
+        hint = str(response_type or "").strip().lower()
+
+        def parse_bool(v: Any) -> Optional[bool]:
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                low = v.strip().lower()
+                if low in {"yes", "true"}:
+                    return True
+                if low in {"no", "false"}:
+                    return False
+            return None
+
+        def parse_num(v: Any) -> Optional[float]:
+            if isinstance(v, bool):
+                return None
+            if isinstance(v, (int, float)):
+                return round(float(v), 3)
+            if isinstance(v, str):
+                s = v.strip()
+                if s == "":
+                    return None
+                try:
+                    return round(float(s), 3)
+                except Exception:
+                    return None
+            return None
+
+        if hint in {"boolean", "bool"}:
+            b = parse_bool(response)
+            if b is not None:
+                self.boolean_response = b
+            else:
+                self.string_response = str(response)
+            return self
+
+        if hint in {"numeric", "number", "float", "int", "integer"}:
+            n = parse_num(response)
+            if n is not None:
+                self.numeric_response = n
+            else:
+                self.string_response = str(response)
+            return self
+
+        # Generic fallback if no reliable hint.
+        b = parse_bool(response)
+        if b is not None:
+            self.boolean_response = b
+            return self
+        n = parse_num(response)
+        if n is not None:
+            self.numeric_response = n
+            return self
+        self.string_response = str(response)
+        return self
 
     def validate_response_against_schema(self, survey_part: Optional[str] = None, survey_type: Optional[str] = None):
         msg = []

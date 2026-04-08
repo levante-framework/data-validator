@@ -448,12 +448,18 @@ class EntityController:
             try:
                 survey_part = survey_response.get("survey_part")
                 survey_type = survey_response.get("survey_type")
+                response = survey_response.get("response")
+                response_type = survey_response.get("response_type")
                 survey_payload = {
                     k: v for k, v in survey_response.items()
-                    if k not in {"survey_part", "survey_type"}
+                    if k not in {"survey_part", "survey_type", "response", "response_type"}
                 }
 
                 survey_response_model = core_models.SurveyResponse(**survey_payload)
+                survey_response_model.coerce_response_from_raw(
+                    response=response,
+                    response_type=response_type
+                )
                 survey_response_model.validate_response_against_schema(
                     survey_part=survey_part,
                     survey_type=survey_type

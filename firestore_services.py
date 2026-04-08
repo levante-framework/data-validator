@@ -586,27 +586,6 @@ class FirestoreServices:
         def reformat_responses(data):
             formatted_responses = []
 
-            def coerce_answer(v):
-                boolean_response = None
-                string_response = None
-                numeric_response = None
-
-                if v is None:
-                    return boolean_response, string_response, numeric_response
-                if isinstance(v, bool):
-                    return v, None, None
-                if isinstance(v, int):
-                    return None, None, v
-                if isinstance(v, str):
-                    s = v.strip()
-                    if s.lower() in ("yes", "no"):
-                        return (s.lower() == "yes"), None, None
-                    try:
-                        return None, None, int(s)
-                    except Exception:
-                        return None, s, None
-                return None, str(v), None
-
             def is_response_object(d):
                 return isinstance(d, dict) and ("responseValue" in d or "responseTime" in d)
 
@@ -643,16 +622,29 @@ class FirestoreServices:
 
                 # If responseValue is a list (e.g. TeacherGrad): store as JSON string (stable)
                 if isinstance(process_value, list):
-                    boolean_response, string_response, numeric_response = None, json.dumps(process_value,
-                                                                                           ensure_ascii=False), None
+                    response = json.dumps(process_value, ensure_ascii=False)
+                    response_type = "string"
                 else:
-                    boolean_response, string_response, numeric_response = coerce_answer(process_value)
+                    if process_value is None:
+                        response = None
+                        response_type = None
+                    elif isinstance(process_value, bool):
+                        response = process_value
+                        response_type = "boolean"
+                    elif isinstance(process_value, (int, float)):
+                        response = process_value
+                        response_type = "numeric"
+                    elif isinstance(process_value, str):
+                        response = process_value
+                        response_type = "string"
+                    else:
+                        response = str(process_value)
+                        response_type = "string"
 
                 formatted_responses.append({
                     "question_id": process_key,
-                    "boolean_response": boolean_response,
-                    "string_response": string_response,
-                    "numeric_response": numeric_response,
+                    "response": response,
+                    "response_type": response_type,
                     "response_time": response_time,
                 })
 
@@ -781,9 +773,8 @@ class FirestoreServices:
                             "question": item.get("question_id"),
                             "survey_part": survey_part,
                             "survey_type": survey_type,
-                            "boolean_response": item.get("boolean_response"),
-                            "string_response": item.get("string_response"),
-                            "numeric_response": item.get("numeric_response"),
+                            "response": item.get("response"),
+                            "response_type": item.get("response_type"),
                             "timestamp": effective_response_time,
                         })
 
