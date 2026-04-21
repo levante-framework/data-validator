@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 import json
 import requests
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Union, Optional, Literal, get_args, get_origin
 from datetime import datetime
 import hashlib, base64, re
@@ -46,123 +46,142 @@ class CustomJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+# Default date window when org has no date_filter (matches Firestore export defaults).
+WIDE_RANGE_START = "2024-01-01"
+WIDE_RANGE_END = "2050-01-01"
+
+
 class DateFilter(BaseModel):
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+    start_date: str
+    end_date: str
 
-    @field_validator('start_date', 'end_date')
-    def check_date_format(cls, v: str):
-        if v is not None:
-            try:
-                datetime.strptime(v, '%Y-%m-%d')
-                return v
-            except ValueError:
-                raise ValueError("Date must be in format YYYY-MM-DD")
-        return v
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def check_date_format(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+            return v
+        except ValueError:
+            raise ValueError("Date must be in format YYYY-MM-DD")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_date_range(self):
-        if self.start_date and self.end_date:
-            start = datetime.strptime(self.start_date, '%Y-%m-%d')
-            end = datetime.strptime(self.end_date, '%Y-%m-%d')
-            if start > end:
-                raise ValueError("start_date must be less than or equal to end_date")
+        start = datetime.strptime(self.start_date, "%Y-%m-%d")
+        end = datetime.strptime(self.end_date, "%Y-%m-%d")
+        if start > end:
+            raise ValueError("start_date must be less than or equal to end_date")
         return self
 
 
 class UserFilter(BaseModel):
-    key: Optional[str] = Field(default=None)
-    operator: Optional[str] = Field(default=None, pattern="^(starts_with|<=|>=|==)$")
-    value: Optional[Union[int, str]] = Field(default=None)
+    model_config = ConfigDict(extra="forbid")
+    key: str
+    operator: str = Field(pattern="^(starts_with|<=|>=|==)$")
+    value: Union[int, str]
 
-    @model_validator(mode='before')
-    def validate_value(cls, data):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_operator_value(cls, data):
         if not isinstance(data, dict):
             return data
-        operator = data.get('operator')
-        value = data.get('value')
-        if operator:
-            if operator == 'starts_with' and not isinstance(value, str):
-                raise TypeError("Value must be a string when operator is 'starts_with'")
-            elif operator in ['<=', '>=', '=='] and not isinstance(value, int):
-                raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
+        operator = data.get("operator")
+        value = data.get("value")
+        if operator == "starts_with" and not isinstance(value, str):
+            raise TypeError("Value must be a string when operator is 'starts_with'")
+        if operator in ("<=", ">=", "==") and not isinstance(value, int):
+            raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
         return data
-
-    @model_validator(mode='before')
-    def check_all_or_none(cls, values):
-        fields = ['key', 'operator', 'value']
-        all_none = all(values.get(f) is None for f in fields)
-        all_set = all(values.get(f) is not None for f in fields)
-
-        if not (all_none or all_set):
-            raise ValueError("All of 'key', 'operator', and 'value' must be set or all must be None")
-        return values
 
 
 class OrgFilter(BaseModel):
-    key: Optional[str] = Field(default=None, pattern="^(groups|administrations|districts|schools|classes)$")
-    operator: Optional[str] = Field(default=None, pattern="^array_contains_any$")
-    value: Optional[List[str]] = None
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(pattern="^(groups|administrations|districts|schools|classes)$")
+    operator: str = Field(pattern="^array_contains_any$")
+    value: List[str] = Field(min_length=1)
 
-    @field_validator('value')
+    @field_validator("value")
+    @classmethod
     def check_value_type(cls, v):
         if v is None:
             return v
         if not all(isinstance(element, str) for element in v):
             raise ValueError("Each item in value must be a string")
-        elif len(v) > 30:
+        if len(v) > 30:
             raise ValueError("Number of items in value must be less than 30.")
         return v
 
-    @model_validator(mode='before')
-    def check_all_or_none(cls, values):
-        fields = ['key', 'operator', 'value']
-        all_none = all(values.get(f) is None for f in fields)
-        all_set = all(values.get(f) is not None for f in fields)
-
-        if not (all_none or all_set):
-            raise ValueError("All of 'key', 'operator', and 'value' must be set or all must be None")
-        return values
-
 
 class Filters(BaseModel):
-    date_filter: Optional[DateFilter] = Field(default_factory=DateFilter)
-    user_filter: Optional[UserFilter] = Field(default_factory=UserFilter)
-    org_filter: Optional[OrgFilter] = Field(default_factory=OrgFilter)
-
-    @model_validator(mode='before')
-    def check_allowed_fields(cls, values):
-        allowed_fields = {'date_filter', 'user_filter', 'org_filter'}
-        extra_fields = set(values) - allowed_fields
-        if extra_fields:
-            raise ValueError(f"Invalid fields passed: {extra_fields}")
-        return values
+    model_config = ConfigDict(extra="forbid")
+    date_filter: Optional[DateFilter] = None
+    user_filter: Optional[UserFilter] = None
+    org_filter: Optional[OrgFilter] = None
 
 
 class Organization(BaseModel):
-    org_id: str = Field()
+    model_config = ConfigDict(extra="forbid")
+    org_id: str = Field(min_length=1)
     is_guest: bool = Field()
-    is_user_id_masked: bool = Field(default=False)
-    user_number_limit: Optional[int] = Field(default=None, ge=1)
-    filters: Optional[Filters] = Field(default_factory=Filters)
+    is_user_id_masked: bool = Field(
+        default=False,
+        description="Optional. When true, user ids are pseudonymized in the export.",
+    )
+    user_number_limit: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Optional. Cap the number of users sampled for this org when set.",
+    )
+    filters: Filters
+
+    @model_validator(mode="after")
+    def at_least_one_filter(self):
+        f = self.filters
+        if f.org_filter is None and f.date_filter is None and f.user_filter is None:
+            raise ValueError(
+                "filters must include at least one of: org_filter, date_filter, user_filter"
+            )
+        return self
 
 
 class DatasetParameters(BaseModel):
-    dataset_id: str = Field()
-    is_save_to_storage: bool = Field(default=False)
-    is_force_uploading_to_redivis: bool = Field(default=False)
-    slack_notification_mode: Literal['Full', 'New_Schema', 'None'] = Field(default='None')
-    orgs: List[Organization] = Field()
+    model_config = ConfigDict(extra="forbid")
+    dataset_id: str = Field(min_length=1)
+    is_save_to_storage: bool = Field(
+        description="Required. Whether to write validated JSON to GCS and optionally Redivis.",
+    )
+    is_force_uploading_to_redivis: bool = False
+    send_slack: bool = Field(
+        default=False,
+        description="If true, post a Slack summary when validation finishes (and on upload/release when applicable).",
+    )
+    orgs: List[Organization] = Field(min_length=1)
+
+    @field_validator("send_slack", mode="before")
+    @classmethod
+    def coerce_send_slack(cls, v):
+        if v is None:
+            return False
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes")
+        return bool(v)
 
     def to_dict(self):
         # Build a shorter description from params
         org_summary = []
         for org in self.orgs:
-            # Summarize organization details
-            org_names = org.filters.org_filter.value if org.filters.org_filter.value else 'None'
-            date_range = f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}" if org.filters.date_filter.start_date and org.filters.date_filter.end_date else "No date limit"
+            f = org.filters
+            if f.org_filter is not None:
+                org_names = f.org_filter.value
+            else:
+                org_names = "None"
+            if f.date_filter is not None:
+                date_range = f"{f.date_filter.start_date} to {f.date_filter.end_date}"
+            else:
+                date_range = "No date limit"
             org_summary.append(
-                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}")
+                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}"
+            )
 
         # Join all summaries, but check length constraint
         full_description_org = "; ".join(org_summary)
@@ -170,11 +189,11 @@ class DatasetParameters(BaseModel):
             full_description_org = full_description_org[:1950] + "..."  # Truncate to fit
 
         return {
-            'dataset_id': self.dataset_id,
-            'is_save_to_storage': self.is_save_to_storage,
-            'is_force_uploading_to_redivis': self.is_force_uploading_to_redivis,
-            'slack_notification_mode': self.slack_notification_mode,
-            'orgs': full_description_org,
+            "dataset_id": self.dataset_id,
+            "is_save_to_storage": self.is_save_to_storage,
+            "is_force_uploading_to_redivis": self.is_force_uploading_to_redivis,
+            "send_slack": self.send_slack,
+            "orgs": full_description_org,
         }
 
 
@@ -366,7 +385,7 @@ def schema_registry():
         Map export table name -> (controller list attribute, model class).
         Adjust to match exactly the tables you want in Redivis.
         """
-    import core_models
+    from validators import core_models
     # pick concrete user/run/trial classes based on INSTANCE
     use_levante = settings.config.get("INSTANCE") == "LEVANTE"
     UserCls = core_models.LevanteUser if use_levante else core_models.UserBase
@@ -500,18 +519,6 @@ def schema_signature(doc: dict, max_depth: Optional[int] = 1) -> str:
     flat_schema = dict(flatten(doc))
     schema_str = json.dumps(flat_schema, sort_keys=True)
     return hashlib.md5(schema_str.encode()).hexdigest()
-
-
-def notify_slack(message: str):
-    message = {
-        "text": message
-    }
-    from secret_services import secret_service
-    slack_web_hook_url = secret_service.get_secret_payload(secret_id=settings.config['SLACK_NOTIFICATION_WEB_HOOK'])
-    response = requests.post(slack_web_hook_url, json=message)
-
-    if response.status_code != 200:
-        raise Exception(f"Slack notification failed: {response.text}")
 
 
 def make_id_pseudonymizer(secret_salt: str):

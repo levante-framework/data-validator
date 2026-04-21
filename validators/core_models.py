@@ -27,7 +27,7 @@ def _load_survey_questions_from_local_json() -> dict:
 def _load_survey_questions_from_redivis() -> dict:
     import redivis
     import settings
-    from secret_services import secret_service
+    from shared.secret_services import secret_service
 
     if not os.getenv("REDIVIS_API_TOKEN"):
         os.environ["REDIVIS_API_TOKEN"] = secret_service.get_secret_payload(

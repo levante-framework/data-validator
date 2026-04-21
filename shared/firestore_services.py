@@ -1,16 +1,20 @@
-from google.cloud import firestore
-from google.oauth2 import service_account
-from secret_services import secret_service
-from google.cloud.firestore_v1.base_query import FieldFilter, Or
-import pytz
-from itertools import islice
-from copy import deepcopy
+import json
+import logging
 import random
-
-import utils
-from utils import *
-import settings
 import warnings
+from copy import deepcopy
+from datetime import datetime, timezone
+from itertools import islice
+
+import pytz
+from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter, Or
+from google.oauth2 import service_account
+
+import settings
+from shared import utils
+from shared.secret_services import secret_service
+from shared.utils import flatten_document, handle_nan, process_doc_dict
 
 warnings.filterwarnings("ignore", message="Detected filter using positional arguments")
 logging.basicConfig(level=logging.INFO)
@@ -99,6 +103,46 @@ class FirestoreServices:
             logging.info(f'Document written with ID: {doc_ref.id}')
         except Exception as e:
             logging.info(f'An error occurred: {e}')
+
+    def get_district_name(self, district_id: str) -> str | None:
+        """Human-readable name from `districts/{district_id}` (site == district)."""
+        try:
+            doc = self.admin_db.collection("districts").document(district_id).get()
+            if not doc.exists:
+                return None
+            return (doc.to_dict() or {}).get("name")
+        except Exception as e:
+            logging.error(f"get_district_name({district_id!r}): {e}")
+            return None
+
+    def find_district_id_by_name(self, name: str) -> str | None:
+        """
+        Return the document id for `districts` where ``name`` or ``normalizedName``
+        equals the given string (trimmed). None if not found or if more than one
+        document matches on a field.
+        """
+        name = (name or "").strip()
+        if not name:
+            return None
+        try:
+            col = self.admin_db.collection("districts")
+            for field in ("name", "normalizedName"):
+                docs = list(
+                    col.where(filter=FieldFilter(field, "==", name)).limit(2).get()
+                )
+                if len(docs) == 1:
+                    return docs[0].id
+                if len(docs) > 1:
+                    logging.warning(
+                        "find_district_id_by_name(%r): multiple districts match on %s; skipping",
+                        name,
+                        field,
+                    )
+                    return None
+            return None
+        except Exception as e:
+            logging.error("find_district_id_by_name(%r): %s", name, e)
+            return None
 
     def get_org_by_org_id_list(self, org_name: str, org_id_list: list):
         result = []
@@ -230,8 +274,32 @@ class FirestoreServices:
             logging.error(f"[get_administrations_by_ids] fatal: {e}", exc_info=True)
             return []
 
-    def get_users(self, is_guest: bool, date_filter: utils.DateFilter, org_filter: utils.OrgFilter,
-                  user_filter: utils.UserFilter, user_number_limit: int | None = None, chunk_size=100):
+    def iter_administrations_for_site(self, site_id: str):
+        """
+        Stream administration documents for a given Firestore site id (field: siteId).
+        Yields raw dicts including administration_id.
+        """
+        try:
+            for snap in self.admin_db.collection("administrations").where(
+                "siteId", "==", site_id
+            ).stream():
+                if not snap.exists:
+                    continue
+                d = snap.to_dict() or {}
+                d["administration_id"] = snap.id
+                yield d
+        except Exception as e:
+            logging.error(f"iter_administrations_for_site({site_id!r}): {e}", exc_info=True)
+
+    def get_users(
+        self,
+        is_guest: bool,
+        date_filter: utils.DateFilter,
+        org_filter: utils.OrgFilter | None,
+        user_filter: utils.UserFilter | None,
+        user_number_limit: int | None = None,
+        chunk_size=100,
+    ):
         date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         if is_guest:
             collection_name = 'guests'
@@ -242,11 +310,11 @@ class FirestoreServices:
         # Apply the date range filters
         # base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
         # base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
-        if org_filter.key:
+        if org_filter is not None:
             if org_filter.operator == "array_contains_any":
                 base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_filter.value)
 
-        if user_filter.key:
+        if user_filter is not None:
             if user_filter.operator == "starts_with" and user_filter.value:
                 prefix_field = user_filter.key
                 prefix = user_filter.value

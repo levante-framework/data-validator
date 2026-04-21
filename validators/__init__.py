@@ -1,0 +1,1 @@
+# Firestore → Redivis validation pipeline.

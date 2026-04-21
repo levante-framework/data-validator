@@ -22,6 +22,7 @@ redivis==0.14.9
 # HTTP and config
 requests~=2.32.0
 python-dotenv~=1.0.1
+pyairtable~=3.0.0
 
 # Data processing
 numpy~=1.26.4

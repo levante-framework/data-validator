@@ -2,7 +2,7 @@ import redivis
 import logging
 import settings
 import os
-from secret_services import secret_service
+from shared.secret_services import secret_service
 
 logging.basicConfig(level=logging.INFO)
 
@@ -100,6 +100,38 @@ class RedivisServices:
 
     def get_datasets_list(self):
         return [dn.name for dn in self.organization.list_datasets()]
+
+    def is_current_dataset_released(self) -> bool:
+        """True if this dataset exists and its current version is released on Redivis."""
+        st = self.get_current_dataset_status()
+        return bool(st.get("exists") and st.get("is_released"))
+
+    def get_current_dataset_status(self) -> dict:
+        """After set_dataset(): whether the dataset exists on Redivis and release metadata."""
+        try:
+            if self.dataset is None or not self.dataset.exists():
+                return {
+                    "exists": False,
+                    "is_released": False,
+                    "version_tag": None,
+                    "is_deleted": None,
+                }
+            props = self.dataset.get().properties or {}
+            ver = props.get("version") or {}
+            return {
+                "exists": True,
+                "is_released": bool(ver.get("isReleased", False)),
+                "version_tag": ver.get("tag"),
+                "is_deleted": ver.get("isDeleted"),
+            }
+        except Exception as e:
+            logging.info(f"get_current_dataset_status failed: {e}")
+            return {
+                "exists": False,
+                "is_released": False,
+                "version_tag": None,
+                "is_deleted": None,
+            }
 
     def delete_table(self, table_name: str):
         try:

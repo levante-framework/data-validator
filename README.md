@@ -127,7 +127,9 @@ API-Key: <validator api key>
 ```
 
 Notes:
-- `slack_notification_mode` must be one of `Full`, `New_Schema`, or `None`.
+- Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list). Optional: `is_force_uploading_to_redivis` and `send_slack` (default `false`).
+- Each `orgs[]` item must include `org_id`, `is_guest`, and `filters`. Optional per org: `is_user_id_masked` (defaults to `false`), `user_number_limit` (omit for no cap). `filters` may only contain `org_filter`, `date_filter`, and/or `user_filter`; at least one must be present. Each filter object must only use the allowed keys for that filter (`key`/`operator`/`value` for org and user filters; `start_date`/`end_date` for date filter).
+- `send_slack`: if `true`, posts a Slack summary when validation finishes (validation-only: when true; with upload: when there is a new Redivis release or new schema keys detected).
 - `org_filter.key` must be one of `groups`, `administrations`, `districts`, `schools`, `classes`.
 - If `is_save_to_storage` is `false`, the function validates and returns stats only.
 

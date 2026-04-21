@@ -2,9 +2,9 @@ from google.cloud import storage
 import json
 import os
 import logging
-import utils
 
 import settings
+from shared import utils
 
 logging.basicConfig(level=logging.INFO)
 

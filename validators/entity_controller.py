@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 from pydantic import ValidationError
 import logging
-import core_models
-import settings
-from firestore_services import firestore_services as fs, stringify_variables
-import utils
 import json
+
+import settings
+from shared import utils
+from shared.firestore_services import firestore_services as fs, stringify_variables
+from validators import core_models
 
 logging.basicConfig(level=logging.INFO)
 
@@ -67,6 +68,15 @@ class EntityController:
         self.valid_user_administrations = []
         self.invalid_user_administrations = []
 
+    def _resolved_date_filter(self) -> utils.DateFilter:
+        """Wide default window when the request omits date_filter (matches export defaults)."""
+        if self.org.filters.date_filter is None:
+            return utils.DateFilter(
+                start_date=utils.WIDE_RANGE_START,
+                end_date=utils.WIDE_RANGE_END,
+            )
+        return self.org.filters.date_filter
+
     def adding_schema_row_to_data(self):
         """
         Ensure every table has at least one row: the 'schema_row'.
@@ -96,12 +106,13 @@ class EntityController:
 
         # Determine whether it's using guest.
         if not self.org.is_guest:
-            if self.org.filters.org_filter.key == 'districts':
+            of = self.org.filters.org_filter
+            if of is not None and of.key == "districts":
                 self.process_sites()
                 self.process_cohorts()
                 self.process_schools()
                 self.process_classes()
-            elif self.org.filters.org_filter.key == 'groups':
+            elif of is not None and of.key == "groups":
                 self.process_cohorts()
 
             self.process_administration()
@@ -237,20 +248,24 @@ class EntityController:
     def process_users(self):
         logging.info("Now Validating Users...")
 
-        users = fs.get_users(is_guest=self.org.is_guest,
-                             date_filter=self.org.filters.date_filter,
-                             org_filter=self.org.filters.org_filter,
-                             user_filter=self.org.filters.user_filter,
-                             user_number_limit=self.org.user_number_limit)
+        users = fs.get_users(
+            is_guest=self.org.is_guest,
+            date_filter=self._resolved_date_filter(),
+            org_filter=self.org.filters.org_filter,
+            user_filter=self.org.filters.user_filter,
+            user_number_limit=self.org.user_number_limit,
+        )
         self.set_users(users=users)
 
     def process_surveys(self):
         logging.info("Now Validating Surveys...")
         for user in self.valid_users:
-            surveys, survey_responses = fs.get_surveys(user_id=user.user_id,
-                                                       user_type=user.user_type,
-                                                       date_filter=self.org.filters.date_filter,
-                                                       survey_key_usage=self.survey_key_usage)
+            surveys, survey_responses = fs.get_surveys(
+                user_id=user.user_id,
+                user_type=user.user_type,
+                date_filter=self._resolved_date_filter(),
+                survey_key_usage=self.survey_key_usage,
+            )
 
             if surveys:
                 self.set_surveys(user=user, surveys=surveys)
@@ -270,10 +285,15 @@ class EntityController:
     def process_runs(self):
         logging.info("Now Validating Runs...")
         for user in self.valid_users:
-            self.set_runs(user=user, runs=fs.get_runs(user_id=user.user_id,
-                                                      run_key_usage=self.run_key_usage,
-                                                      is_guest=self.org.is_guest,
-                                                      date_filter=self.org.filters.date_filter))
+            self.set_runs(
+                user=user,
+                runs=fs.get_runs(
+                    user_id=user.user_id,
+                    run_key_usage=self.run_key_usage,
+                    is_guest=self.org.is_guest,
+                    date_filter=self._resolved_date_filter(),
+                ),
+            )
 
     def process_trials(self):
         logging.info("Now Validating Trials...")
