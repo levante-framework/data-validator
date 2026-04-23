@@ -99,6 +99,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
             lines.append(f"• _…and {len(per_org) - 5} more org(s)_")
 
     if gcp:
+        file_updated_details = gcp.get('file_updated_details') or []
         lines.extend(
             [
                 "",
@@ -110,6 +111,28 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"• Blob deletions: {len(gcp.get('file_deletion') or [])}",
             ]
         )
+        if nvr and file_updated_details:
+            lines.append("• Row-count changes (gcs → local):")
+            sorted_changes = sorted(
+                file_updated_details,
+                key=lambda d: abs(d.get('delta') or 0),
+                reverse=True,
+            )
+            max_to_show = 15
+            for d in sorted_changes[:max_to_show]:
+                table = d.get('table', '?')
+                before = d.get('before')
+                after = d.get('after')
+                delta = d.get('delta')
+                before_s = "new" if d.get('is_new') else _fmt_int(before)
+                after_s = _fmt_int(after)
+                if delta is None:
+                    delta_s = ""
+                else:
+                    delta_s = f" ({'+' if delta >= 0 else ''}{_fmt_int(delta)})"
+                lines.append(f"   - `{table}`: {before_s} → {after_s}{delta_s}")
+            if len(sorted_changes) > max_to_show:
+                lines.append(f"   - _…and {len(sorted_changes) - max_to_show} more table(s)_")
 
     if red:
         lines.extend(

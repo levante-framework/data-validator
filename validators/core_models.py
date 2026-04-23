@@ -417,47 +417,46 @@ class LevanteUser(UserBase):
         msg = []
         current_year = datetime.now(timezone.utc).year
         if self.user_type == 'student':
-            if self.birth_year and self.birth_month and isinstance(self.birth_year, int) and isinstance(
-                    self.birth_month, int):
+            # Keep numeric values as-is; only flag validation messages.
+            if isinstance(self.birth_month, int):
                 if self.birth_month not in range(1, 13):
-                    self.birth_month = None
                     msg.append("birth_month_error")
-                if self.birth_year < 2000:
-                    self.birth_year = None
-                    msg.append("birth_year_under_2000")
-                if self.birth_year is not None and self.birth_year > current_year:
-                    self.birth_year = None
-                    msg.append("birth_year_greater_current_year")
-
-                # Only compute age if valid year/month
-                if (
-                        self.birth_year
-                        and self.birth_month
-                        and 1 <= self.birth_month <= 12
-                        and 2000 <= self.birth_year <= current_year
-                ):
-                    try:
-                        # assume birth day = 15th
-                        birth_date = datetime(
-                            self.birth_year,
-                            self.birth_month,
-                            15,
-                            tzinfo=timezone.utc
-                        )
-                        now_utc = datetime.now(timezone.utc)
-                        age_days = (now_utc - birth_date).days
-                        age_years = age_days / 365.25
-
-                        if age_years < 2:
-                            msg.append(f"user_under_2yo ({age_years:.1f} yrs)")
-                        if age_years > 18:
-                            msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
-                    except Exception as e:
-                        msg.append(f"birthdate_calc_error: {e}")
             else:
-                self.birth_year = None
-                self.birth_month = None
-                msg.append("birth_year_month_missing")
+                msg.append("birth_month_missing")
+
+            if isinstance(self.birth_year, int):
+                if self.birth_year < 2000:
+                    msg.append("birth_year_under_2000")
+                elif self.birth_year > current_year:
+                    msg.append("birth_year_greater_current_year")
+            else:
+                msg.append("birth_year_missing")
+
+            # Only compute age if valid year/month
+            if (
+                    isinstance(self.birth_year, int)
+                    and isinstance(self.birth_month, int)
+                    and 1 <= self.birth_month <= 12
+                    and 2000 <= self.birth_year <= current_year
+            ):
+                try:
+                    # assume birth day = 15th
+                    birth_date = datetime(
+                        self.birth_year,
+                        self.birth_month,
+                        15,
+                        tzinfo=timezone.utc
+                    )
+                    now_utc = datetime.now(timezone.utc)
+                    age_days = (now_utc - birth_date).days
+                    age_years = age_days / 365.25
+
+                    if age_years < 2:
+                        msg.append(f"user_under_2yo ({age_years:.1f} yrs)")
+                    if age_years > 18:
+                        msg.append(f"user_over_18yo ({age_years:.1f} yrs)")
+                except Exception as e:
+                    msg.append(f"birthdate_calc_error: {e}")
         if msg:
             self.validation_msg_user = ";".join(msg)
         return self

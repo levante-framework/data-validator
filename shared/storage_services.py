@@ -22,6 +22,7 @@ class StorageServices:
             'new_version_needed': False,
             'blob_file_counts': 0,
             'file_updated': [],
+            'file_updated_details': [],
             'file_uploads_fail': [],
             'file_deletion': [],
         }
@@ -55,25 +56,37 @@ class StorageServices:
 
     def check_if_same_file(self, table_name, local_data_list):
         blob = self.gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
+        local_count = len(local_data_list)
 
         if not blob.exists():
             logging.info(f"creating_{self.dataset_id}/{table_name}.json")
+            self.upload_to_GCP_log['file_updated'].append(
+                f"{table_name}(gcs/local): new/{local_count}")
+            self.upload_to_GCP_log['file_updated_details'].append({
+                'table': table_name,
+                'before': None,
+                'after': local_count,
+                'delta': local_count,
+                'is_new': True,
+            })
             return False
 
         # Download the JSON content from GCS into memory as a string
         gcs_json_string = blob.download_as_text()
         gcs_json_data = json.loads(gcs_json_string)
+        gcs_count = len(gcs_json_data)
 
-        # Compare the GCS JSON data with the local data list using DeepDiff
-        # diff = DeepDiff(gcs_json_data, local_data_list, ignore_order=True)
-        # if table_name == 'tasks' or table_name == 'users':
-        #     print(diff)
-        is_same_length = len(gcs_json_data) == len(local_data_list)
-
-        # If diff is empty, there are no differences
+        is_same_length = gcs_count == local_count
         if not is_same_length:
             self.upload_to_GCP_log['file_updated'].append(
-                f"{table_name}(gcs/local): {len(gcs_json_data)}/{len(local_data_list)}")
+                f"{table_name}(gcs/local): {gcs_count}/{local_count}")
+            self.upload_to_GCP_log['file_updated_details'].append({
+                'table': table_name,
+                'before': gcs_count,
+                'after': local_count,
+                'delta': local_count - gcs_count,
+                'is_new': False,
+            })
         return is_same_length
 
     def save_to_storage(self, table_name: str, data):
