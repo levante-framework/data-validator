@@ -327,12 +327,24 @@ class LevanteRun(RunBase):
     def add_age_from_users(self, birth_month: int, birth_year: int):
         if not (birth_year and birth_month and self.time_started):
             return None
-        birth_date = datetime(
-            birth_year,
-            birth_month,
-            15,  # assume middle of the month
-            tzinfo=timezone.utc
-        )
+        # Guard against out-of-range / nonsensical birth values (e.g. year 10000,
+        # month 13, etc.) so a single bad user doc can't crash the whole run.
+        if not (
+            isinstance(birth_year, int)
+            and isinstance(birth_month, int)
+            and 1 <= birth_month <= 12
+            and 1 <= birth_year <= 9999
+        ):
+            return None
+        try:
+            birth_date = datetime(
+                birth_year,
+                birth_month,
+                15,  # assume middle of the month
+                tzinfo=timezone.utc
+            )
+        except (ValueError, OverflowError):
+            return None
         run_date = self.time_started.astimezone(timezone.utc)
         diff_days = (run_date - birth_date).days
         self.age = round(diff_days / 365.25, 1)  # or use 365.25 for more precision
@@ -417,18 +429,20 @@ class LevanteUser(UserBase):
         msg = []
         current_year = datetime.now(timezone.utc).year
         if self.user_type == 'student':
-            # Keep numeric values as-is; only flag validation messages.
+            # Keep numeric values as-is; only flag validation messages. The actual
+            # offending value is included in the message so it's visible in the
+            # output table without cross-referencing the row.
             if isinstance(self.birth_month, int):
                 if self.birth_month not in range(1, 13):
-                    msg.append("birth_month_error")
+                    msg.append(f"birth_month_error({self.birth_month})")
             else:
                 msg.append("birth_month_missing")
 
             if isinstance(self.birth_year, int):
                 if self.birth_year < 2000:
-                    msg.append("birth_year_under_2000")
+                    msg.append(f"birth_year_under_2000({self.birth_year})")
                 elif self.birth_year > current_year:
-                    msg.append("birth_year_greater_current_year")
+                    msg.append(f"birth_year_greater_current_year({self.birth_year})")
             else:
                 msg.append("birth_year_missing")
 

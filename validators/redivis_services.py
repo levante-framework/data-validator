@@ -81,6 +81,44 @@ class RedivisServices:
             logging.info(f"Failed on create_dateset_version: {e}")
             self.upload_to_redivis_log['dataset_fails'].append(f"create_dateset_version: {e}")
 
+    def create_empty_dataset_if_missing(self, *, description: str | None = None) -> dict:
+        """
+        Idempotently create an empty Redivis dataset using ``self.dataset_id``.
+
+        Returns ``{created, already_exists, error}``. The dataset is left unreleased
+        with no tables — only the shell exists. ``set_dataset(dataset_id=...)`` must
+        be called first.
+        """
+        result = {"created": False, "already_exists": False, "error": None}
+        if self.dataset is None:
+            result["error"] = "set_dataset() not called before create_empty_dataset_if_missing()"
+            logging.error("create_empty_dataset_if_missing: %s", result["error"])
+            return result
+        try:
+            if self.dataset.exists():
+                result["already_exists"] = True
+                logging.info(
+                    "create_empty_dataset_if_missing: %r already exists — skipped",
+                    self.dataset_id,
+                )
+                return result
+            self.dataset.create(
+                description=description
+                or f"Empty dataset created via data-validator for {self.dataset_id}",
+                public_access_level="overview",
+            )
+            result["created"] = True
+            logging.info(
+                "create_empty_dataset_if_missing: created empty dataset %r",
+                self.dataset_id,
+            )
+        except Exception as e:
+            logging.error(
+                "create_empty_dataset_if_missing(%r) failed: %s", self.dataset_id, e
+            )
+            result["error"] = str(e)
+        return result
+
     def release_dataset(self, params: dict):
         try:
             self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")

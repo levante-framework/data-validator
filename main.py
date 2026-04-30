@@ -61,8 +61,14 @@ def process(req):
         from sync.redivis_release import check_redivis_individual_release_awaiting_slack
 
         dry_run = bool(data.pop("dry_run", False))
+        dataset_name_raw = data.pop("dataset_name", None)
+        dataset_name = (
+            str(dataset_name_raw).strip() if dataset_name_raw is not None else None
+        ) or None
         try:
-            result = check_redivis_individual_release_awaiting_slack(dry_run=dry_run)
+            result = check_redivis_individual_release_awaiting_slack(
+                dry_run=dry_run, dataset_name=dataset_name
+            )
         except ValueError as e:
             return str(e), 400
         elapsed_time = time.time() - start_time
@@ -85,7 +91,34 @@ def process(req):
 
     from validators.data_validation_pipeline import run_data_validation
 
-    return run_data_validation(dataset_parameters, start_time=start_time)
+    try:
+        return run_data_validation(dataset_parameters, start_time=start_time)
+    except Exception as e:
+        logging.exception(
+            "data_validation crashed for dataset_id=%s",
+            dataset_parameters.dataset_id,
+        )
+        # Try to alert Slack so silent crashes don't go unnoticed; never let a
+        # Slack failure mask the original error.
+        try:
+            from shared.slack_services import notify_slack
+
+            notify_slack(
+                f":rotating_light: *data-validator crashed* for "
+                f"`{dataset_parameters.dataset_id}`\n"
+                f"```{type(e).__name__}: {e}```"
+            )
+        except Exception as slack_err:
+            logging.error(
+                "data_validation crash-alert Slack post failed: %s", slack_err
+            )
+        return json.dumps({
+            "error": "pipeline_crashed",
+            "dataset_id": dataset_parameters.dataset_id,
+            "message": f"{type(e).__name__}: {e}",
+            "elapsed_time": time.time() - start_time,
+            "api_version": settings.config["VERSION"],
+        }), 500
 
 
 def data_validator(request):
