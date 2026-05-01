@@ -99,6 +99,69 @@ def _airtable_date_is_empty(value) -> bool:
     return False
 
 
+# Suffix appended to the Airtable Name to form the companion "processed" dataset
+# on Redivis. Kept as a module-level constant so the test/dry-run plan can show
+# both names without duplication.
+PROCESSED_DATASET_SUFFIX = "-processed"
+
+
+def _processed_dataset_name(dataset_id: str) -> str:
+    return f"{dataset_id}{PROCESSED_DATASET_SUFFIX}"
+
+
+def _ensure_redivis_dataset(
+    rs: "RedivisServices",
+    dataset_id: str,
+    *,
+    dry_run: bool,
+    changes: list,
+    notes: list,
+    counters: dict,
+) -> None:
+    """
+    Idempotently ensure a Redivis dataset exists. Side-effects only via
+    ``changes`` / ``notes`` / ``counters``. ``dry_run`` is read-only on Redivis
+    (calls ``get_current_dataset_status`` only).
+    """
+    rs.set_dataset(dataset_id=dataset_id)
+    if dry_run:
+        pre_status = rs.get_current_dataset_status()
+        if pre_status.get("exists"):
+            notes.append(
+                f"Redivis dataset `{dataset_id}` already exists — skipped creating"
+            )
+            logging.info(
+                "redivis_individual_release: [dry_run] Redivis dataset %r "
+                "already exists — would skip",
+                dataset_id,
+            )
+        else:
+            changes.append(
+                f"[dry_run] would create empty Redivis dataset `{dataset_id}`"
+            )
+            logging.info(
+                "redivis_individual_release: [dry_run] would create empty "
+                "Redivis dataset %r",
+                dataset_id,
+            )
+        return
+
+    create_status = rs.create_empty_dataset_if_missing()
+    if create_status.get("created"):
+        counters["redivis_datasets_created"] += 1
+        changes.append(f"Created empty Redivis dataset `{dataset_id}`")
+    elif create_status.get("already_exists"):
+        counters["redivis_datasets_already_existed"] += 1
+        notes.append(
+            f"Redivis dataset `{dataset_id}` already exists — skipped creating"
+        )
+    if create_status.get("error"):
+        counters["redivis_datasets_failed"] += 1
+        changes.append(
+            f"Redivis dataset `{dataset_id}` create error: {create_status['error']}"
+        )
+
+
 def _build_validator_payload(*, dataset_id: str, site_id: str) -> dict:
     """Static template that matches the daily-cron contract documented in README.md."""
     return {
@@ -628,47 +691,21 @@ def check_redivis_individual_release_awaiting_slack(
                     + (" [dry_run]" if dry_run else "")
                 )
 
-            # 2.5) Create empty Redivis dataset if missing — only when the
-            # scheduler job is present. Idempotent on Redivis side.
+            # 2.5) Create empty Redivis datasets if missing — only when the
+            # scheduler job is present. Always create both:
+            #   - {dataset_name}                 (raw data target, used by the cron)
+            #   - {dataset_name}{SUFFIX}         (downstream processed companion)
+            # Both creations are idempotent on Redivis side.
             if job_present:
-                rs.set_dataset(dataset_id=dataset_name)
-                if dry_run:
-                    pre_status = rs.get_current_dataset_status()
-                    if pre_status.get("exists"):
-                        notes.append(
-                            f"Redivis dataset `{dataset_name}` already exists — skipped creating"
-                        )
-                        logging.info(
-                            "redivis_individual_release: [dry_run] Redivis dataset %r "
-                            "already exists — would skip",
-                            dataset_name,
-                        )
-                    else:
-                        changes.append(
-                            f"[dry_run] would create empty Redivis dataset `{dataset_name}`"
-                        )
-                        logging.info(
-                            "redivis_individual_release: [dry_run] would create empty "
-                            "Redivis dataset %r",
-                            dataset_name,
-                        )
-                else:
-                    create_status = rs.create_empty_dataset_if_missing()
-                    if create_status.get("created"):
-                        counters["redivis_datasets_created"] += 1
-                        changes.append(
-                            f"Created empty Redivis dataset `{dataset_name}`"
-                        )
-                    elif create_status.get("already_exists"):
-                        counters["redivis_datasets_already_existed"] += 1
-                        notes.append(
-                            f"Redivis dataset `{dataset_name}` already exists — skipped creating"
-                        )
-                    if create_status.get("error"):
-                        counters["redivis_datasets_failed"] += 1
-                        changes.append(
-                            f"Redivis dataset create error: {create_status['error']}"
-                        )
+                for ds_id in (dataset_name, _processed_dataset_name(dataset_name)):
+                    _ensure_redivis_dataset(
+                        rs,
+                        ds_id,
+                        dry_run=dry_run,
+                        changes=changes,
+                        notes=notes,
+                        counters=counters,
+                    )
 
         # 3) Redivis status — used for the awaiting-release Slack section.
         redivis_status = {
