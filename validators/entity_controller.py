@@ -339,7 +339,7 @@ class EntityController:
     def set_classes(self, classes: list):
         for c in classes:
             try:
-                c = core_models.SchoolBase(**c)
+                c = core_models.ClassBase(**c)
                 self.valid_classes.append(c)
 
             except ValidationError as e:
