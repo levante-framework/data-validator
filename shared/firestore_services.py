@@ -1003,12 +1003,15 @@ class FirestoreServices:
             )
         validation_msg = ";".join(msg) if msg else None
 
-        sid = make_survey_id(doc.id, scope="task_run", child_id=None)
         # As of the May 2026 frontend rollout, every child-survey trial is
         # categorized as "general" in the survey metadata. Hardcoded here until
         # the parent/teacher run-like variants ship (each could be general or
         # specific; we'll branch then).
         run_like_survey_part = "general"
+        # survey_id uses the same `{doc_id}:{survey_part}[:child_id]` design as
+        # the legacy paths. The schema variant (task_run vs legacy_*) is tracked
+        # separately on `survey_schema_source` — do not conflate the two.
+        sid = make_survey_id(doc.id, scope=run_like_survey_part, child_id=None)
         survey_row = {
             "survey_id": sid,
             "administration_id": admin_id,
