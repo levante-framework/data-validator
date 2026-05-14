@@ -73,17 +73,23 @@ def chunked(iterable):
 # Three live shapes in production (confirmed via full scan May 2026):
 #   - legacy_data:              {"data": {"surveyResponses": {q: a, ...}}, ...}
 #   - legacy_general_specific:  {"general": {...}, "specific": [...], ...}
-#   - run_like:                 {"taskId", "timeStarted", "variantId", ...}
-#                               PLUS a `trials` subcollection holding answers
-# Two intentionally-skipped shapes:
+#   - run_like:                 {"taskId": "child-survey", "timeStarted", ...}
+#                               PLUS a `trials` subcollection holding answers.
+#                               Per the May 2026 rollout, only "child-survey"
+#                               ships in this shape; parent/teacher surveys
+#                               stay on legacy_general_specific.
+# One intentionally-skipped shape:
 #   - pageNo_marker:            draft/state row, no responses (parent autosave)
-#   - root_responses:           declared in old code but absent in production
 SURVEY_SCHEMA_LEGACY_DATA = "legacy_data"
 SURVEY_SCHEMA_LEGACY_GENERAL_SPECIFIC = "legacy_general_specific"
 SURVEY_SCHEMA_RUN_LIKE = "task_run"
 SURVEY_SCHEMA_PAGENO_MARKER = "pageNo_marker"
-SURVEY_SCHEMA_ROOT_RESPONSES = "root_responses"
 SURVEY_SCHEMA_UNKNOWN = "unknown"
+
+# The single task_id we expect to see in the run-like shape. Anything else
+# gets flagged via validation_msg_survey for the curator to investigate.
+RUN_LIKE_EXPECTED_TASK_ID = "child-survey"
+RUN_LIKE_EXPECTED_SURVEY_TYPE = "student"
 
 
 def classify_survey_doc(doc_dict: dict) -> str:
@@ -95,28 +101,9 @@ def classify_survey_doc(doc_dict: dict) -> str:
         return SURVEY_SCHEMA_LEGACY_GENERAL_SPECIFIC
     if isinstance(doc_dict.get("data"), dict) and "surveyResponses" in doc_dict["data"]:
         return SURVEY_SCHEMA_LEGACY_DATA
-    if "responses" in keys and "isComplete" in keys:
-        return SURVEY_SCHEMA_ROOT_RESPONSES
     if set(keys) <= {"administrationId", "pageNo", "createdAt", "updatedAt"}:
         return SURVEY_SCHEMA_PAGENO_MARKER
     return SURVEY_SCHEMA_UNKNOWN
-
-
-def derive_survey_type_from_task_id(task_id: str | None) -> str | None:
-    """
-    Map a run-like task_id (e.g. "child-survey") to a normalized survey_type.
-    Returns None when the task_id doesn't contain a recognized role keyword.
-    """
-    if not task_id or not isinstance(task_id, str):
-        return None
-    low = task_id.lower()
-    if "child" in low or "student" in low:
-        return "student"
-    if "parent" in low or "caregiver" in low:
-        return "caregiver"
-    if "teacher" in low:
-        return "teacher"
-    return None
 
 
 def normalize_user_type_to_survey_type(user_type: str) -> str:
@@ -836,14 +823,6 @@ class FirestoreServices:
                     )
                     continue
 
-                if schema == SURVEY_SCHEMA_ROOT_RESPONSES:
-                    logging.warning(
-                        "get_surveys: encountered root_responses shape (assumed dead "
-                        "in production); user_id=%s doc_id=%s — please investigate",
-                        user_id, doc.id,
-                    )
-                    continue
-
                 if schema == SURVEY_SCHEMA_UNKNOWN:
                     logging.warning(
                         "get_surveys: unknown surveyResponses shape; "
@@ -989,28 +968,32 @@ class FirestoreServices:
         time_finished = doc_dict.get('timeFinished')
         admin_id = doc_dict.get('assignmentId') or doc_dict.get('administrationId')
 
-        derived_type = derive_survey_type_from_task_id(task_id)
+        # Per the May 2026 rollout, the only run-like task is "child-survey"
+        # which always maps to survey_type=student. Anything else is an
+        # anomaly worth flagging — keep the row but raise it via
+        # validation_msg_survey.
         normalized_user_type = normalize_user_type_to_survey_type(user_type)
-        survey_type = derived_type or normalized_user_type
+        if task_id == RUN_LIKE_EXPECTED_TASK_ID:
+            survey_type = RUN_LIKE_EXPECTED_SURVEY_TYPE
+            if (
+                normalized_user_type
+                and normalized_user_type != survey_type
+            ):
+                validation_msg = (
+                    f"survey_type_mismatch(task_id={task_id},"
+                    f"expected={survey_type},user_type={normalized_user_type})"
+                )
+            else:
+                validation_msg = None
+        else:
+            survey_type = normalized_user_type
+            validation_msg = f"unexpected_run_like_task_id({task_id!r})"
 
-        msg = []
-        if derived_type is None:
-            msg.append(f"task_id_unparseable({task_id!r})")
-        elif normalized_user_type and derived_type != normalized_user_type:
-            msg.append(
-                f"survey_type_mismatch(task_id={task_id},"
-                f"expected={derived_type},user_type={normalized_user_type})"
-            )
-        validation_msg = ";".join(msg) if msg else None
-
-        # As of the May 2026 frontend rollout, every child-survey trial is
-        # categorized as "general" in the survey metadata. Hardcoded here until
-        # the parent/teacher run-like variants ship (each could be general or
-        # specific; we'll branch then).
+        # Per the May 2026 rollout, child-survey is always tagged "general"
+        # in the survey metadata. survey_id uses the canonical
+        # {doc_id}:{survey_part}[:child_id] design — the schema variant
+        # (task_run vs legacy_*) is tracked separately on survey_schema_source.
         run_like_survey_part = "general"
-        # survey_id uses the same `{doc_id}:{survey_part}[:child_id]` design as
-        # the legacy paths. The schema variant (task_run vs legacy_*) is tracked
-        # separately on `survey_schema_source` — do not conflate the two.
         sid = make_survey_id(doc.id, scope=run_like_survey_part, child_id=None)
         survey_row = {
             "survey_id": sid,

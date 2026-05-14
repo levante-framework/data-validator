@@ -650,13 +650,7 @@ class SurveyResponse(BaseModel):
         question_meta = get_survey_questions().get(self.question)
         if question_meta:
             expected_section = question_meta.get("survey_section")
-            # Skip section check when caller signals "unknown" (e.g. run-like
-            # surveys whose section indicator isn't shipped yet).
-            if (
-                expected_section
-                and survey_part
-                and str(survey_part).strip().lower() != "unknown"
-            ):
+            if expected_section and survey_part:
                 if str(expected_section).lower() != str(survey_part).lower():
                     self._append_validation_msg(
                         f"survey_section_mismatch(expected:{expected_section}, got:{survey_part})"
