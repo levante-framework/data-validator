@@ -513,10 +513,10 @@ class SurveyResponse(BaseModel):
     numeric_response: Optional[float] = None
 
     timestamp: datetime
-    # Source schema this response was extracted from. Used by validators to
-    # tailor messages (e.g. "audioFile_not_in_survey_questions" for task_run
-    # vs "question_not_in_survey_questions" for legacy shapes). Carried through
-    # from firestore_services.get_surveys.
+    # Source schema this response was extracted from (legacy_data /
+    # legacy_general_specific / task_run). Carried through from
+    # firestore_services.get_surveys for observability — validation
+    # messages remain uniform across sources.
     survey_schema_source: Optional[str] = None
     valid_response: Optional[bool] = None
     validation_msg: Optional[str] = None
@@ -526,9 +526,10 @@ class SurveyResponse(BaseModel):
         """
         Auto-run at construction: every `question` must exist in
         get_survey_questions() (loaded from Redivis survey_items, with a
-        local JSON fallback). The label distinguishes the two known sources:
-            - "audioFile" for run-like (task_run) responses
-            - "question_id" for legacy general/specific/data responses
+        local JSON fallback). One uniform message label regardless of
+        source — the offending question id is included so it's trivial to
+        identify and the source can be cross-referenced via
+        `survey_schema_source` on this row.
         """
         q = (self.question or "").strip() if isinstance(self.question, str) else ""
         if not q:
@@ -539,12 +540,7 @@ class SurveyResponse(BaseModel):
             return self
 
         if q not in get_survey_questions():
-            label = (
-                "audioFile_not_in_survey_questions"
-                if self.survey_schema_source == "task_run"
-                else "question_not_in_survey_questions"
-            )
-            self._append_validation_msg(f"{label}({q})")
+            self._append_validation_msg(f"question_not_in_survey_questions({q})")
             self.valid_response = False
         return self
 
