@@ -1004,13 +1004,18 @@ class FirestoreServices:
         validation_msg = ";".join(msg) if msg else None
 
         sid = make_survey_id(doc.id, scope="task_run", child_id=None)
+        # As of the May 2026 frontend rollout, every child-survey trial is
+        # categorized as "general" in the survey metadata. Hardcoded here until
+        # the parent/teacher run-like variants ship (each could be general or
+        # specific; we'll branch then).
+        run_like_survey_part = "general"
         survey_row = {
             "survey_id": sid,
             "administration_id": admin_id,
             "user_id": user_id,
             "child_id": None,
             "survey_type": survey_type,
-            "survey_part": "unknown",  # frontend indicator not yet shipped
+            "survey_part": run_like_survey_part,
             "is_complete": bool(doc_dict.get('completed')),
             "created_at": time_started,
             "updated_at": time_finished,
@@ -1042,13 +1047,16 @@ class FirestoreServices:
                     user_id, sid, trial_snap.id,
                 )
                 continue
+            # Numeric responses come from `responseLocation` (encoded 0..N).
+            # The `answer` field is reserved for future string/boolean responses
+            # — for now it's just a localized label of the numeric value.
             response_rows.append({
                 "survey_id": sid,
                 "question": question,
-                "survey_part": "unknown",
+                "survey_part": run_like_survey_part,
                 "survey_type": survey_type,
-                "response": t.get('answer') if t.get('answer') is not None else t.get('response'),
-                "response_type": None,  # let coerce_response_from_raw infer
+                "response": t.get('responseLocation'),
+                "response_type": "numeric",
                 "timestamp": t.get('serverTimestamp') or t.get('createdAt') or time_started,
                 "survey_schema_source": SURVEY_SCHEMA_RUN_LIKE,
             })
