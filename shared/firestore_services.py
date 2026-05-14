@@ -1036,11 +1036,15 @@ class FirestoreServices:
 
         for trial_snap in trial_snaps:
             t = trial_snap.to_dict() or {}
+            # Skip practice and instruction trials — both are non-data-bearing.
             if t.get('isPracticeTrial'):
+                continue
+            if str(t.get('assessment_stage', '')).strip().lower() == 'instructions':
                 continue
             question = t.get('audioFile')
             if not question:
-                # No stable identifier; skip but log so we know about gaps.
+                # No stable identifier on a non-instruction, non-practice trial.
+                # Worth a debug log so we can spot data-quality gaps.
                 logging.debug(
                     "get_surveys: run-like trial without audioFile; "
                     "user_id=%s survey_id=%s trial_id=%s",
