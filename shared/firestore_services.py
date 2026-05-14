@@ -67,6 +67,63 @@ def chunked(iterable):
         yield chunk
 
 
+# ----------------------------------------------------------------------------
+# surveyResponses schema classification
+# ----------------------------------------------------------------------------
+# Three live shapes in production (confirmed via full scan May 2026):
+#   - legacy_data:              {"data": {"surveyResponses": {q: a, ...}}, ...}
+#   - legacy_general_specific:  {"general": {...}, "specific": [...], ...}
+#   - run_like:                 {"taskId", "timeStarted", "variantId", ...}
+#                               PLUS a `trials` subcollection holding answers
+# Two intentionally-skipped shapes:
+#   - pageNo_marker:            draft/state row, no responses (parent autosave)
+#   - root_responses:           declared in old code but absent in production
+SURVEY_SCHEMA_LEGACY_DATA = "legacy_data"
+SURVEY_SCHEMA_LEGACY_GENERAL_SPECIFIC = "legacy_general_specific"
+SURVEY_SCHEMA_RUN_LIKE = "task_run"
+SURVEY_SCHEMA_PAGENO_MARKER = "pageNo_marker"
+SURVEY_SCHEMA_ROOT_RESPONSES = "root_responses"
+SURVEY_SCHEMA_UNKNOWN = "unknown"
+
+
+def classify_survey_doc(doc_dict: dict) -> str:
+    """Label a surveyResponses Firestore doc by its top-level shape."""
+    keys = set(doc_dict.keys())
+    if "taskId" in keys and ("timeStarted" in keys or "timeFinished" in keys):
+        return SURVEY_SCHEMA_RUN_LIKE
+    if "general" in keys or "specific" in keys:
+        return SURVEY_SCHEMA_LEGACY_GENERAL_SPECIFIC
+    if isinstance(doc_dict.get("data"), dict) and "surveyResponses" in doc_dict["data"]:
+        return SURVEY_SCHEMA_LEGACY_DATA
+    if "responses" in keys and "isComplete" in keys:
+        return SURVEY_SCHEMA_ROOT_RESPONSES
+    if set(keys) <= {"administrationId", "pageNo", "createdAt", "updatedAt"}:
+        return SURVEY_SCHEMA_PAGENO_MARKER
+    return SURVEY_SCHEMA_UNKNOWN
+
+
+def derive_survey_type_from_task_id(task_id: str | None) -> str | None:
+    """
+    Map a run-like task_id (e.g. "child-survey") to a normalized survey_type.
+    Returns None when the task_id doesn't contain a recognized role keyword.
+    """
+    if not task_id or not isinstance(task_id, str):
+        return None
+    low = task_id.lower()
+    if "child" in low or "student" in low:
+        return "student"
+    if "parent" in low or "caregiver" in low:
+        return "caregiver"
+    if "teacher" in low:
+        return "teacher"
+    return None
+
+
+def normalize_user_type_to_survey_type(user_type: str) -> str:
+    """Match the convention used elsewhere in this file (parent → caregiver)."""
+    return "caregiver" if user_type == "parent" else user_type
+
+
 class FirestoreServices:
     def __init__(self):
         self._admin_db = None
@@ -727,97 +784,153 @@ class FirestoreServices:
                 return f"{doc_id}:{scope}:{child_id}"
             return f"{doc_id}:{scope}"
 
-        survey_type = user_type if user_type != "parent" else "caregiver"
+        survey_type = normalize_user_type_to_survey_type(user_type)
 
         try:
-            docs = (self.admin_db.collection('users').document(user_id).collection('surveyResponses')
-                    .where('createdAt', '>=', to_datetime(date_filter.start_date, 'start'))
-                    .where('createdAt', '<=', to_datetime(date_filter.end_date, 'end'))
-                    .order_by('createdAt')
-                    .get())
+            sr_collection = (
+                self.admin_db.collection('users').document(user_id).collection('surveyResponses')
+            )
+            start_dt = to_datetime(date_filter.start_date, 'start')
+            end_dt = to_datetime(date_filter.end_date, 'end')
+
+            # Two queries unioned by doc id. The first catches the three legacy
+            # shapes (all keyed on createdAt); the second catches the run-like
+            # shape which has no createdAt — only timeStarted.
+            docs_by_created = list(
+                sr_collection.where('createdAt', '>=', start_dt)
+                             .where('createdAt', '<=', end_dt)
+                             .get()
+            )
+            try:
+                docs_by_started = list(
+                    sr_collection.where('timeStarted', '>=', start_dt)
+                                 .where('timeStarted', '<=', end_dt)
+                                 .get()
+                )
+            except Exception as e:
+                # timeStarted index may not exist yet; treat as empty rather than
+                # crashing the entire user's survey ingest.
+                logging.warning(
+                    "get_surveys: timeStarted query failed for user_id=%s (%s); "
+                    "run-like docs may be missed until the index is built.",
+                    user_id, e,
+                )
+                docs_by_started = []
+
+            seen_ids: set[str] = set()
+            docs = []
+            for d in (*docs_by_created, *docs_by_started):
+                if d.id in seen_ids:
+                    continue
+                seen_ids.add(d.id)
+                docs.append(d)
 
             for doc in docs:
-                doc_dict = doc.to_dict()
-                time_created = doc_dict.get('createdAt', None)
+                doc_dict = doc.to_dict() or {}
+                schema = classify_survey_doc(doc_dict)
 
-                # key usage tracking (unchanged)
+                if schema == SURVEY_SCHEMA_PAGENO_MARKER:
+                    logging.info(
+                        "get_surveys: skipping pageNo marker user_id=%s doc_id=%s",
+                        user_id, doc.id,
+                    )
+                    continue
+
+                if schema == SURVEY_SCHEMA_ROOT_RESPONSES:
+                    logging.warning(
+                        "get_surveys: encountered root_responses shape (assumed dead "
+                        "in production); user_id=%s doc_id=%s — please investigate",
+                        user_id, doc.id,
+                    )
+                    continue
+
+                if schema == SURVEY_SCHEMA_UNKNOWN:
+                    logging.warning(
+                        "get_surveys: unknown surveyResponses shape; "
+                        "user_id=%s doc_id=%s keys=%s",
+                        user_id, doc.id, sorted(doc_dict.keys()),
+                    )
+                    continue
+
+                # ---------------- key usage tracking ----------------
+                # Run-like docs flatten into the same task_dict; that's fine —
+                # it tracks any key Firestore is sending us.
+                time_created_for_keys = (
+                    doc_dict.get('createdAt') or doc_dict.get('timeStarted')
+                )
                 flattened = flatten_document(doc=doc_dict, max_depth=2)
                 task_dict = survey_key_usage.setdefault(f'{user_type}_survey', {})
-
                 for key, value in flattened.items():
                     new_meta = {
                         "user_id": user_id,
                         "survey_response_id": doc.id,
-                        "time_created": time_created,
+                        "time_created": time_created_for_keys,
                     }
                     if key not in task_dict:
                         task_dict[key] = new_meta
                     else:
                         prev_time = task_dict[key].get("time_created")
-                        if prev_time is None or (time_created and time_created > prev_time):
+                        if prev_time is None or (
+                            time_created_for_keys and time_created_for_keys > prev_time
+                        ):
                             task_dict[key] = new_meta
 
-                doc_created_at = doc_dict.get('createdAt', None)
-                doc_updated_at = doc_dict.get('updatedAt', None)
-                administration_id = doc_dict.get('administrationId', None)
+                # ---------------- branch on schema ----------------
+                if schema == SURVEY_SCHEMA_RUN_LIKE:
+                    s_row, r_rows = self._parse_run_like_survey(
+                        doc=doc, doc_dict=doc_dict,
+                        user_id=user_id, user_type=user_type,
+                        fallback_survey_type=survey_type,
+                        make_survey_id=make_survey_id,
+                    )
+                    surveys.append(s_row)
+                    survey_responses.extend(r_rows)
+                    continue
+
+                # Legacy shapes (data / general / specific) share the same emit
+                # logic — figure out which scope(s) apply, then iterate.
+                doc_created_at = doc_dict.get('createdAt')
+                doc_updated_at = doc_dict.get('updatedAt')
+                administration_id = doc_dict.get('administrationId')
 
                 survey_instances: list[dict] = []
-
-                # 1) legacy: data.surveyResponses
-                legacy_flat = doc_dict.get('data', {}).get('surveyResponses', {})
-                if legacy_flat:
-                    survey_instances.append({
-                        "scope": "data",
-                        "child_id": None,
-                        "is_complete": doc_dict.get("isComplete", None),
-                        "responses": legacy_flat,
-                    })
-                else:
-                    # 2) legacy: general/specific
-                    general = doc_dict.get('general', {})
-                    specific = doc_dict.get('specific', [])
-
-                    if general and isinstance(general, dict) and general.get('responses'):
+                if schema == SURVEY_SCHEMA_LEGACY_DATA:
+                    legacy_flat = (doc_dict.get('data') or {}).get('surveyResponses') or {}
+                    if legacy_flat:
+                        survey_instances.append({
+                            "scope": "data",
+                            "child_id": None,
+                            "is_complete": doc_dict.get("isComplete"),
+                            "responses": legacy_flat,
+                        })
+                elif schema == SURVEY_SCHEMA_LEGACY_GENERAL_SPECIFIC:
+                    general = doc_dict.get('general') or {}
+                    specific = doc_dict.get('specific') or []
+                    if isinstance(general, dict) and general.get('responses'):
                         survey_instances.append({
                             "scope": "general",
                             "child_id": None,
-                            "is_complete": general.get('isComplete', None),
+                            "is_complete": general.get('isComplete'),
                             "responses": general.get('responses', {}),
                         })
-
-                    if specific and isinstance(specific, list):
+                    if isinstance(specific, list):
                         for s in specific:
-                            if not isinstance(s, dict):
-                                continue
-                            if not s.get('responses'):
+                            if not isinstance(s, dict) or not s.get('responses'):
                                 continue
                             survey_instances.append({
                                 "scope": "specific",
-                                "child_id": s.get('childId', None),
-                                "is_complete": s.get('isComplete', None),
+                                "child_id": s.get('childId'),
+                                "is_complete": s.get('isComplete'),
                                 "responses": s.get('responses', {}),
                             })
 
-                    # 3) newer: root-level {isComplete, responses}
-                    if not survey_instances:
-                        root_responses = doc_dict.get('responses', None)
-                        if root_responses:
-                            survey_instances.append({
-                                "scope": "root",
-                                "child_id": None,
-                                "is_complete": doc_dict.get('isComplete', None),
-                                "responses": root_responses,
-                            })
-
                 for inst in survey_instances:
-                    scope = inst["scope"]  # "data" | "general" | "specific" | "root"
+                    scope = inst["scope"]
                     child_id = inst.get("child_id")
                     is_complete = inst.get("is_complete")
-                    responses_map = inst.get("responses", {}) or {}
+                    responses_map = inst.get("responses") or {}
 
-                    # survey_part: only "specific" is specific; everything else is general
                     survey_part = "specific" if scope == "specific" else "general"
-
                     sid = make_survey_id(doc.id, scope, child_id)
 
                     surveys.append({
@@ -826,16 +939,17 @@ class FirestoreServices:
                         "user_id": user_id,
                         "child_id": child_id,
                         "survey_type": survey_type,
-                        "survey_part": survey_part,  # <-- NEW
+                        "survey_part": survey_part,
                         "is_complete": is_complete,
                         "created_at": doc_created_at,
                         "updated_at": doc_updated_at,
+                        "survey_schema_source": schema,
                     })
 
-                    # survey_responses rows
-                    reformatted = reformat_responses(data=responses_map)
-                    for item in reformatted:
-                        effective_response_time = item.get("response_time") or doc_created_at
+                    for item in reformat_responses(data=responses_map):
+                        effective_response_time = (
+                            item.get("response_time") or doc_created_at
+                        )
                         survey_responses.append({
                             "survey_id": sid,
                             "question": item.get("question_id"),
@@ -844,12 +958,102 @@ class FirestoreServices:
                             "response": item.get("response"),
                             "response_type": item.get("response_type"),
                             "timestamp": effective_response_time,
+                            "survey_schema_source": schema,
                         })
 
         except Exception as e:
-            print(f"Error in get_survey_responses: {e}, user_id: {user_id}")
+            logging.error(
+                "Error in get_surveys user_id=%s: %s", user_id, e, exc_info=True,
+            )
 
         return surveys, survey_responses
+
+    def _parse_run_like_survey(
+        self,
+        *,
+        doc,
+        doc_dict: dict,
+        user_id: str,
+        user_type: str,
+        fallback_survey_type: str,
+        make_survey_id,
+    ) -> tuple[dict, list[dict]]:
+        """
+        Emit one ``Survey`` row + N ``SurveyResponse`` rows for a run-like
+        surveyResponses doc. Trials are read from the doc's ``trials``
+        subcollection; the audio file is used as the question identifier per
+        product decision (until a stable question id ships on the trial doc).
+        """
+        task_id = doc_dict.get('taskId')
+        time_started = doc_dict.get('timeStarted')
+        time_finished = doc_dict.get('timeFinished')
+        admin_id = doc_dict.get('assignmentId') or doc_dict.get('administrationId')
+
+        derived_type = derive_survey_type_from_task_id(task_id)
+        normalized_user_type = normalize_user_type_to_survey_type(user_type)
+        survey_type = derived_type or normalized_user_type
+
+        msg = []
+        if derived_type is None:
+            msg.append(f"task_id_unparseable({task_id!r})")
+        elif normalized_user_type and derived_type != normalized_user_type:
+            msg.append(
+                f"survey_type_mismatch(task_id={task_id},"
+                f"expected={derived_type},user_type={normalized_user_type})"
+            )
+        validation_msg = ";".join(msg) if msg else None
+
+        sid = make_survey_id(doc.id, scope="task_run", child_id=None)
+        survey_row = {
+            "survey_id": sid,
+            "administration_id": admin_id,
+            "user_id": user_id,
+            "child_id": None,
+            "survey_type": survey_type,
+            "survey_part": "unknown",  # frontend indicator not yet shipped
+            "is_complete": bool(doc_dict.get('completed')),
+            "created_at": time_started,
+            "updated_at": time_finished,
+            "survey_schema_source": SURVEY_SCHEMA_RUN_LIKE,
+            "validation_msg_survey": validation_msg,
+        }
+
+        response_rows: list[dict] = []
+        try:
+            trial_snaps = list(doc.reference.collection('trials').get())
+        except Exception as e:
+            logging.error(
+                "get_surveys: failed to fetch trials for run-like survey "
+                "user_id=%s doc_id=%s: %s",
+                user_id, doc.id, e,
+            )
+            trial_snaps = []
+
+        for trial_snap in trial_snaps:
+            t = trial_snap.to_dict() or {}
+            if t.get('isPracticeTrial'):
+                continue
+            question = t.get('audioFile')
+            if not question:
+                # No stable identifier; skip but log so we know about gaps.
+                logging.debug(
+                    "get_surveys: run-like trial without audioFile; "
+                    "user_id=%s survey_id=%s trial_id=%s",
+                    user_id, sid, trial_snap.id,
+                )
+                continue
+            response_rows.append({
+                "survey_id": sid,
+                "question": question,
+                "survey_part": "unknown",
+                "survey_type": survey_type,
+                "response": t.get('answer') if t.get('answer') is not None else t.get('response'),
+                "response_type": None,  # let coerce_response_from_raw infer
+                "timestamp": t.get('serverTimestamp') or t.get('createdAt') or time_started,
+                "survey_schema_source": SURVEY_SCHEMA_RUN_LIKE,
+            })
+
+        return survey_row, response_rows
 
     def upload_task_schema_to_firestore(self, dict_type: str, schema_usage: dict, task_id: str,
                                         new_schemas: list):

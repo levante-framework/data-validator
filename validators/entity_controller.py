@@ -470,9 +470,17 @@ class EntityController:
                 survey_type = survey_response.get("survey_type")
                 response = survey_response.get("response")
                 response_type = survey_response.get("response_type")
+                # survey_schema_source is carried as a model field so the
+                # auto-running question-existence validator can emit a tailored
+                # message (audioFile vs question).
                 survey_payload = {
                     k: v for k, v in survey_response.items()
-                    if k not in {"survey_part", "survey_type", "response", "response_type"}
+                    if k not in {
+                        "survey_part",
+                        "survey_type",
+                        "response",
+                        "response_type",
+                    }
                 }
 
                 survey_response_model = core_models.SurveyResponse(**survey_payload)
@@ -482,7 +490,7 @@ class EntityController:
                 )
                 survey_response_model.validate_response_against_schema(
                     survey_part=survey_part,
-                    survey_type=survey_type
+                    survey_type=survey_type,
                 )
                 self.valid_survey_responses.append(survey_response_model)
             except ValidationError as e:

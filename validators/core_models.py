@@ -490,6 +490,18 @@ class Survey(BaseModel):
     survey_type: str  # caregiver, student, teacher
     is_complete: Optional[bool] = None
     created_at: datetime
+    # New columns for the unified surveyResponses parser (legacy + task_run).
+    # survey_schema_source labels which Firestore document shape this row came
+    # from so analysts can spot schema rollouts in Redivis.
+    survey_schema_source: Optional[str] = None
+    valid_survey: Optional[bool] = None
+    validation_msg_survey: Optional[str] = None
+
+    @model_validator(mode='after')
+    def _derive_valid_survey(self):
+        if self.valid_survey is None:
+            self.valid_survey = self.validation_msg_survey in (None, "")
+        return self
 
 
 class SurveyResponse(BaseModel):
@@ -501,8 +513,53 @@ class SurveyResponse(BaseModel):
     numeric_response: Optional[float] = None
 
     timestamp: datetime
+    # Source schema this response was extracted from. Used by validators to
+    # tailor messages (e.g. "audioFile_not_in_survey_questions" for task_run
+    # vs "question_not_in_survey_questions" for legacy shapes). Carried through
+    # from firestore_services.get_surveys.
+    survey_schema_source: Optional[str] = None
     valid_response: Optional[bool] = None
     validation_msg: Optional[str] = None
+
+    @model_validator(mode='after')
+    def _check_question_in_survey_questions(self):
+        """
+        Auto-run at construction: every `question` must exist in
+        get_survey_questions() (loaded from Redivis survey_items, with a
+        local JSON fallback). The label distinguishes the two known sources:
+            - "audioFile" for run-like (task_run) responses
+            - "question_id" for legacy general/specific/data responses
+        """
+        q = (self.question or "").strip() if isinstance(self.question, str) else ""
+        if not q:
+            # Required field; pydantic already rejects None at parse time. An
+            # empty/whitespace question gets a dedicated message.
+            self._append_validation_msg("question_empty")
+            self.valid_response = False
+            return self
+
+        if q not in get_survey_questions():
+            label = (
+                "audioFile_not_in_survey_questions"
+                if self.survey_schema_source == "task_run"
+                else "question_not_in_survey_questions"
+            )
+            self._append_validation_msg(f"{label}({q})")
+            self.valid_response = False
+        return self
+
+    def _append_validation_msg(self, m: str) -> None:
+        """Append a message to validation_msg, preserving any earlier entries."""
+        if not m:
+            return
+        if self.validation_msg:
+            # Avoid trivial duplicates from the same validator running twice.
+            parts = self.validation_msg.split(";")
+            if m in parts:
+                return
+            self.validation_msg = f"{self.validation_msg};{m}"
+        else:
+            self.validation_msg = m
 
     def coerce_response_from_raw(self, response: Any = None, response_type: Optional[str] = None):
         self.boolean_response = None
@@ -568,8 +625,20 @@ class SurveyResponse(BaseModel):
         self.string_response = str(response)
         return self
 
-    def validate_response_against_schema(self, survey_part: Optional[str] = None, survey_type: Optional[str] = None):
-        msg = []
+    def validate_response_against_schema(
+        self,
+        survey_part: Optional[str] = None,
+        survey_type: Optional[str] = None,
+    ):
+        """
+        Section / survey-type checks against the questions metadata.
+
+        Question existence (`question in get_survey_questions()`) is handled by
+        the auto-running model validator `_check_question_in_survey_questions`
+        — this method intentionally does NOT re-check it. Messages from this
+        method are appended to any existing validation_msg rather than
+        overwriting it.
+        """
 
         def normalize_survey_type(v: Optional[str]) -> Optional[str]:
             if v is None:
@@ -583,32 +652,37 @@ class SurveyResponse(BaseModel):
             return v_norm
 
         question_meta = get_survey_questions().get(self.question)
-        if not question_meta:
-            msg.append("question_not_in_survey_questions")
-        else:
+        if question_meta:
             expected_section = question_meta.get("survey_section")
-            if expected_section and survey_part:
+            # Skip section check when caller signals "unknown" (e.g. run-like
+            # surveys whose section indicator isn't shipped yet).
+            if (
+                expected_section
+                and survey_part
+                and str(survey_part).strip().lower() != "unknown"
+            ):
                 if str(expected_section).lower() != str(survey_part).lower():
-                    msg.append(
+                    self._append_validation_msg(
                         f"survey_section_mismatch(expected:{expected_section}, got:{survey_part})"
                     )
 
             expected_type = normalize_survey_type(survey_type)
             actual_type = normalize_survey_type(question_meta.get("question_survey_type"))
             if expected_type and actual_type and expected_type != actual_type:
-                msg.append(
+                self._append_validation_msg(
                     f"question_survey_type_mismatch(expected:{expected_type}, got:{actual_type})"
                 )
 
             # Temporarily pause strict response type checks.
             # Keep question existence / section / survey-type validations active.
 
-        if msg:
+        # valid_response stays False if any prior validator (including
+        # _check_question_in_survey_questions) already failed; otherwise we
+        # confirm it as True only when no messages were accumulated.
+        if self.validation_msg:
             self.valid_response = False
-            self.validation_msg = ";".join(msg)
         else:
             self.valid_response = True
-            self.validation_msg = None
         return self
 
 

@@ -215,8 +215,15 @@ def setup_project_environment():
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
         with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
             os.environ['project_id'] = json.load(sa).get('project_id', None)
-    settings.config[
-        'CORE_DATA_BUCKET_NAME'] = f'levante-roar-data-bucket-{'dev' if 'dev' in os.environ['project_id'] else 'prod'}'
+    pid = os.environ['project_id']
+    if 'data-validator' in pid:
+        # Dedicated data-validator project (post-migration) keeps its own bucket.
+        settings.config['CORE_DATA_BUCKET_NAME'] = 'levante-data-validator-bucket-prod'
+    elif 'dev' in pid:
+        settings.config['CORE_DATA_BUCKET_NAME'] = 'levante-roar-data-bucket-dev'
+    else:
+        # Legacy admin-prod path stays on the original bucket name.
+        settings.config['CORE_DATA_BUCKET_NAME'] = 'levante-roar-data-bucket-prod'
     print(
         f"running version {settings.config['VERSION']}, "
         f"project_id: {os.getenv('project_id')}, "

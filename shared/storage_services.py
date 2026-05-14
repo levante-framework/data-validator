@@ -14,7 +14,8 @@ class StorageServices:
 
     def __init__(self, cred, dataset_id: str, is_forced_uploading_redivis: bool = False):
         self.storage_client = storage.Client(credentials=cred)
-        self.gcp_bucket = self.storage_client.bucket(f'levante-roar-data-bucket-{'dev' if 'dev' in os.environ['project_id'] else 'prod'}')
+        # Use the canonical bucket name resolved at startup by utils.setup_project_environment().
+        self.gcp_bucket = self.storage_client.bucket(settings.config['CORE_DATA_BUCKET_NAME'])
         self.dataset_id = dataset_id
         self.storage_prefix = f"{self.dataset_id}/"
         self.is_new_version_needed = is_forced_uploading_redivis
