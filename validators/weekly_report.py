@@ -178,19 +178,21 @@ def _find_logs_for_dataset(
     baseline = None
     current = None
     for date_str in date_subs:
-        # The latest doc in a date subcollection (sorted by doc id, which is a
-        # YYYY-MM-DD HH:MM:SS string — sorts identically chronologically).
+        # Each date subcollection usually has 1–3 docs (cron + retries). Just
+        # fetch them and pick the alphabetically-last one — doc ids are
+        # `YYYY-MM-DD HH:MM:SS` so string sort == chronological sort. This
+        # avoids any order_by(__name__) quirks observed empirically.
         try:
-            last = list(
-                base.collection(date_str)
-                    .order_by("__name__", direction=fs.Query.DESCENDING)
-                    .limit(1).get()
+            docs_in_day = list(base.collection(date_str).get())
+        except Exception as e:
+            logging.warning(
+                "weekly_report: failed reading %s/%s: %s",
+                dataset_id, date_str, e,
             )
-        except Exception:
-            last = []
-        if not last:
             continue
-        snap = last[0]
+        if not docs_in_day:
+            continue
+        snap = max(docs_in_day, key=lambda d: d.id)
         if date_str < start_pst_str:
             baseline = snap          # keep updating as we walk forward
         elif start_pst_str <= date_str <= end_pst_str:
