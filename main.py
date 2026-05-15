@@ -57,6 +57,26 @@ def process(req):
         logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
         return json.dumps(response, cls=utils.CustomJSONEncoder), 200
 
+    if operation == "weekly_report":
+        from validators.weekly_report import run_weekly_report
+
+        dry_run = bool(data.pop("dry_run", False))
+        try:
+            result = run_weekly_report(dry_run=dry_run)
+        except Exception as e:
+            logging.exception("weekly_report crashed")
+            return json.dumps({"error": "weekly_report_crashed",
+                               "message": f"{type(e).__name__}: {e}"}), 500
+        elapsed_time = time.time() - start_time
+        response = {
+            "operation": operation,
+            "result": result,
+            "elapsed_time": elapsed_time,
+            "api_version": settings.config["VERSION"],
+        }
+        logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
+        return json.dumps(response, cls=utils.CustomJSONEncoder), 200
+
     if operation == "redivis_individual_release":
         from sync.redivis_release import check_redivis_individual_release_awaiting_slack
 

@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.8.13',
+    'VERSION': '1.9.0',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -11,6 +11,9 @@ config = {
     # Optional: Secret Manager id for a second Incoming Webhook (e.g. admin-only dry_run).
     # Leave empty to use SLACK_NOTIFICATION_WEB_HOOK for all Slack notifications.
     'SLACK_ADMIN_WEBHOOK_SECRET_ID': '',
+    # Optional: Secret Manager id for the weekly-report channel webhook. If the
+    # secret is missing the weekly report falls back to SLACK_NOTIFICATION_WEB_HOOK.
+    'SLACK_WEEKLY_REPORT_WEBHOOK_SECRET_ID': 'slackWeeklyReportWebHook',
     # LEVANTE Entities — Dataset table (field names + base/table ids)
     'AIRTABLE_API_TOKEN_SECRET_ID': 'airtableTokenUpdateEntitiesDatasets',
     'AIRTABLE_LEVANTE_ENTITIES_BASE_ID': 'appIDUfcKdekzTiIJ',
