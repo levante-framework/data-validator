@@ -12,9 +12,10 @@ Data sources:
   diff of `total_validation_stats` gives weekly growth. No new Firestore
   indexes needed.
 - Redivis state: `RedivisServices.get_current_dataset_status()` per site.
-- Schema drift: sample N recent docs per top-level collection (sorted by
-  the canonical "updated" field), capture {fields, subcollections}, diff
-  vs the prior week's snapshot stored in admin-prod Firestore at
+- Schema drift: sample recent docs per top-level collection; for `users`,
+  stratify by `userType` so every role is represented. Also sample
+  `runs`, `trials`, and `surveyResponses` via collection-group queries.
+  Diff {fields, subcollections} vs the prior week's snapshot at
   `logs/_weekly_state/snapshot:{week_iso}`.
 - Scheduler health + function crashes: Cloud Logging entries for the
   current GCP project (the one the function is running in).
@@ -61,9 +62,22 @@ COLLECTION_UPDATED_FIELD: dict[str, str] = {
 # Top-level collections used by the validator we care about for schema drift.
 SCHEMA_DRIFT_COLLECTIONS = list(COLLECTION_UPDATED_FIELD.keys())
 
-# How many recent docs to sample per collection. Larger = more reliable
+# How many recent docs to sample per top-level collection. Larger = more reliable
 # field-presence detection at the cost of more Firestore reads.
 SCHEMA_SNAPSHOT_SAMPLE = 20
+
+# Stratified `users` sampling: N recent docs per userType (not one global slice).
+USERS_SCHEMA_TYPES = ("student", "teacher", "parent", "test", "admin")
+SCHEMA_USERS_PER_TYPE = 4
+
+# Collection-group samples under `users/*`. Multiple order fields on
+# surveyResponses cover legacy (createdAt) and run-like (timeStarted) shapes.
+SCHEMA_SUBCOLLECTION_SAMPLE = 10
+USER_SUBCOLLECTION_SCHEMA_SPECS: list[tuple[str, str, list[str]]] = [
+    ("users/runs", "runs", ["timeStarted"]),
+    ("users/trials", "trials", ["serverTimestamp"]),
+    ("users/surveyResponses", "surveyResponses", ["createdAt", "timeStarted"]),
+]
 
 
 # ----------------------------------------------------------------------------
@@ -433,6 +447,58 @@ def collect_validation_health(
 # Schema drift detection (Firebase)
 # ----------------------------------------------------------------------------
 
+def _fingerprint_docs(docs: list) -> tuple[set[str], set[str]]:
+    """Union top-level field names and subcollection ids across document snapshots."""
+    fields: set[str] = set()
+    subcolls: set[str] = set()
+    for d in docs:
+        body = d.to_dict() or {}
+        fields.update(body.keys())
+        try:
+            for sub in d.reference.collections():
+                subcolls.add(sub.id)
+        except Exception:
+            pass
+    return fields, subcolls
+
+
+def _query_recent_docs(
+    query,
+    *,
+    coll_label: str,
+    order_field: str | None,
+    sample: int,
+) -> list:
+    """Run order_by+limit when possible; fall back to unordered limit."""
+    if order_field:
+        try:
+            return list(
+                query.order_by(order_field, direction=fs.Query.DESCENDING)
+                     .limit(sample)
+                     .get()
+            )
+        except Exception as e:
+            logging.warning(
+                "weekly_report: order_by %s failed on %s (%s); using unordered sample",
+                order_field, coll_label, e,
+            )
+    try:
+        return list(query.limit(sample).get())
+    except Exception as e:
+        logging.warning("weekly_report: sample failed on %s: %s", coll_label, e)
+        return []
+
+
+def _schema_entry(fields: set[str], subcolls: set[str], sample_size: int, **extra) -> dict:
+    out: dict[str, Any] = {
+        "fields": sorted(fields),
+        "subcollections": sorted(subcolls),
+        "sample_size": sample_size,
+    }
+    out.update(extra)
+    return out
+
+
 def _sample_collection_for_schema(
     coll_name: str, updated_field: str, sample: int = SCHEMA_SNAPSHOT_SAMPLE
 ) -> dict:
@@ -443,43 +509,87 @@ def _sample_collection_for_schema(
     Falls back to unordered limit if the order_by fails.
     """
     coll = firestore_services.admin_db.collection(coll_name)
-    docs = []
-    try:
-        docs = list(
-            coll.order_by(updated_field, direction=fs.Query.DESCENDING)
-                .limit(sample)
-                .get()
-        )
-    except Exception as e:
-        logging.warning(
-            "weekly_report: order_by %s failed on %s (%s); using unordered sample",
-            updated_field, coll_name, e,
-        )
-        docs = list(coll.limit(sample).get())
+    docs = _query_recent_docs(
+        coll, coll_label=coll_name, order_field=updated_field, sample=sample,
+    )
+    fields, subcolls = _fingerprint_docs(docs)
+    return _schema_entry(fields, subcolls, len(docs))
 
-    fields: set[str] = set()
-    subcolls: set[str] = set()
-    for d in docs:
-        body = d.to_dict() or {}
-        for k in body:
-            fields.add(k)
-        try:
-            for sub in d.reference.collections():
-                subcolls.add(sub.id)
-        except Exception:
-            pass
-    return {
-        "fields": sorted(fields),
-        "subcollections": sorted(subcolls),
-        "sample_size": len(docs),
-    }
+
+def _sample_users_schema_stratified(updated_field: str) -> dict[str, dict]:
+    """
+    Sample recent user docs per userType so schema drift is not skewed by one
+    role dominating lastUpdated. Returns aggregate `users` plus `users/{type}`
+    entries for per-role diffs.
+    """
+    coll = firestore_services.admin_db.collection("users")
+    all_fields: set[str] = set()
+    all_subcolls: set[str] = set()
+    fields_by_type: dict[str, list[str]] = {}
+    dist: Counter[str] = Counter()
+    total = 0
+    snap: dict[str, dict] = {}
+
+    for user_type in USERS_SCHEMA_TYPES:
+        docs = _query_recent_docs(
+            coll.where("userType", "==", user_type),
+            coll_label=f"users(userType={user_type})",
+            order_field=updated_field,
+            sample=SCHEMA_USERS_PER_TYPE,
+        )
+        if not docs:
+            continue
+        fields, subcolls = _fingerprint_docs(docs)
+        all_fields |= fields
+        all_subcolls |= subcolls
+        fields_by_type[user_type] = sorted(fields)
+        dist[user_type] = len(docs)
+        total += len(docs)
+        snap[f"users/{user_type}"] = _schema_entry(fields, subcolls, len(docs))
+
+    snap["users"] = _schema_entry(
+        all_fields, all_subcolls, total,
+        fields_by_user_type=fields_by_type,
+        user_type_distribution=dict(dist),
+    )
+    return snap
+
+
+def _sample_collection_group_for_schema(
+    snapshot_key: str,
+    group_name: str,
+    order_fields: list[str],
+    sample: int = SCHEMA_SUBCOLLECTION_SAMPLE,
+) -> dict:
+    """Sample recent docs from a collection group (e.g. all users/*/runs)."""
+    db = firestore_services.admin_db
+    all_fields: set[str] = set()
+    all_subcolls: set[str] = set()
+    total = 0
+    for order_field in order_fields:
+        docs = _query_recent_docs(
+            db.collection_group(group_name),
+            coll_label=f"{snapshot_key}({order_field})",
+            order_field=order_field,
+            sample=sample,
+        )
+        fields, subcolls = _fingerprint_docs(docs)
+        all_fields |= fields
+        all_subcolls |= subcolls
+        total += len(docs)
+    return _schema_entry(all_fields, all_subcolls, total)
 
 
 def capture_schema_snapshot() -> dict:
-    """Snapshot every top-level collection we care about."""
-    snap = {}
+    """Snapshot top-level collections plus stratified users and user subcollections."""
+    snap: dict[str, dict] = {}
     for coll, ts in COLLECTION_UPDATED_FIELD.items():
-        snap[coll] = _sample_collection_for_schema(coll, ts)
+        if coll == "users":
+            snap.update(_sample_users_schema_stratified(ts))
+        else:
+            snap[coll] = _sample_collection_for_schema(coll, ts)
+    for key, group, order_fields in USER_SUBCOLLECTION_SCHEMA_SPECS:
+        snap[key] = _sample_collection_group_for_schema(key, group, order_fields)
     return snap
 
 
@@ -514,10 +624,16 @@ def store_snapshot(week_iso: str, snapshot: dict) -> None:
                         week_iso, e)
 
 
+def _removal_min_sample(coll_key: str) -> int:
+    """Per-userType and subcollection keys use a lower bar (smaller fixed sample)."""
+    return 3 if "/" in coll_key else 10
+
+
 def detect_schema_drift(current: dict, previous: dict | None) -> dict:
     """Diff current snapshot vs previous. Returns additions/removals.
-    Removals are only reported when the prior week sampled ≥10 docs in that
-    collection (cuts down on false positives from a small prior sample)."""
+    Removals require the prior week to have met the minimum sample for that key
+    (10 for top-level collections, 3 for users/{type} and users/* subcollections).
+    """
     if previous is None:
         return {"first_run": True, "added": {}, "removed": {}, "subcollections_added": {}, "subcollections_removed": {}}
 
@@ -538,7 +654,7 @@ def detect_schema_drift(current: dict, previous: dict | None) -> dict:
         af = sorted(cur_f - prev_f)
         if af:
             added_fields[coll] = af
-        if (prev.get("sample_size") or 0) >= 10:
+        if (prev.get("sample_size") or 0) >= _removal_min_sample(coll):
             rf = sorted(prev_f - cur_f)
             if rf:
                 removed_fields[coll] = rf
