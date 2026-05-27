@@ -22,7 +22,7 @@ ID_FIELDS = {
     "users": ["user_id", "parent1_id", "parent2_id", "teacher_id"],
     "runs": ["user_id"],
     "trials": ["user_id"],
-    "surveys": ["user_id", "child_id"],
+    "surveys": ["user_id"],
 
     # survey_responses currently has no user_id column
     "survey_responses": [],
@@ -560,8 +560,19 @@ def pseudonymize_dataset(data: dict, salt: str) -> dict:
         for row in rows:
             r = dict(row)
             for f in fields:
-                if f in r:
-                    r[f] = pseudo(r[f])
+                if f in r and r[f] is not None:
+                    r[f] = pseudo(str(r[f]))
+            if table == "surveys":
+                if r.get("specific_scope") == "child_id" and r.get("specific_scope_id"):
+                    r["specific_scope_id"] = pseudo(str(r["specific_scope_id"]))
+                from shared.firestore_services import make_survey_id
+                part = r.get("survey_part") or "general"
+                r["survey_id"] = make_survey_id(
+                    str(r["user_id"]),
+                    str(r["administration_id"]),
+                    part,
+                    r.get("specific_scope_id") if part == "specific" else None,
+                )
             new_rows.append(r)
         out[table] = new_rows
     return out

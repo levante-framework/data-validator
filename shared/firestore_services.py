@@ -2,6 +2,7 @@ import json
 import logging
 import random
 import warnings
+from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from itertools import islice
@@ -91,6 +92,21 @@ SURVEY_SCHEMA_UNKNOWN = "unknown"
 RUN_LIKE_EXPECTED_TASK_ID = "child-survey"
 RUN_LIKE_EXPECTED_SURVEY_TYPE = "student"
 
+# Firestore specific[] field keys (camelCase).
+FIRESTORE_SCOPE_CHILD_ID = "childId"
+FIRESTORE_SCOPE_CLASS_ID = "classId"
+FIRESTORE_SCOPE_SCHOOL_ID = "schoolId"
+
+# Redivis surveys.specific_scope column values (snake_case).
+SPECIFIC_SCOPE_CHILD = "child_id"
+SPECIFIC_SCOPE_CLASS = "class_id"
+SPECIFIC_SCOPE_SCHOOL = "school_id"
+REDIVIS_SPECIFIC_SCOPE_FIELDS = (
+    SPECIFIC_SCOPE_CHILD,
+    SPECIFIC_SCOPE_CLASS,
+    SPECIFIC_SCOPE_SCHOOL,
+)
+
 
 def classify_survey_doc(doc_dict: dict) -> str:
     """Label a surveyResponses Firestore doc by its top-level shape."""
@@ -109,6 +125,113 @@ def classify_survey_doc(doc_dict: dict) -> str:
 def normalize_user_type_to_survey_type(user_type: str) -> str:
     """Match the convention used elsewhere in this file (parent → caregiver)."""
     return "caregiver" if user_type == "parent" else user_type
+
+
+def canonical_assignment_id(doc_id: str, doc_dict: dict) -> str:
+    """Shared assignment key for a surveyResponses doc (body field or doc id)."""
+    return (
+        doc_dict.get("assignmentId")
+        or doc_dict.get("administrationId")
+        or doc_id
+    )
+
+
+def parse_specific_scope_fields(
+    *,
+    child_id: str | None = None,
+    class_id: str | None = None,
+    school_id: str | None = None,
+) -> tuple[str | None, str | None, dict[str, str]]:
+    """
+    Read childId / classId / schoolId from Firestore; emit Redivis specific_scope
+    as child_id / class_id / school_id. Returns (specific_scope, specific_scope_id,
+    present_scopes) where present_scopes keys are Redivis scope names.
+    When multiple Firestore ids are set, childId > classId > schoolId wins for export.
+    """
+    present: dict[str, str] = {}
+    if child_id is not None and str(child_id).strip():
+        present[SPECIFIC_SCOPE_CHILD] = str(child_id).strip()
+    if class_id is not None and str(class_id).strip():
+        present[SPECIFIC_SCOPE_CLASS] = str(class_id).strip()
+    if school_id is not None and str(school_id).strip():
+        present[SPECIFIC_SCOPE_SCHOOL] = str(school_id).strip()
+    for scope in REDIVIS_SPECIFIC_SCOPE_FIELDS:
+        if scope in present:
+            return scope, present[scope], present
+    return None, None, present
+
+
+def make_survey_id(
+    user_id: str,
+    assignment_id: str,
+    survey_part: str,
+    specific_scope_id: str | None = None,
+) -> str:
+    """
+    Join key for surveys ↔ survey_responses.
+    General: {user}:{assignment}:general
+    Specific: {user}:{assignment}:specific[:{specific_scope_id}]
+    """
+    if survey_part != "specific":
+        return f"{user_id}:{assignment_id}:general"
+    if specific_scope_id:
+        return f"{user_id}:{assignment_id}:specific:{specific_scope_id}"
+    return f"{user_id}:{assignment_id}:specific"
+
+
+def specific_survey_scope_msgs(
+    *,
+    specific_scope: str | None,
+    specific_scope_id: str | None,
+    present_scopes: dict[str, str],
+    user_class_ids: list[str] | None,
+) -> str | None:
+    """Validation hints for specific-section surveys."""
+    msgs: list[str] = []
+    if len(present_scopes) > 1:
+        detail = ",".join(f"{field}={val}" for field, val in sorted(present_scopes.items()))
+        msgs.append(f"specific_survey_multiple_scope_ids({detail})")
+    if not specific_scope:
+        msgs.append("specific_survey_missing_scope")
+    if not specific_scope_id:
+        msgs.append("specific_survey_missing_scope_id")
+    if (
+        specific_scope == SPECIFIC_SCOPE_CLASS
+        and specific_scope_id
+        and user_class_ids is not None
+        and specific_scope_id not in user_class_ids
+    ):
+        msgs.append(f"class_id_not_on_user({specific_scope_id})")
+    return ";".join(msgs) if msgs else None
+
+
+def merge_validation_msg(existing: str | None, extra: str | None) -> str | None:
+    if not extra:
+        return existing
+    if not existing:
+        return extra
+    if extra in existing.split(";"):
+        return existing
+    return f"{existing};{extra}"
+
+
+def split_survey_assignment_msg(assignment_id: str, doc_ids: list[str]) -> str:
+    return (
+        f"split_survey_assignment(assignment_id={assignment_id},"
+        f"doc_ids={','.join(sorted(doc_ids))})"
+    )
+
+
+def find_split_survey_assignments(docs) -> dict[str, list[str]]:
+    """Map assignment_id → doc ids when multiple surveyResponses docs share one assignment."""
+    by_assignment: dict[str, list[str]] = defaultdict(list)
+    for doc in docs:
+        doc_dict = doc.to_dict() or {}
+        schema = classify_survey_doc(doc_dict)
+        if schema in (SURVEY_SCHEMA_PAGENO_MARKER, SURVEY_SCHEMA_UNKNOWN):
+            continue
+        by_assignment[canonical_assignment_id(doc.id, doc_dict)].append(doc.id)
+    return {aid: ids for aid, ids in by_assignment.items() if len(ids) > 1}
 
 
 class FirestoreServices:
@@ -386,6 +509,13 @@ class FirestoreServices:
                     return True
             return False
 
+        def _has_run_in_range(doc_ref, start_dt, end_dt) -> bool:
+            runs = (doc_ref.collection('runs')
+                    .where('timeStarted', '>=', start_dt)
+                    .where('timeStarted', '<=', end_dt)
+                    .limit(1).get())
+            return bool(runs)
+
         def _has_activity(doc_ref, doc_dict: dict) -> bool:
             start_dt = to_datetime(date_filter.start_date, 'start')
             end_dt = to_datetime(date_filter.end_date, 'end')
@@ -394,11 +524,7 @@ class FirestoreServices:
             has_admin = _any_assigned_between(doc_dict.get('assignmentsAssigned', {}), start_dt, end_dt)
 
             # runs in filtered date range
-            runs = (doc_ref.collection('runs')
-                    .where('timeStarted', '>=', start_dt)
-                    .where('timeStarted', '<=', end_dt)
-                    .limit(1).get())
-            has_runs = bool(runs)
+            has_runs = _has_run_in_range(doc_ref, start_dt, end_dt)
 
             # surveys in filtered date range
             surveys = (doc_ref.collection('surveyResponses')
@@ -464,16 +590,17 @@ class FirestoreServices:
                             if not runs:  # Check if there are no documents in the runs subcollection
                                 continue
                         else:
+                            start_dt = to_datetime(date_filter.start_date, 'start')
+                            end_dt = to_datetime(date_filter.end_date, 'end')
                             if not _any_assigned_between(
                                     doc_dict.get('assignmentsAssigned', {}),
-                                    to_datetime(date_filter.start_date, 'start'),
-                                    to_datetime(date_filter.end_date, 'end')
+                                    start_dt,
+                                    end_dt,
                             ):
                                 continue
                             user_type = doc_dict.get('userType', None)
-                            assignments_started = doc_dict.get('assignmentsStarted', False)
                             survey_responses = doc.reference.collection('surveyResponses').limit(1).get()
-                            if user_type == 'student' and not assignments_started:
+                            if user_type == 'student' and not _has_run_in_range(doc.reference, start_dt, end_dt):
                                 continue
                             if user_type in ['teacher', 'parent'] and not survey_responses:
                                 continue
@@ -691,7 +818,14 @@ class FirestoreServices:
                 logging.error(f"Error in get_trails: {e}")
                 break
 
-    def get_surveys(self, user_id: str, user_type: str, date_filter: utils.DateFilter, survey_key_usage: dict):
+    def get_surveys(
+        self,
+        user_id: str,
+        user_type: str,
+        date_filter: utils.DateFilter,
+        survey_key_usage: dict,
+        user_class_ids: list[str] | None = None,
+    ):
         surveys: list[dict] = []
         survey_responses: list[dict] = []
 
@@ -765,12 +899,6 @@ class FirestoreServices:
 
             return formatted_responses
 
-        def make_survey_id(doc_id: str, scope: str, child_id: str | None = None) -> str:
-            # Ensure uniqueness across general vs per-child specific sections
-            if child_id:
-                return f"{doc_id}:{scope}:{child_id}"
-            return f"{doc_id}:{scope}"
-
         survey_type = normalize_user_type_to_survey_type(user_type)
 
         try:
@@ -811,6 +939,8 @@ class FirestoreServices:
                     continue
                 seen_ids.add(d.id)
                 docs.append(d)
+
+            split_assignments = find_split_survey_assignments(docs)
 
             for doc in docs:
                 doc_dict = doc.to_dict() or {}
@@ -854,13 +984,21 @@ class FirestoreServices:
                         ):
                             task_dict[key] = new_meta
 
+                assignment_id = canonical_assignment_id(doc.id, doc_dict)
+                split_msg = (
+                    split_survey_assignment_msg(assignment_id, split_assignments[assignment_id])
+                    if assignment_id in split_assignments
+                    else None
+                )
+
                 # ---------------- branch on schema ----------------
                 if schema == SURVEY_SCHEMA_RUN_LIKE:
                     s_row, r_rows = self._parse_run_like_survey(
                         doc=doc, doc_dict=doc_dict,
                         user_id=user_id, user_type=user_type,
+                        assignment_id=assignment_id,
                         fallback_survey_type=survey_type,
-                        make_survey_id=make_survey_id,
+                        split_survey_msg=split_msg,
                     )
                     surveys.append(s_row)
                     survey_responses.extend(r_rows)
@@ -870,7 +1008,6 @@ class FirestoreServices:
                 # logic — figure out which scope(s) apply, then iterate.
                 doc_created_at = doc_dict.get('createdAt')
                 doc_updated_at = doc_dict.get('updatedAt')
-                administration_id = doc_dict.get('administrationId')
 
                 survey_instances: list[dict] = []
                 if schema == SURVEY_SCHEMA_LEGACY_DATA:
@@ -899,30 +1036,52 @@ class FirestoreServices:
                             survey_instances.append({
                                 "scope": "specific",
                                 "child_id": s.get('childId'),
+                                "class_id": s.get('classId'),
+                                "school_id": s.get('schoolId'),
                                 "is_complete": s.get('isComplete'),
                                 "responses": s.get('responses', {}),
                             })
 
                 for inst in survey_instances:
-                    scope = inst["scope"]
-                    child_id = inst.get("child_id")
                     is_complete = inst.get("is_complete")
                     responses_map = inst.get("responses") or {}
 
-                    survey_part = "specific" if scope == "specific" else "general"
-                    sid = make_survey_id(doc.id, scope, child_id)
+                    survey_part = "specific" if inst["scope"] == "specific" else "general"
+                    if survey_part == "specific":
+                        specific_scope, specific_scope_id, present_scopes = (
+                            parse_specific_scope_fields(
+                                child_id=inst.get("child_id"),
+                                class_id=inst.get("class_id"),
+                                school_id=inst.get("school_id"),
+                            )
+                        )
+                        scope_msg = specific_survey_scope_msgs(
+                            specific_scope=specific_scope,
+                            specific_scope_id=specific_scope_id,
+                            present_scopes=present_scopes,
+                            user_class_ids=user_class_ids,
+                        )
+                    else:
+                        specific_scope, specific_scope_id, present_scopes = None, None, {}
+                        scope_msg = None
+                    sid = make_survey_id(
+                        user_id, assignment_id, survey_part, specific_scope_id,
+                    )
+                    validation_msg_survey = merge_validation_msg(split_msg, scope_msg)
 
                     surveys.append({
                         "survey_id": sid,
-                        "administration_id": administration_id,
+                        "administration_id": assignment_id,
                         "user_id": user_id,
-                        "child_id": child_id,
+                        "specific_scope": specific_scope,
+                        "specific_scope_id": specific_scope_id,
                         "survey_type": survey_type,
                         "survey_part": survey_part,
                         "is_complete": is_complete,
                         "created_at": doc_created_at,
                         "updated_at": doc_updated_at,
                         "survey_schema_source": schema,
+                        "validation_msg_survey": validation_msg_survey,
                     })
 
                     for item in reformat_responses(data=responses_map):
@@ -954,8 +1113,9 @@ class FirestoreServices:
         doc_dict: dict,
         user_id: str,
         user_type: str,
+        assignment_id: str,
         fallback_survey_type: str,
-        make_survey_id,
+        split_survey_msg: str | None = None,
     ) -> tuple[dict, list[dict]]:
         """
         Emit one ``Survey`` row + N ``SurveyResponse`` rows for a run-like
@@ -966,7 +1126,6 @@ class FirestoreServices:
         task_id = doc_dict.get('taskId')
         time_started = doc_dict.get('timeStarted')
         time_finished = doc_dict.get('timeFinished')
-        admin_id = doc_dict.get('assignmentId') or doc_dict.get('administrationId')
 
         # Per the May 2026 rollout, the only run-like task is "child-survey"
         # which always maps to survey_type=student. Anything else is an
@@ -989,17 +1148,16 @@ class FirestoreServices:
             survey_type = normalized_user_type
             validation_msg = f"unexpected_run_like_task_id({task_id!r})"
 
-        # Per the May 2026 rollout, child-survey is always tagged "general"
-        # in the survey metadata. survey_id uses the canonical
-        # {doc_id}:{survey_part}[:child_id] design — the schema variant
-        # (task_run vs legacy_*) is tracked separately on survey_schema_source.
+        validation_msg = merge_validation_msg(validation_msg, split_survey_msg)
+
         run_like_survey_part = "general"
-        sid = make_survey_id(doc.id, scope=run_like_survey_part, child_id=None)
+        sid = make_survey_id(user_id, assignment_id, run_like_survey_part)
         survey_row = {
             "survey_id": sid,
-            "administration_id": admin_id,
+            "administration_id": assignment_id,
             "user_id": user_id,
-            "child_id": None,
+            "specific_scope": None,
+            "specific_scope_id": None,
             "survey_type": survey_type,
             "survey_part": run_like_survey_part,
             "is_complete": bool(doc_dict.get('completed')),

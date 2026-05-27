@@ -260,11 +260,15 @@ class EntityController:
     def process_surveys(self):
         logging.info("Now Validating Surveys...")
         for user in self.valid_users:
+            user_class_ids = sorted({
+                uc.class_id for uc in self.valid_user_classes if uc.user_id == user.user_id
+            })
             surveys, survey_responses = fs.get_surveys(
                 user_id=user.user_id,
                 user_type=user.user_type,
                 date_filter=self._resolved_date_filter(),
                 survey_key_usage=self.survey_key_usage,
+                user_class_ids=user_class_ids,
             )
 
             if surveys:

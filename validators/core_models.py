@@ -482,11 +482,14 @@ class LevanteUser(UserBase):
 
 
 class Survey(BaseModel):
-    survey_id: str  # join id used by survey_responses
+    survey_id: str  # {user_id}:{administration_id}:{survey_part}[:{specific_scope_id}]
     administration_id: Optional[str] = None
     user_id: str
     survey_part: Optional[str] = None
-    child_id: Optional[str] = None
+    # Redivis scope label (child_id / class_id / school_id); sourced from Firestore childId etc.
+    specific_scope: Optional[str] = None
+    # Value of that field (child user id, class id, school id, …).
+    specific_scope_id: Optional[str] = None
     survey_type: str  # caregiver, student, teacher
     is_complete: Optional[bool] = None
     created_at: datetime
@@ -505,7 +508,7 @@ class Survey(BaseModel):
 
 
 class SurveyResponse(BaseModel):
-    survey_id: str  # join id to surveys.survey_id
+    survey_id: str  # join key to surveys.survey_id ({user_id}:{assignment_id}:...)
     question: str
 
     boolean_response: Optional[bool] = None
