@@ -7,6 +7,7 @@ import os
 import time
 import logging
 import ast
+import re
 from scipy.stats import binom, binomtest
 from math import isnan
 
@@ -742,6 +743,7 @@ class VariantBase(BaseModel):
     corpus: Optional[str] = None
     key_helpers: Optional[bool] = None
     language: Optional[str] = None
+    cat: Optional[bool] = None
     adaptive: bool = False
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
@@ -757,11 +759,10 @@ class VariantBase(BaseModel):
     @field_validator("language", mode="before")
     def normalize_language(cls, v):
         """
-        Normalize language codes:
-        - en -> en-US
-        - es -> es-CO
-        - de -> de-DE
-        - others -> Other(<original>)
+        Normalize language codes to BCP-47-style tags (language or language-REGION).
+        Short codes: en -> en-US, es -> es-CO, de -> de-DE.
+        Regional tags (e.g. es-AR, en-US) keep the language lowercased and region uppercased.
+        Other non-empty values are returned trimmed, without an "Other(...)" wrapper.
         """
         if v is None:
             return None
@@ -770,24 +771,37 @@ class VariantBase(BaseModel):
         if code == "":
             return None
 
-        lower = code.lower()
-        if lower == "en":
-            return "en-US"
-        if lower == "es":
-            return "es-CO"
-        if lower == "de":
-            return "de-DE"
+        lower = code.lower().replace("_", "-")
+        short_to_bcp47 = {
+            "en": "en-US",
+            "es": "es-CO",
+            "de": "de-DE",
+        }
+        if lower in short_to_bcp47:
+            return short_to_bcp47[lower]
 
-        # everything else
-        return f"Other({code})"
+        match = re.fullmatch(r"([a-z]{2})(?:-([a-z]{2}))?", lower)
+        if match:
+            lang, region = match.group(1), match.group(2)
+            if region:
+                return f"{lang}-{region.upper()}"
+            return lang
+
+        return code
 
     @model_validator(mode="after")
-    def set_adaptive_from_name(self):
+    def set_adaptive(self):
         """
-        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
+        Adaptive when params.cat is true, else when variant_name contains 'adaptive'.
+        If cat is false, not adaptive. If cat is missing, fall back to the name only.
         """
-        name = (self.variant_name or "").lower()
-        self.adaptive = "adaptive" in name
+        if self.cat is True:
+            self.adaptive = True
+        elif self.cat is False:
+            self.adaptive = False
+        else:
+            name = (self.variant_name or "").lower()
+            self.adaptive = "adaptive" in name
         return self
 
 

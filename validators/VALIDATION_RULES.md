@@ -238,8 +238,9 @@ valid_trial = True  iff  validation_msg_trial is empty
 
 | Field | Rule |
 |-------|------|
-| `language` | `en` → `en-US`, `es` → `es-CO`, `de` → `de-DE`; any other non-empty code → `Other(<original>)`; blank/`None` → `None` |
-| `adaptive` | Set to `True` if `variant_name` contains `"adaptive"` (case-insensitive); otherwise `False` |
+| `language` | `en` → `en-US`, `es` → `es-CO`, `de` → `de-DE`; regional tags (e.g. `es-AR`, `en-us`) → `language-REGION` with region uppercased (`es-AR`, `en-US`); other non-empty values kept as trimmed text (no `Other(...)` wrapper); blank/`None` → `None` |
+| `cat` | From Firestore `params.cat` (optional); used for adaptive detection |
+| `adaptive` | `True` if `cat` is `true`; `False` if `cat` is `false`; if `cat` is absent, `True` when `variant_name` contains `"adaptive"` (case-insensitive), else `False` |
 
 ### Business validation
 
