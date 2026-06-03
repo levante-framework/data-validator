@@ -2,80 +2,169 @@
 
 ## Overview
 
-This project, `data-validator`, is designed to facilitate the processing and validation of data from ROAR Firebase/Redivis(2nd attempt). 
-It uses Pydantic for validation along with customized restrictions to ensure data integrity. 
-Once validated, the data is submitted back to Redivis.
+`data-validator` is a Flask-based Cloud Function that pulls ROAR/LEVANTE data from
+Firestore, validates it with Pydantic models, and writes the validated tables to
+GCS. When configured, it also publishes a new Redivis dataset version.
+
+High-level flow:
+1. Fetch users/runs/trials/surveys and org metadata from Firestore.
+2. Validate and normalize with Pydantic models.
+3. Write JSON tables to a GCS bucket.
+4. Optionally create/release a Redivis dataset version.
 
 ## Features
 
-- **Data Extraction**: Extract data efficiently from ROAR Firebase/Redivis.
-- **Data Validation**: Leverage Pydantic along with custom validations to ensure the accuracy and integrity of the data.
-- **Data Storage**: Seamlessly submit the validated data and invalid data_log to Gcloud storage.
+- **Data extraction** from Firestore for users, runs, trials, surveys, and org entities.
+- **Schema validation** with Pydantic plus project-specific rules.
+- **GCS export** of validated tables and invalid rows.
+- **Redivis publish** for new dataset versions when needed.
 
-## Getting Started
-
-### Prerequisites
+## Requirements
 
 - Python 3.x
 - Pydantic
 - Access to ROAR Firebase/Redivis
 
-### Installation
-
-1. Clone the repository:
-```
-git clone https://github.com/yeatmanlab/data-validator.git
-```
-2. Install dependencies:
+Install dependencies:
 ```
 pip install -r requirements.txt
 ```
-### Usage
 
-1. Configure your Firebase/Redivis access credentials.
-2. Replace the creds files path in settings.py to your GCP project ones.
-3. Send HTTP request to this API deployed on GCP:
-```angular2html
-https://us-central1-gse-roar-admin.cloudfunctions.net/data-validator
+## API
+
+### Endpoint
+
+The Cloud Function entry point is `data_validator` in `main.py`.
+
 ```
-1. Include api_key in request header.
-    --header 'Content-Type: application/json' 
-    --header 'API-Key: ..'
-2. Include followings in json format. 
+POST https://us-central1-{project_id}.cloudfunctions.net/data-validator
+```
+
+### Headers
+
+```
+Content-Type: application/json
+API-Key: <validator api key>
+```
+
+### Request body
+
 ```
 {
-    //Required
-    "lab_ids":["test1-date"], # *required, name list of datasets on redivis
-    "is_from_guest": false,
+    "dataset_id": "CO-bogota-rural-DE-CA",
     "is_save_to_storage": true,
-    "is_upload_to_redivis": true,
-    "is_release_to_redivis": true
-    
-    //Optional
-    // "prefix_name": "lab_columbia-pilot-Bund-ColA-ColC-ColD-V2-ColB_firestore_2024-06-18-16-30-57/",
-    "filter_by": "groups", #org name to filter data
-    "filter_list": ["Bund1_ColD_PilotoColombia"], #filter 
-    "start_date": "06/10/2024",
-    "end_date": "06/18/2024",
+    "is_force_uploading_to_redivis": true,
+    "orgs":[
+        {
+            "org_id": "CO-bogota",
+            "is_guest": false,
+            "filters":{
+                "org_filter":{
+                    "key": "districts",
+                    "operator": "array_contains_any",
+                    "value": ["kdCe535D1FGOtYp8YmYy"]
+                    },
+                "date_filter":{
+                    "start_date": "2024-01-01", 
+                    "end_date": "2025-06-30"
+                    }
+            }
+        },
+        {
+            "org_id": "CO-rural",
+            "is_guest": false,
+            "filters":{
+                "org_filter":{
+                    "key": "districts",
+                    "operator": "array_contains_any",
+                    "value": ["mnmxUgnG1JGYmCRFY7sM"]
+                    },
+                "date_filter":{
+                    "start_date": "2024-01-01", 
+                    "end_date": "2025-06-30"
+                    }
+            }
+        },
+        {
+            "org_id": "CO-pre-pilot", 
+            "is_guest": true,
+            "filters":{
+                "date_filter":{
+                    "start_date": "2024-04-01", 
+                    "end_date": "2024-06-30"
+                    },
+                "user_filter":{
+                    "key": "assessmentPid",
+                    "operator": "starts_with",
+                    "value": "col"
+                    }
+            }
+        },
+        {
+            "org_id": "DE-main",
+            "is_guest": false,
+            "filters":{
+                "org_filter":{
+                    "key": "districts",
+                    "operator": "array_contains_any",
+                    "value": ["x5gHQylxzyACFHohApYY"]
+                    }
+            }
+        },
+        {
+            "org_id": "CA-main",
+            "is_guest": false,
+            "filters":{
+                "org_filter":{
+                    "key": "districts",
+                    "operator": "array_contains_any",
+                    "value": ["T4e5m4X3McNmBeEMN6ET"]
+                    }
+            }
+        }
+    ]
 }
 ```
-### Debug and Deployment
 
-local: 
-```
-functions-framework --target=data_validator 
-```
-Then send request to http://localhost:8080/
+Notes:
+- Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list). Optional: `is_force_uploading_to_redivis` and `send_slack` (default `false`).
+- Each `orgs[]` item must include `org_id`, `is_guest`, and `filters`. Optional per org: `is_user_id_masked` (defaults to `false`), `user_number_limit` (omit for no cap). `filters` may only contain `org_filter`, `date_filter`, and/or `user_filter`; at least one must be present. Each filter object must only use the allowed keys for that filter (`key`/`operator`/`value` for org and user filters; `start_date`/`end_date` for date filter).
+- `send_slack`: if `true`, posts a Slack summary when validation finishes (validation-only: when true; with upload: when there is a new Redivis release or new schema keys detected).
+- `org_filter.key` must be one of `groups`, `administrations`, `districts`, `schools`, `classes`.
+- If `is_save_to_storage` is `false`, the function validates and returns stats only.
 
-deploy data-validator to cloud:
-```
-gcloud config set project gse-roar-admin/gcloud config set project hs-levante-admin-dev
+## Local development
 
-gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=4GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
+Set environment variables for local credentials:
+
 ```
-Then send request to
+export LOCAL_ADMIN_SERVICE_ACCOUNT=/path/to/admin_sa.json
 ```
-https://us-central1-{project_id}.cloudfunctions.net/data-validator
+
+Then run:
+```
+flask --app main run
+```
+
+```
+gcloud config set project gse-roar-admin/gcloud config set project hs-levante-admin-prod
+
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=32GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
+```
+
+## Deployment
+
+```
+gcloud config set project <project_id>
+gcloud functions deploy data-validator \
+  --gen2 \
+  --region us-central1 \
+  --runtime python312 \
+  --trigger-http \
+  --memory=32GiB \
+  --timeout 3600s \
+  --allow-unauthenticated \
+  --entry-point data_validator
 ```
 
 ## Acknowledgments
