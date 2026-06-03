@@ -5,7 +5,12 @@ import json
 
 import settings
 from shared import utils
-from shared.firestore_services import firestore_services as fs, stringify_variables
+from shared.firestore_services import (
+    DUPLICATE_SURVEY_MSG,
+    MULTIPLE_COMPLETED_SURVEY_MSG,
+    firestore_services as fs,
+    stringify_variables,
+)
 from validators import core_models
 
 logging.basicConfig(level=logging.INFO)
@@ -475,8 +480,8 @@ class EntityController:
                 response = survey_response.get("response")
                 response_type = survey_response.get("response_type")
                 is_duplicate = survey_response.get("validation_msg_survey_response") in {
-                    fs.DUPLICATE_SURVEY_MSG,
-                    fs.MULTIPLE_COMPLETED_SURVEY_MSG,
+                    DUPLICATE_SURVEY_MSG,
+                    MULTIPLE_COMPLETED_SURVEY_MSG,
                 }
                 # survey_schema_source is carried as a model field so the
                 # auto-running question-existence validator can emit a tailored
