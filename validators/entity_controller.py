@@ -474,6 +474,10 @@ class EntityController:
                 survey_type = survey_response.get("survey_type")
                 response = survey_response.get("response")
                 response_type = survey_response.get("response_type")
+                is_duplicate = survey_response.get("validation_msg_survey_response") in {
+                    fs.DUPLICATE_SURVEY_MSG,
+                    fs.MULTIPLE_COMPLETED_SURVEY_MSG,
+                }
                 # survey_schema_source is carried as a model field so the
                 # auto-running question-existence validator can emit a tailored
                 # message (audioFile vs question).
@@ -488,14 +492,20 @@ class EntityController:
                 }
 
                 survey_response_model = core_models.SurveyResponse(**survey_payload)
-                survey_response_model.coerce_response_from_raw(
-                    response=response,
-                    response_type=response_type
-                )
-                survey_response_model.validate_response_against_schema(
-                    survey_part=survey_part,
-                    survey_type=survey_type,
-                )
+                if is_duplicate:
+                    survey_response_model.validation_msg_survey_response = (
+                        survey_response.get("validation_msg_survey_response")
+                    )
+                    survey_response_model.valid_survey_response = False
+                else:
+                    survey_response_model.coerce_response_from_raw(
+                        response=response,
+                        response_type=response_type
+                    )
+                    survey_response_model.validate_response_against_schema(
+                        survey_part=survey_part,
+                        survey_type=survey_type,
+                    )
                 self.valid_survey_responses.append(survey_response_model)
             except ValidationError as e:
                 for error in e.errors():

@@ -493,6 +493,7 @@ class Survey(BaseModel):
     survey_type: str  # caregiver, student, teacher
     is_complete: Optional[bool] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None  # Firestore updatedAt; optional on legacy docs
     # New columns for the unified surveyResponses parser (legacy + task_run).
     # survey_schema_source labels which Firestore document shape this row came
     # from so analysts can spot schema rollouts in Redivis.
@@ -521,8 +522,8 @@ class SurveyResponse(BaseModel):
     # firestore_services.get_surveys for observability — validation
     # messages remain uniform across sources.
     survey_schema_source: Optional[str] = None
-    valid_response: Optional[bool] = None
-    validation_msg: Optional[str] = None
+    valid_survey_response: Optional[bool] = None
+    validation_msg_survey_response: Optional[str] = None
 
     @model_validator(mode='after')
     def _check_question_in_survey_questions(self):
@@ -538,27 +539,27 @@ class SurveyResponse(BaseModel):
         if not q:
             # Required field; pydantic already rejects None at parse time. An
             # empty/whitespace question gets a dedicated message.
-            self._append_validation_msg("question_empty")
-            self.valid_response = False
+            self._append_validation_msg_survey_response("question_empty")
+            self.valid_survey_response = False
             return self
 
         if q not in get_survey_questions():
-            self._append_validation_msg(f"question_not_in_survey_questions({q})")
-            self.valid_response = False
+            self._append_validation_msg_survey_response(f"question_not_in_survey_questions({q})")
+            self.valid_survey_response = False
         return self
 
-    def _append_validation_msg(self, m: str) -> None:
-        """Append a message to validation_msg, preserving any earlier entries."""
+    def _append_validation_msg_survey_response(self, m: str) -> None:
+        """Append a message to validation_msg_survey_response, preserving any earlier entries."""
         if not m:
             return
-        if self.validation_msg:
+        if self.validation_msg_survey_response:
             # Avoid trivial duplicates from the same validator running twice.
-            parts = self.validation_msg.split(";")
+            parts = self.validation_msg_survey_response.split(";")
             if m in parts:
                 return
-            self.validation_msg = f"{self.validation_msg};{m}"
+            self.validation_msg_survey_response = f"{self.validation_msg_survey_response};{m}"
         else:
-            self.validation_msg = m
+            self.validation_msg_survey_response = m
 
     def coerce_response_from_raw(self, response: Any = None, response_type: Optional[str] = None):
         self.boolean_response = None
@@ -635,7 +636,7 @@ class SurveyResponse(BaseModel):
         Question existence (`question in get_survey_questions()`) is handled by
         the auto-running model validator `_check_question_in_survey_questions`
         — this method intentionally does NOT re-check it. Messages from this
-        method are appended to any existing validation_msg rather than
+        method are appended to any existing validation_msg_survey_response rather than
         overwriting it.
         """
 
@@ -655,27 +656,27 @@ class SurveyResponse(BaseModel):
             expected_section = question_meta.get("survey_section")
             if expected_section and survey_part:
                 if str(expected_section).lower() != str(survey_part).lower():
-                    self._append_validation_msg(
+                    self._append_validation_msg_survey_response(
                         f"survey_section_mismatch(expected:{expected_section}, got:{survey_part})"
                     )
 
             expected_type = normalize_survey_type(survey_type)
             actual_type = normalize_survey_type(question_meta.get("question_survey_type"))
             if expected_type and actual_type and expected_type != actual_type:
-                self._append_validation_msg(
+                self._append_validation_msg_survey_response(
                     f"question_survey_type_mismatch(expected:{expected_type}, got:{actual_type})"
                 )
 
             # Temporarily pause strict response type checks.
             # Keep question existence / section / survey-type validations active.
 
-        # valid_response stays False if any prior validator (including
+        # valid_survey_response stays False if any prior validator (including
         # _check_question_in_survey_questions) already failed; otherwise we
         # confirm it as True only when no messages were accumulated.
-        if self.validation_msg:
-            self.valid_response = False
+        if self.validation_msg_survey_response:
+            self.valid_survey_response = False
         else:
-            self.valid_response = True
+            self.valid_survey_response = True
         return self
 
 

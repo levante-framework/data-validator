@@ -215,23 +215,97 @@ def merge_validation_msg(existing: str | None, extra: str | None) -> str | None:
     return f"{existing};{extra}"
 
 
-def split_survey_assignment_msg(assignment_id: str, doc_ids: list[str]) -> str:
+DUPLICATE_SURVEY_MSG = "Duplicate"
+MULTIPLE_COMPLETED_SURVEY_MSG = "multiple_completed_surveys"
+
+
+def _survey_dedup_key(survey: dict) -> tuple:
     return (
-        f"split_survey_assignment(assignment_id={assignment_id},"
-        f"doc_ids={','.join(sorted(doc_ids))})"
+        survey.get("administration_id"),
+        survey.get("user_id"),
+        survey.get("survey_part"),
+        survey.get("survey_type"),
+        survey.get("specific_scope_id"),
+        survey.get("specific_scope"),
+        survey.get("survey_schema_source"),
     )
 
 
-def find_split_survey_assignments(docs) -> dict[str, list[str]]:
-    """Map assignment_id → doc ids when multiple surveyResponses docs share one assignment."""
-    by_assignment: dict[str, list[str]] = defaultdict(list)
-    for doc in docs:
-        doc_dict = doc.to_dict() or {}
-        schema = classify_survey_doc(doc_dict)
-        if schema in (SURVEY_SCHEMA_PAGENO_MARKER, SURVEY_SCHEMA_UNKNOWN):
+def _coerce_survey_datetime(value) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    return None
+
+
+def _survey_sort_time(survey: dict) -> datetime:
+    """Prefer updated_at; fall back to created_at for legacy rows without updatedAt."""
+    min_dt = datetime.min.replace(tzinfo=timezone.utc)
+    updated = _coerce_survey_datetime(survey.get("updated_at"))
+    if updated:
+        return updated
+    return _coerce_survey_datetime(survey.get("created_at")) or min_dt
+
+
+def apply_survey_deduplication(
+    surveys: list[dict],
+    survey_responses: list[dict],
+) -> None:
+    """
+    When multiple Firestore surveyResponses docs map to the same logical survey
+    (same administration/user/part/type/scope/schema), resolve duplicates:
+
+    - 2+ is_complete rows: mark all completed invalid (multiple_completed_surveys);
+      mark incomplete rows Duplicate.
+    - Exactly 1 is_complete row: that row wins; others Duplicate.
+    - 0 is_complete rows: latest updated_at (fallback created_at) wins; others Duplicate.
+    """
+    by_key: dict[tuple, list[int]] = defaultdict(list)
+    for idx, survey in enumerate(surveys):
+        by_key[_survey_dedup_key(survey)].append(idx)
+
+    loser_doc_ids: dict[str, str] = {}
+
+    def mark_loser(idx: int, msg: str) -> None:
+        surveys[idx]["validation_msg_survey"] = msg
+        doc_id = surveys[idx].get("source_doc_id")
+        if doc_id:
+            loser_doc_ids[doc_id] = msg
+
+    for indices in by_key.values():
+        if len(indices) <= 1:
             continue
-        by_assignment[canonical_assignment_id(doc.id, doc_dict)].append(doc.id)
-    return {aid: ids for aid, ids in by_assignment.items() if len(ids) > 1}
+
+        completed_indices = [
+            i for i in indices if surveys[i].get("is_complete") is True
+        ]
+
+        if len(completed_indices) > 1:
+            for idx in completed_indices:
+                mark_loser(idx, MULTIPLE_COMPLETED_SURVEY_MSG)
+            for idx in indices:
+                if idx not in completed_indices:
+                    mark_loser(idx, DUPLICATE_SURVEY_MSG)
+            continue
+
+        if len(completed_indices) == 1:
+            winner_idx = completed_indices[0]
+        else:
+            winner_idx = max(indices, key=lambda i: _survey_sort_time(surveys[i]))
+
+        for idx in indices:
+            if idx == winner_idx:
+                continue
+            mark_loser(idx, DUPLICATE_SURVEY_MSG)
+
+    for response in survey_responses:
+        doc_id = response.get("source_doc_id")
+        if doc_id and doc_id in loser_doc_ids:
+            response["validation_msg_survey_response"] = loser_doc_ids[doc_id]
+            response["valid_survey_response"] = False
 
 
 class FirestoreServices:
@@ -940,8 +1014,6 @@ class FirestoreServices:
                 seen_ids.add(d.id)
                 docs.append(d)
 
-            split_assignments = find_split_survey_assignments(docs)
-
             for doc in docs:
                 doc_dict = doc.to_dict() or {}
                 schema = classify_survey_doc(doc_dict)
@@ -985,11 +1057,6 @@ class FirestoreServices:
                             task_dict[key] = new_meta
 
                 assignment_id = canonical_assignment_id(doc.id, doc_dict)
-                split_msg = (
-                    split_survey_assignment_msg(assignment_id, split_assignments[assignment_id])
-                    if assignment_id in split_assignments
-                    else None
-                )
 
                 # ---------------- branch on schema ----------------
                 if schema == SURVEY_SCHEMA_RUN_LIKE:
@@ -998,7 +1065,6 @@ class FirestoreServices:
                         user_id=user_id, user_type=user_type,
                         assignment_id=assignment_id,
                         fallback_survey_type=survey_type,
-                        split_survey_msg=split_msg,
                     )
                     surveys.append(s_row)
                     survey_responses.extend(r_rows)
@@ -1067,7 +1133,7 @@ class FirestoreServices:
                     sid = make_survey_id(
                         user_id, assignment_id, survey_part, specific_scope_id,
                     )
-                    validation_msg_survey = merge_validation_msg(split_msg, scope_msg)
+                    validation_msg_survey = scope_msg
 
                     surveys.append({
                         "survey_id": sid,
@@ -1082,6 +1148,7 @@ class FirestoreServices:
                         "updated_at": doc_updated_at,
                         "survey_schema_source": schema,
                         "validation_msg_survey": validation_msg_survey,
+                        "source_doc_id": doc.id,
                     })
 
                     for item in reformat_responses(data=responses_map):
@@ -1097,12 +1164,19 @@ class FirestoreServices:
                             "response_type": item.get("response_type"),
                             "timestamp": effective_response_time,
                             "survey_schema_source": schema,
+                            "source_doc_id": doc.id,
                         })
 
         except Exception as e:
             logging.error(
                 "Error in get_surveys user_id=%s: %s", user_id, e, exc_info=True,
             )
+
+        apply_survey_deduplication(surveys, survey_responses)
+        for row in surveys:
+            row.pop("source_doc_id", None)
+        for row in survey_responses:
+            row.pop("source_doc_id", None)
 
         return surveys, survey_responses
 
@@ -1115,7 +1189,6 @@ class FirestoreServices:
         user_type: str,
         assignment_id: str,
         fallback_survey_type: str,
-        split_survey_msg: str | None = None,
     ) -> tuple[dict, list[dict]]:
         """
         Emit one ``Survey`` row + N ``SurveyResponse`` rows for a run-like
@@ -1148,8 +1221,6 @@ class FirestoreServices:
             survey_type = normalized_user_type
             validation_msg = f"unexpected_run_like_task_id({task_id!r})"
 
-        validation_msg = merge_validation_msg(validation_msg, split_survey_msg)
-
         run_like_survey_part = "general"
         sid = make_survey_id(user_id, assignment_id, run_like_survey_part)
         survey_row = {
@@ -1165,6 +1236,7 @@ class FirestoreServices:
             "updated_at": time_finished,
             "survey_schema_source": SURVEY_SCHEMA_RUN_LIKE,
             "validation_msg_survey": validation_msg,
+            "source_doc_id": doc.id,
         }
 
         response_rows: list[dict] = []
@@ -1207,6 +1279,7 @@ class FirestoreServices:
                 "response_type": "numeric",
                 "timestamp": t.get('serverTimestamp') or t.get('createdAt') or time_started,
                 "survey_schema_source": SURVEY_SCHEMA_RUN_LIKE,
+                "source_doc_id": doc.id,
             })
 
         return survey_row, response_rows
