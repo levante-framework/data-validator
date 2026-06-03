@@ -23,16 +23,11 @@ jobs:
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2.1.2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_VALIDATOR }}
           project_id: ${{ env.GCP_PROJECT }}
-        if: github.ref == 'refs/heads/dev'
 
-      - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@v2.1.2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
-          project_id: ${{ env.GCP_PROJECT }}
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/levante_main'
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Set GCloud Project
         run: gcloud config set project ${{ env.GCP_PROJECT }}
