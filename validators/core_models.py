@@ -755,6 +755,10 @@ class VariantBase(BaseModel):
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
     last_updated: Optional[datetime] = None
+    valid_variant: Optional[bool] = None
+    validation_msg_variant: Optional[str] = None
+
+    _LANGUAGE_BCP47_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 
     @field_validator("language", mode="before")
     def normalize_language(cls, v):
@@ -802,6 +806,22 @@ class VariantBase(BaseModel):
         else:
             name = (self.variant_name or "").lower()
             self.adaptive = "adaptive" in name
+        return self
+
+    @model_validator(mode="after")
+    def check_language_format(self):
+        """Require normalized language to match xx-XX (e.g. en-US, es-AR) when present."""
+        if self.language is None:
+            return self
+        if not self._LANGUAGE_BCP47_PATTERN.fullmatch(self.language):
+            self.validation_msg_variant = (
+                f"invalid_language_format({self.language})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def update_valid_variant(self):
+        self.valid_variant = not self.validation_msg_variant
         return self
 
 

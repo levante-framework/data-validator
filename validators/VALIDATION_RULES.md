@@ -244,7 +244,17 @@ valid_trial = True  iff  validation_msg_trial is empty
 
 ### Business validation
 
-No soft-validation messages. Failures are Pydantic schema errors only (`invalid_variants`).
+| Condition | `validation_msg_variant` | `valid_variant` |
+|-----------|------------------------|-----------------|
+| `language` present but not `xx-XX` after normalization (e.g. bare `fr`, `custom`) | `invalid_language_format(<language>)` | `false` |
+| `language` is `None` / blank | _(empty)_ | `true` |
+| `language` normalizes to `xx-XX` (e.g. `es-AR`, `en-US`) | _(empty)_ | `true` |
+
+```text
+valid_variant = True  iff  validation_msg_variant is empty
+```
+
+Pydantic schema parse failures still go to `invalid_variants` / `invalid_data` only.
 
 ---
 
@@ -268,6 +278,7 @@ No soft-validation messages. Failures are Pydantic schema errors only (`invalid_
 
 - General: `{user_id}:{assignment_id}:general`
 - Specific: `{user_id}:{assignment_id}:specific` or `...:specific:{specific_scope_id}`
+- Duplicate losers (export only): append `:dup1`, `:dup2`, … to the logical id above
 
 ### Firestore document shapes
 
@@ -296,6 +307,12 @@ are resolved as follows. Tie-breaking uses **`updated_at`**, falling back to
 - Superseded rows: `validation_msg_survey = "Duplicate"`, `valid_survey = false`.
 - Ambiguous multiple-completed rows: `validation_msg_survey = "multiple_completed_surveys"`.
 - Matching `survey_responses` rows inherit the same message and skip further validation.
+
+**Unique `survey_id` per Firestore doc:** Losers get `:dup1`, `:dup2`, … appended to
+the logical `survey_id` (oldest loser by `updated_at`, else `created_at`, is `:dup1`).
+The winner keeps the unsuffixed id. When two or more rows are completed, there is no
+winner — every row in the group is suffixed (`:dup1`, `:dup2`, …). Child
+`survey_responses` use the same suffixed `survey_id` as their source doc.
 
 `survey_schema_source` is part of the dedup key so legacy and run-like shapes
 are never merged even if they share an assignment id.

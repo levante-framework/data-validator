@@ -250,6 +250,30 @@ def _survey_sort_time(survey: dict) -> datetime:
     return _coerce_survey_datetime(survey.get("created_at")) or min_dt
 
 
+def _suffix_loser_survey_ids(
+    surveys: list[dict],
+    loser_indices: list[int],
+) -> dict[str, str]:
+    """
+    Append :dup1, :dup2, ... to loser survey_id (oldest loser first).
+    Returns source_doc_id -> suffixed survey_id for matching survey_responses.
+    """
+    doc_to_survey_id: dict[str, str] = {}
+    for rank, idx in enumerate(
+        sorted(loser_indices, key=lambda i: _survey_sort_time(surveys[i])),
+        start=1,
+    ):
+        base = surveys[idx].get("survey_id")
+        if not base:
+            continue
+        new_sid = f"{base}:dup{rank}"
+        surveys[idx]["survey_id"] = new_sid
+        doc_id = surveys[idx].get("source_doc_id")
+        if doc_id:
+            doc_to_survey_id[doc_id] = new_sid
+    return doc_to_survey_id
+
+
 def apply_survey_deduplication(
     surveys: list[dict],
     survey_responses: list[dict],
@@ -259,15 +283,17 @@ def apply_survey_deduplication(
     (same administration/user/part/type/scope/schema), resolve duplicates:
 
     - 2+ is_complete rows: mark all completed invalid (multiple_completed_surveys);
-      mark incomplete rows Duplicate.
-    - Exactly 1 is_complete row: that row wins; others Duplicate.
-    - 0 is_complete rows: latest updated_at (fallback created_at) wins; others Duplicate.
+      mark incomplete rows Duplicate; all rows get :dup1, :dup2, ... (no unsuffixed winner).
+    - Exactly 1 is_complete row: that row keeps survey_id; others Duplicate + :dupN.
+    - 0 is_complete rows: latest updated_at (fallback created_at) keeps survey_id; others
+      Duplicate + :dupN. Loser :dupN is assigned oldest-first by updated_at/created_at.
     """
     by_key: dict[tuple, list[int]] = defaultdict(list)
     for idx, survey in enumerate(surveys):
         by_key[_survey_dedup_key(survey)].append(idx)
 
     loser_doc_ids: dict[str, str] = {}
+    loser_doc_survey_ids: dict[str, str] = {}
 
     def mark_loser(idx: int, msg: str) -> None:
         surveys[idx]["validation_msg_survey"] = msg
@@ -279,33 +305,40 @@ def apply_survey_deduplication(
         if len(indices) <= 1:
             continue
 
+        loser_indices: list[int] = []
         completed_indices = [
             i for i in indices if surveys[i].get("is_complete") is True
         ]
 
         if len(completed_indices) > 1:
+            loser_indices = list(indices)
             for idx in completed_indices:
                 mark_loser(idx, MULTIPLE_COMPLETED_SURVEY_MSG)
             for idx in indices:
                 if idx not in completed_indices:
                     mark_loser(idx, DUPLICATE_SURVEY_MSG)
-            continue
-
-        if len(completed_indices) == 1:
+        elif len(completed_indices) == 1:
             winner_idx = completed_indices[0]
+            loser_indices = [i for i in indices if i != winner_idx]
+            for idx in loser_indices:
+                mark_loser(idx, DUPLICATE_SURVEY_MSG)
         else:
             winner_idx = max(indices, key=lambda i: _survey_sort_time(surveys[i]))
+            loser_indices = [i for i in indices if i != winner_idx]
+            for idx in loser_indices:
+                mark_loser(idx, DUPLICATE_SURVEY_MSG)
 
-        for idx in indices:
-            if idx == winner_idx:
-                continue
-            mark_loser(idx, DUPLICATE_SURVEY_MSG)
+        loser_doc_survey_ids.update(
+            _suffix_loser_survey_ids(surveys, loser_indices)
+        )
 
     for response in survey_responses:
         doc_id = response.get("source_doc_id")
         if doc_id and doc_id in loser_doc_ids:
             response["validation_msg_survey_response"] = loser_doc_ids[doc_id]
             response["valid_survey_response"] = False
+        if doc_id and doc_id in loser_doc_survey_ids:
+            response["survey_id"] = loser_doc_survey_ids[doc_id]
 
 
 class FirestoreServices:
