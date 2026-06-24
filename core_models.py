@@ -206,6 +206,9 @@ class LevanteRun(RunBase):
     # Whether this run's variant is adaptive (CAT). Set by the controller once
     # variants are known; used to relax the minimum-trial-count rule.
     adaptive: Optional[bool] = None
+    # The variant's CAT standard-error stopping threshold (params.semThreshold).
+    # When present, it is the target SE used to judge a short adaptive run.
+    sem_threshold: Optional[float] = None
 
     valid_run: Optional[bool] = None
     validation_msg_run: Optional[str] = None
@@ -271,13 +274,18 @@ class LevanteRun(RunBase):
         """
         An adaptive (CAT) run may legitimately stop before TEST_TRIALS_MIN trials
         once its ability estimate is precise enough. Trust such a run when it
-        completed and produced a theta SE at/below the configured ceiling.
+        completed and produced a theta SE at/below the target stopping threshold.
+
+        The threshold is the variant's own params.semThreshold when available,
+        otherwise the configured ADAPTIVE_THETA_SE_MAX fallback.
         """
         if not (self.adaptive and self.completed):
             return False
         if self.test_comp_theta_se is None:
             return False
-        se_max = settings.config.get('ADAPTIVE_THETA_SE_MAX', None)
+        se_max = self.sem_threshold
+        if se_max is None:
+            se_max = settings.config.get('ADAPTIVE_THETA_SE_MAX', None)
         return se_max is None or self.test_comp_theta_se <= se_max
 
     def check_non_practice_trials_count(self):
@@ -492,6 +500,10 @@ class VariantBase(BaseModel):
     key_helpers: Optional[bool] = None
     language: Optional[str] = None
     adaptive: bool = False
+    # Explicit adaptivity signal from the variant's params (params.cat in Firestore).
+    cat: Optional[bool] = None
+    # The CAT standard-error stopping threshold (params.semThreshold in Firestore).
+    sem_threshold: Optional[float] = None
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
     num_of_practice_trials: Optional[int] = None
@@ -502,6 +514,35 @@ class VariantBase(BaseModel):
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
     last_updated: Optional[datetime] = None
+
+    @field_validator("cat", mode="before")
+    def coerce_cat(cls, v):
+        """Coerce the params.cat flag (may arrive as bool/str/None) to a bool/None."""
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes"):
+                return True
+            if s in ("false", "0", "no", ""):
+                return False
+        return None
+
+    @field_validator("sem_threshold", mode="before")
+    def coerce_sem_threshold(cls, v):
+        """Safely coerce params.semThreshold to a sane float; drop junk/out-of-range values."""
+        if v is None or v == "":
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        # Standard errors are small positive numbers; reject obviously invalid values.
+        if f <= 0 or f > 10:
+            return None
+        return f
 
     @field_validator("language", mode="before")
     def normalize_language(cls, v):
@@ -531,12 +572,15 @@ class VariantBase(BaseModel):
         return f"Other({code})"
 
     @model_validator(mode="after")
-    def set_adaptive_from_name(self):
+    def set_adaptive(self):
         """
-        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
+        Determine adaptivity. Prefer the explicit params.cat flag; when it is
+        absent, fall back to the legacy heuristic of 'adaptive' in the name.
         """
-        name = (self.variant_name or "").lower()
-        self.adaptive = "adaptive" in name
+        if self.cat is not None:
+            self.adaptive = self.cat
+        else:
+            self.adaptive = "adaptive" in (self.variant_name or "").lower()
         return self
 
 

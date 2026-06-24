@@ -38,6 +38,7 @@ class EntityController:
         self.valid_variants = []
         self.invalid_variants = []
         self._adaptive_variant_ids = set()
+        self._variant_sem_threshold = {}
 
         self.valid_users = []
         self.invalid_users = []
@@ -236,8 +237,10 @@ class EntityController:
                                            variant_filter=task_variants.get(task.task_id, []))
                 self.set_variants(variants=variants, task_id=task.task_id)
 
-        # Set of variant_ids whose variant is adaptive (CAT).
+        # Set of variant_ids whose variant is adaptive (CAT), and each variant's
+        # CAT standard-error stopping threshold (params.semThreshold).
         self._adaptive_variant_ids = {v.variant_id for v in self.valid_variants if v.adaptive}
+        self._variant_sem_threshold = {v.variant_id: v.sem_threshold for v in self.valid_variants}
 
     def process_users(self):
         logging.info("Now Validating Users...")
@@ -282,8 +285,10 @@ class EntityController:
     def process_trials(self):
         logging.info("Now Validating Trials...")
         adaptive_ids = getattr(self, "_adaptive_variant_ids", set())
+        sem_thresholds = getattr(self, "_variant_sem_threshold", {})
         for run in self.valid_runs:
             run.adaptive = run.variant_id in adaptive_ids
+            run.sem_threshold = sem_thresholds.get(run.variant_id)
             self.set_trials(run=run,
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,
