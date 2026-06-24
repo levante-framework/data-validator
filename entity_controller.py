@@ -37,6 +37,7 @@ class EntityController:
         self.invalid_tasks = []
         self.valid_variants = []
         self.invalid_variants = []
+        self._adaptive_variant_ids = set()
 
         self.valid_users = []
         self.invalid_users = []
@@ -90,8 +91,10 @@ class EntityController:
                 self.process_surveys()
             self.process_runs()
             if self.valid_runs:
-                self.process_trials()
+                # Resolve tasks/variants before trials so that adaptive (CAT) runs
+                # can be identified when their trial counts are validated.
                 self.process_tasks_variants()
+                self.process_trials()
 
         # Determine whether it's using guest.
         if not self.org.is_guest:
@@ -233,6 +236,9 @@ class EntityController:
                                            variant_filter=task_variants.get(task.task_id, []))
                 self.set_variants(variants=variants, task_id=task.task_id)
 
+        # Set of variant_ids whose variant is adaptive (CAT).
+        self._adaptive_variant_ids = {v.variant_id for v in self.valid_variants if v.adaptive}
+
     def process_users(self):
         logging.info("Now Validating Users...")
 
@@ -275,7 +281,9 @@ class EntityController:
 
     def process_trials(self):
         logging.info("Now Validating Trials...")
+        adaptive_ids = getattr(self, "_adaptive_variant_ids", set())
         for run in self.valid_runs:
+            run.adaptive = run.variant_id in adaptive_ids
             self.set_trials(run=run,
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,

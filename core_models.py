@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import ast
 from scipy.stats import binom, binomtest
 from math import isnan
+import settings
 
 
 class TrialBase(BaseModel):
@@ -202,6 +203,10 @@ class LevanteRun(RunBase):
     test_comp_theta_estimate: Optional[float] = None
     test_comp_theta_se: Optional[float] = None
 
+    # Whether this run's variant is adaptive (CAT). Set by the controller once
+    # variants are known; used to relax the minimum-trial-count rule.
+    adaptive: Optional[bool] = None
+
     valid_run: Optional[bool] = None
     validation_msg_run: Optional[str] = None
     warning_msg_run: Optional[str] = None
@@ -262,12 +267,27 @@ class LevanteRun(RunBase):
     def add_non_practice_trials(self, trial: LevanteTrial):
         self._non_practice_trials.append(trial)
 
+    def is_reliable_adaptive_run(self) -> bool:
+        """
+        An adaptive (CAT) run may legitimately stop before TEST_TRIALS_MIN trials
+        once its ability estimate is precise enough. Trust such a run when it
+        completed and produced a theta SE at/below the configured ceiling.
+        """
+        if not (self.adaptive and self.completed):
+            return False
+        if self.test_comp_theta_se is None:
+            return False
+        se_max = settings.config.get('ADAPTIVE_THETA_SE_MAX', None)
+        return se_max is None or self.test_comp_theta_se <= se_max
+
     def check_non_practice_trials_count(self):
-        trial_len_min = 10
+        trial_len_min = settings.config.get('TEST_TRIALS_MIN', 10)
         msg = []
 
         if len(self._non_practice_trials) < trial_len_min:
-            self.validation_msg_run = f"less_than_{trial_len_min}_test_trials"
+            # Adaptive runs that reached a reliable estimate are exempt from the floor.
+            if not self.is_reliable_adaptive_run():
+                self.validation_msg_run = f"less_than_{trial_len_min}_test_trials"
 
     def check_straight_line_trials(self):
         def sort_key(trial):
