@@ -476,6 +476,9 @@ class VariantBase(BaseModel):
     key_helpers: Optional[bool] = None
     language: Optional[str] = None
     adaptive: bool = False
+    # Explicit adaptivity signal from the variant's params (params.cat in Firestore).
+    # Preferred over the legacy variant-name heuristic when present.
+    cat: Optional[bool] = None
     max_incorrect: Optional[int] = None
     max_time: Optional[int] = None
     num_of_practice_trials: Optional[int] = None
@@ -486,6 +489,21 @@ class VariantBase(BaseModel):
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
     last_updated: Optional[datetime] = None
+
+    @field_validator("cat", mode="before")
+    def coerce_cat(cls, v):
+        """Coerce the params.cat flag (may arrive as bool/str/None) to a bool/None."""
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes"):
+                return True
+            if s in ("false", "0", "no", ""):
+                return False
+        return None
 
     @field_validator("language", mode="before")
     def normalize_language(cls, v):
@@ -515,12 +533,15 @@ class VariantBase(BaseModel):
         return f"Other({code})"
 
     @model_validator(mode="after")
-    def set_adaptive_from_name(self):
+    def set_adaptive(self):
         """
-        Set adaptive=True if the variant name contains 'adaptive' (case-insensitive).
+        Determine adaptivity. Prefer the explicit params.cat flag; when it is
+        absent, fall back to the legacy heuristic of 'adaptive' in the name.
         """
-        name = (self.variant_name or "").lower()
-        self.adaptive = "adaptive" in name
+        if self.cat is not None:
+            self.adaptive = self.cat
+        else:
+            self.adaptive = "adaptive" in (self.variant_name or "").lower()
         return self
 
 
