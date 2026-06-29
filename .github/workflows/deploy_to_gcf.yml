@@ -42,10 +42,14 @@ jobs:
             --runtime python312 \
             --trigger-http \
             --memory=32GiB \
+            --cpu=8 \
             --timeout 3600s \
-            --no-cpu-throttling \
             --allow-unauthenticated \
             --entry-point data_validator
+          gcloud run services update data-validator \
+            --project ${{ env.GCP_PROJECT }} \
+            --region ${{ env.GCP_REGION }} \
+            --no-cpu-throttling
 
       - name: Deploy Cloud Run batch job (all-sites / long runs, up to 24h)
         run: |
