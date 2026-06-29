@@ -9,7 +9,11 @@ import time
 import settings
 from shared import utils
 from shared.firestore_services import firestore_services
-from shared.slack_services import format_data_validation_slack_summary, notify_slack
+from shared.slack_services import (
+    format_data_validation_slack_summary,
+    format_org_progress_slack,
+    notify_slack,
+)
 from shared.storage_services import StorageServices
 from validators.entity_controller import EntityController
 from validators.redivis_services import RedivisServices
@@ -17,10 +21,19 @@ from validators.redivis_services import RedivisServices
 logging.basicConfig(level=logging.INFO)
 
 
+def _notify_slack_safe(message: str) -> None:
+    try:
+        notify_slack(message=message)
+    except Exception as e:
+        logging.error("Slack notification failed: %s", e)
+
+
 def run_data_validation(
     dataset_parameters: utils.DatasetParameters,
     *,
     start_time: float | None = None,
+    slack_org_progress: bool = False,
+    slack_summary_always: bool = False,
 ) -> tuple[str, int]:
     """
     Run validation and optional GCP / Redivis upload for the given parameters.
@@ -42,10 +55,22 @@ def run_data_validation(
         "new_schemas": {"runs": [], "trials": [], "surveys": []},
         "orgs": {},
     }
+    org_count = len(dataset_parameters.orgs)
     logging.info(f"Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.")
 
-    for org in dataset_parameters.orgs:
+    for org_index, org in enumerate(dataset_parameters.orgs, start=1):
+        org_t0 = time.time()
         logging.info(f"Getting data from Firestore for org_id: {org.org_id}.")
+        if slack_org_progress and dataset_parameters.send_slack:
+            _notify_slack_safe(
+                format_org_progress_slack(
+                    dataset_id=dataset_parameters.dataset_id,
+                    org_id=org.org_id,
+                    phase="started",
+                    index=org_index,
+                    total=org_count,
+                )
+            )
         ec = EntityController(org=org)
         ec.validate_data_from_firestore()
         org_validated_data = ec.get_validated_data()
@@ -91,6 +116,18 @@ def run_data_validation(
         total_validation_stats["new_schemas"]["trials"].extend(ec.new_schemas["trials"])
         total_validation_stats["new_schemas"]["surveys"].extend(ec.new_schemas["surveys"])
         validated_data = utils.merge_dictionaries(validated_data, org_validated_data)
+        if slack_org_progress and dataset_parameters.send_slack:
+            _notify_slack_safe(
+                format_org_progress_slack(
+                    dataset_id=dataset_parameters.dataset_id,
+                    org_id=org.org_id,
+                    phase="finished",
+                    index=org_index,
+                    total=org_count,
+                    elapsed_seconds=time.time() - org_t0,
+                    stats=org_validation_stats,
+                )
+            )
 
     reduce_dup_keys = {
         "sites": "site_id",
@@ -127,9 +164,15 @@ def run_data_validation(
                 "api_version": settings.config["VERSION"],
                 "new_version_release": False,
             }
-            notify_slack(message=format_data_validation_slack_summary(slack_response))
+            _notify_slack_safe(message=format_data_validation_slack_summary(slack_response))
 
         return json.dumps(output, cls=utils.CustomJSONEncoder), 200
+
+    if slack_org_progress and dataset_parameters.send_slack:
+        _notify_slack_safe(
+            f":package: *All {org_count} site(s) validated* for `{dataset_parameters.dataset_id}` "
+            f"— merging, deduplicating, and uploading…"
+        )
 
     logging.info(f"Saving data to GCP storage for dataset_id: {dataset_parameters.dataset_id}.")
 
@@ -192,8 +235,10 @@ def run_data_validation(
     firestore_services.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
 
     if dataset_parameters.send_slack and (
-        new_version_release or any(total_validation_stats["new_schemas"].values())
+        slack_summary_always
+        or new_version_release
+        or any(total_validation_stats["new_schemas"].values())
     ):
-        notify_slack(message=format_data_validation_slack_summary(response))
+        _notify_slack_safe(message=format_data_validation_slack_summary(response))
 
     return json.dumps(response), 200

@@ -159,6 +159,49 @@ def format_data_validation_slack_summary(response: dict) -> str:
     return "\n".join(lines)
 
 
+def format_org_progress_slack(
+    *,
+    dataset_id: str,
+    org_id: str,
+    phase: str,
+    index: int,
+    total: int,
+    elapsed_seconds: float | None = None,
+    stats: dict | None = None,
+) -> str:
+    """Short Slack update when an org/site starts or finishes during a multi-org run."""
+    elapsed = _human_elapsed(elapsed_seconds)
+    if phase == "started":
+        return (
+            f":arrow_forward: *Site started* ({index}/{total})\n"
+            f"• Dataset `{dataset_id}` · org `{org_id}`"
+        )
+    if phase == "finished":
+        u = (stats or {}).get("users") or {}
+        r = (stats or {}).get("runs") or {}
+        return (
+            f":white_check_mark: *Site finished* ({index}/{total}) · {elapsed}\n"
+            f"• Dataset `{dataset_id}` · org `{org_id}`\n"
+            f"• Users {_fmt_int(u.get('valid_users'))}/{_fmt_int(u.get('total'))} valid · "
+            f"Runs {_fmt_int(r.get('valid_runs'))}/{_fmt_int(r.get('total'))} valid"
+        )
+    return f"*{phase}* ({index}/{total}) `{dataset_id}` / `{org_id}`"
+
+
+def format_validation_job_started_slack(
+    *,
+    dataset_id: str,
+    org_count: int,
+    job_id: str,
+) -> str:
+    return (
+        f":hourglass_flowing_sand: *Validation started*\n"
+        f"• Dataset `{dataset_id}` · {org_count} site(s)\n"
+        f"• Job id `{job_id}`\n"
+        f"_Watch Slack for progress and a final summary when complete._"
+    )
+
+
 def format_new_schemas_slack_summary(new_schemas: dict, *, dataset_id: str = "") -> str:
     """Compact Slack message when only new schema keys were detected."""
     lines = [

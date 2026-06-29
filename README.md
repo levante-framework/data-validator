@@ -129,7 +129,9 @@ API-Key: <validator api key>
 Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list). Optional: `is_force_uploading_to_redivis` and `send_slack` (default `false`).
 - Each `orgs[]` item must include `org_id`, `is_guest`, and `filters`. Optional per org: `is_user_id_masked` (defaults to `false`), `user_number_limit` (omit for no cap). `filters` may only contain `org_filter`, `date_filter`, and/or `user_filter`; at least one must be present. Each filter object must only use the allowed keys for that filter (`key`/`operator`/`value` for org and user filters; `start_date`/`end_date` for date filter).
-- `send_slack`: if `true`, posts a Slack summary when validation finishes (validation-only: when true; with upload: when there is a new Redivis release or new schema keys detected).
+- `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org runs), and a final summary on success. Failures always post to Slack regardless of this flag.
+- **Fire-and-forget:** every default `data_validation` request returns HTTP **202** immediately and runs in the background. Cron / Cloud Scheduler should rely on Slack (not the HTTP response body) for outcomes. Deploy with `--no-cpu-throttling`. Maximum runtime is **3600s** per HTTP instance.
+- **`start_batch_job`:** for combined / all-sites exports that may exceed 1 hour, set `"operation": "start_batch_job"` with the same body fields as `data_validation`. Starts the **Cloud Run Job** `data-validator-batch` (task timeout **24h**). Returns **202** immediately; monitor via Slack.
 - `org_filter.key` must be one of `groups`, `administrations`, `districts`, `schools`, `classes`.
 - If `is_save_to_storage` is `false`, the function validates and returns stats only.
 
@@ -149,7 +151,7 @@ flask --app main run
 ```
 gcloud config set project gse-roar-admin/gcloud config set project hs-levante-admin-prod
 
-gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=32GiB --timeout 3600s --allow-unauthenticated --entry-point data_validator
+gcloud functions deploy data-validator --gen2 --region us-central1 --runtime python312 --trigger-http --memory=32GiB --timeout 3600s --no-cpu-throttling --allow-unauthenticated --entry-point data_validator
 ```
 
 ## Deployment
@@ -163,8 +165,19 @@ gcloud functions deploy data-validator \
   --trigger-http \
   --memory=32GiB \
   --timeout 3600s \
+  --no-cpu-throttling \
   --allow-unauthenticated \
   --entry-point data_validator
+
+gcloud run jobs deploy data-validator-batch \
+  --source . \
+  --region us-central1 \
+  --memory 32Gi \
+  --cpu 8 \
+  --task-timeout 86400s \
+  --max-retries 0 \
+  --command python \
+  --args batch_main.py
 ```
 
 ## Acknowledgments

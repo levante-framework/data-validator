@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.15',
+    'VERSION': '1.9.18',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -55,4 +55,8 @@ config = {
     'CLOUD_SCHEDULER_ATTEMPT_DEADLINE_SECONDS': 1800,
     # data-validator function URL template; {project_id} is filled at runtime.
     'DATA_VALIDATOR_FUNCTION_URL_TEMPLATE': 'https://us-central1-{project_id}.cloudfunctions.net/data-validator',
+    # Long-running combined exports (Cloud Run Job — not subject to the 3600s HTTP limit).
+    'CLOUD_RUN_BATCH_JOB_NAME': 'data-validator-batch',
+    'CLOUD_RUN_BATCH_JOB_REGION': 'us-central1',
+    'CLOUD_RUN_BATCH_TASK_TIMEOUT_SECONDS': 86400,
 }

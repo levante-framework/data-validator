@@ -1,0 +1,10 @@
+.git
+.gitignore
+.github
+.cursor
+scratch
+combined_dataset_payload.json
+**/__pycache__
+**/*.pyc
+.env
+*.md

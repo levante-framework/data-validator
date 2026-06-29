@@ -11,6 +11,7 @@ on:
 
 env:
   GCP_PROJECT: hs-levante-data-validator
+  GCP_REGION: us-central1
 
 jobs:
   deploy:
@@ -32,18 +33,32 @@ jobs:
       - name: Set GCloud Project
         run: gcloud config set project ${{ env.GCP_PROJECT }}
 
-      - name: Deploy to Google Cloud Functions
+      - name: Deploy HTTP Cloud Function (daily cron / fire-and-forget)
         run: |
           gcloud functions deploy data-validator \
             --project ${{ env.GCP_PROJECT }} \
             --gen2 \
-            --region us-central1 \
+            --region ${{ env.GCP_REGION }} \
             --runtime python312 \
             --trigger-http \
             --memory=32GiB \
             --timeout 3600s \
+            --no-cpu-throttling \
             --allow-unauthenticated \
             --entry-point data_validator
+
+      - name: Deploy Cloud Run batch job (all-sites / long runs, up to 24h)
+        run: |
+          gcloud run jobs deploy data-validator-batch \
+            --project ${{ env.GCP_PROJECT }} \
+            --source . \
+            --region ${{ env.GCP_REGION }} \
+            --memory 32Gi \
+            --cpu 8 \
+            --task-timeout 86400s \
+            --max-retries 0 \
+            --command python \
+            --args batch_main.py
 
     # - name: Set up Python 3.10
     #   uses: actions/setup-python@v3
