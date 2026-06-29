@@ -40,7 +40,7 @@ jobs:
             --region us-central1 \
             --runtime python312 \
             --trigger-http \
-            --memory=4GiB \
+            --memory=32GiB \
             --timeout 3600s \
             --allow-unauthenticated \
             --entry-point data_validator

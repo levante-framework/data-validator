@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.14',
+    'VERSION': '1.9.15',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
