@@ -156,6 +156,11 @@ gcloud functions deploy data-validator --gen2 --region us-central1 --runtime pyt
 
 ## Deployment
 
+GitHub Actions deploys via `validator-deployer@…`. That service account needs:
+
+- `roles/cloudfunctions.admin`, `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/storage.admin`
+- `roles/cloudbuild.builds.editor` and `roles/artifactregistry.writer` (required for `gcloud run jobs deploy --source`)
+
 ```
 gcloud config set project <project_id>
 gcloud functions deploy data-validator \

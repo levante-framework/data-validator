@@ -62,7 +62,8 @@ jobs:
             --task-timeout 86400s \
             --max-retries 0 \
             --command python \
-            --args batch_main.py
+            --args batch_main.py \
+            --quiet
 
     # - name: Set up Python 3.10
     #   uses: actions/setup-python@v3
