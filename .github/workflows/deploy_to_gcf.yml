@@ -1,7 +1,6 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# Deploy data-validator as a Cloud Run Job (push to main or dev).
 
-name: Deploy to Google Cloud Functions
+name: Deploy Cloud Run Job
 
 on:
   push:
@@ -12,6 +11,7 @@ on:
 env:
   GCP_PROJECT: hs-levante-data-validator
   GCP_REGION: us-central1
+  JOB_NAME: data-validator
 
 jobs:
   deploy:
@@ -33,27 +33,9 @@ jobs:
       - name: Set GCloud Project
         run: gcloud config set project ${{ env.GCP_PROJECT }}
 
-      - name: Deploy HTTP Cloud Function (daily cron / fire-and-forget)
+      - name: Deploy Cloud Run Job
         run: |
-          gcloud functions deploy data-validator \
-            --project ${{ env.GCP_PROJECT }} \
-            --gen2 \
-            --region ${{ env.GCP_REGION }} \
-            --runtime python312 \
-            --trigger-http \
-            --memory=32GiB \
-            --cpu=8 \
-            --timeout 3600s \
-            --allow-unauthenticated \
-            --entry-point data_validator
-          gcloud run services update data-validator \
-            --project ${{ env.GCP_PROJECT }} \
-            --region ${{ env.GCP_REGION }} \
-            --no-cpu-throttling
-
-      - name: Deploy Cloud Run batch job (all-sites / long runs, up to 24h)
-        run: |
-          gcloud run jobs deploy data-validator-batch \
+          gcloud run jobs deploy ${{ env.JOB_NAME }} \
             --project ${{ env.GCP_PROJECT }} \
             --source . \
             --region ${{ env.GCP_REGION }} \
@@ -62,24 +44,20 @@ jobs:
             --task-timeout 86400s \
             --max-retries 0 \
             --command python \
-            --args batch_main.py \
+            --args main.py \
             --quiet
 
-    # - name: Set up Python 3.10
-    #   uses: actions/setup-python@v3
-    #   with:
-    #     python-version: "3.10"
-    # - name: Install dependencies
-    #   run: |
-    #     python -m pip install --upgrade pip
-    #     pip install flake8 pytest
-    #     if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    # - name: Lint with flake8
-    #   run: |
-    #     # stop the build if there are Python syntax errors or undefined names
-    #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-    #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-    #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    # - name: Test with pytest
-    #   run: |
-    #     pytest
+      - name: Remove retired Cloud Function (gen2)
+        run: |
+          gcloud functions delete ${{ env.JOB_NAME }} \
+            --project ${{ env.GCP_PROJECT }} \
+            --gen2 \
+            --region ${{ env.GCP_REGION }} \
+            --quiet 2>/dev/null || true
+
+      - name: Remove legacy batch job name
+        run: |
+          gcloud run jobs delete data-validator-batch \
+            --project ${{ env.GCP_PROJECT }} \
+            --region ${{ env.GCP_REGION }} \
+            --quiet 2>/dev/null || true

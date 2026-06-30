@@ -15,7 +15,12 @@ from google.oauth2 import service_account
 import settings
 from shared import utils
 from shared.secret_services import secret_service
-from shared.utils import flatten_document, handle_nan, process_doc_dict
+from shared.utils import (
+    flatten_document,
+    handle_nan,
+    process_doc_dict,
+    promote_last_updated_to_updated_at,
+)
 
 warnings.filterwarnings("ignore", message="Detected filter using positional arguments")
 logging.basicConfig(level=logging.INFO)
@@ -239,6 +244,17 @@ def _coerce_survey_datetime(value) -> datetime | None:
             return value.replace(tzinfo=timezone.utc)
         return value
     return None
+
+
+def _timestamp_in_date_filter(
+    ts,
+    start_dt: datetime,
+    end_dt: datetime,
+) -> bool:
+    coerced = _coerce_survey_datetime(ts)
+    if coerced is None:
+        return False
+    return start_dt <= coerced <= end_dt
 
 
 def _survey_sort_time(survey: dict) -> datetime:
@@ -474,8 +490,9 @@ class FirestoreServices:
                             'task_id': doc.id,
                             'task_name': doc_dict.get('name', None),
                         })
-                        # Convert camelCase to snake_case and handle NaN values
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        converted_doc_dict = promote_last_updated_to_updated_at(
+                            process_doc_dict(doc_dict=doc_dict),
+                        )
                         yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
@@ -509,8 +526,9 @@ class FirestoreServices:
                             'task_id': task_id,
                             'variant_name': doc_dict.get('name', None),
                         })
-                        # Convert camelCase to snake_case and handle NaN values
-                        converted_doc_dict = process_doc_dict(doc_dict=doc_dict)
+                        converted_doc_dict = promote_last_updated_to_updated_at(
+                            process_doc_dict(doc_dict=doc_dict),
+                        )
                         yield converted_doc_dict
                 last_doc = docs[-1]
             except Exception as e:
@@ -1099,8 +1117,15 @@ class FirestoreServices:
                         assignment_id=assignment_id,
                         fallback_survey_type=survey_type,
                     )
-                    surveys.append(s_row)
-                    survey_responses.extend(r_rows)
+                    r_rows = [
+                        row for row in r_rows
+                        if _timestamp_in_date_filter(
+                            row.get("timestamp"), start_dt, end_dt,
+                        )
+                    ]
+                    if r_rows:
+                        surveys.append(s_row)
+                        survey_responses.extend(r_rows)
                     continue
 
                 # Legacy shapes (data / general / specific) share the same emit
@@ -1168,6 +1193,30 @@ class FirestoreServices:
                     )
                     validation_msg_survey = scope_msg
 
+                    section_responses: list[dict] = []
+                    for item in reformat_responses(data=responses_map):
+                        effective_response_time = (
+                            item.get("response_time") or doc_created_at
+                        )
+                        if not _timestamp_in_date_filter(
+                            effective_response_time, start_dt, end_dt,
+                        ):
+                            continue
+                        section_responses.append({
+                            "survey_id": sid,
+                            "question": item.get("question_id"),
+                            "survey_part": survey_part,
+                            "survey_type": survey_type,
+                            "response": item.get("response"),
+                            "response_type": item.get("response_type"),
+                            "timestamp": effective_response_time,
+                            "survey_schema_source": schema,
+                            "source_doc_id": doc.id,
+                        })
+
+                    if not section_responses:
+                        continue
+
                     surveys.append({
                         "survey_id": sid,
                         "administration_id": assignment_id,
@@ -1183,22 +1232,7 @@ class FirestoreServices:
                         "validation_msg_survey": validation_msg_survey,
                         "source_doc_id": doc.id,
                     })
-
-                    for item in reformat_responses(data=responses_map):
-                        effective_response_time = (
-                            item.get("response_time") or doc_created_at
-                        )
-                        survey_responses.append({
-                            "survey_id": sid,
-                            "question": item.get("question_id"),
-                            "survey_part": survey_part,
-                            "survey_type": survey_type,
-                            "response": item.get("response"),
-                            "response_type": item.get("response_type"),
-                            "timestamp": effective_response_time,
-                            "survey_schema_source": schema,
-                            "source_doc_id": doc.id,
-                        })
+                    survey_responses.extend(section_responses)
 
         except Exception as e:
             logging.error(

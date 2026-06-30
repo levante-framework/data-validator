@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.23',
+    'VERSION': '1.9.25',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -44,19 +44,21 @@ config = {
     'CLOUD_SCHEDULER_STAGGER_WINDOW_MINUTES': 30,
     'CLOUD_SCHEDULER_JOB_PREFIX': '',
     # Retry behavior applied to newly-created scheduler jobs so a single transient
-    # 5xx (e.g. an OOM-killed Cloud Function instance) doesn't lose the day's run.
+    # API failure doesn't lose the day's run.
     'CLOUD_SCHEDULER_RETRY_COUNT': 3,
     'CLOUD_SCHEDULER_RETRY_MAX_DURATION_SECONDS': 1800,
     'CLOUD_SCHEDULER_RETRY_MIN_BACKOFF_SECONDS': 60,
     'CLOUD_SCHEDULER_RETRY_MAX_BACKOFF_SECONDS': 600,
     'CLOUD_SCHEDULER_RETRY_MAX_DOUBLINGS': 3,
-    # Attempt deadline (per HTTP attempt). Default for Cloud Scheduler HTTP targets
-    # is 180s, max is 1800s. Many sites take longer than 3 min; use the max.
+    # Attempt deadline (per HTTP attempt to the Run Job API). The validation itself
+    # runs asynchronously in Cloud Run Jobs (up to CLOUD_RUN_JOB_TASK_TIMEOUT_SECONDS).
     'CLOUD_SCHEDULER_ATTEMPT_DEADLINE_SECONDS': 1800,
-    # data-validator function URL template; {project_id} is filled at runtime.
-    'DATA_VALIDATOR_FUNCTION_URL_TEMPLATE': 'https://us-central1-{project_id}.cloudfunctions.net/data-validator',
-    # Long-running combined exports (Cloud Run Job — not subject to the 3600s HTTP limit).
-    'CLOUD_RUN_BATCH_JOB_NAME': 'data-validator-batch',
-    'CLOUD_RUN_BATCH_JOB_REGION': 'us-central1',
-    'CLOUD_RUN_BATCH_TASK_TIMEOUT_SECONDS': 86400,
+    # Service account Cloud Scheduler uses for OAuth when calling the Run Job API.
+    # Must have permission to run the job (roles/run.developer or run.jobs.run).
+    # Empty → {project_id}@appspot.gserviceaccount.com
+    'CLOUD_SCHEDULER_OAUTH_SERVICE_ACCOUNT': '',
+    # Cloud Run Job (sole runtime for validation and auxiliary operations).
+    'CLOUD_RUN_JOB_NAME': 'data-validator',
+    'CLOUD_RUN_JOB_REGION': 'us-central1',
+    'CLOUD_RUN_JOB_TASK_TIMEOUT_SECONDS': 86400,
 }

@@ -1,35 +1,76 @@
+"""
+Cloud Run Job entrypoint for data-validator.
+
+Set ``DATA_VALIDATOR_PAYLOAD`` to a JSON object. Optional top-level ``operation``:
+
+- ``data_validation`` (default) — full Firestore → validate → GCS → Redivis pipeline
+- ``open_assignments_sync`` — sync open assignments from Airtable
+- ``weekly_report`` — weekly ops report to Slack
+- ``redivis_individual_release`` — Airtable ↔ Redivis individual provisioning
+- ``migrate_scheduler_jobs`` — migrate daily cron jobs to the Cloud Run Job API
+
+For ``data_validation``, the payload matches ``DatasetParameters`` (same as before,
+without wrapping in ``operation``).
+"""
+
+from __future__ import annotations
+
 import json
 import logging
-import threading
+import os
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
 
-from flask import Flask, request
 from pydantic import ValidationError
 
-import settings
 from shared import utils
 
-utils.setup_project_environment()
-
 logging.basicConfig(level=logging.INFO)
-app = Flask(__name__)
 
 
-def _run_data_validation_background(
-    dataset_parameters: utils.DatasetParameters,
-    *,
-    start_time: float,
-    job_id: str,
-    slack_org_progress: bool,
-) -> None:
+def _job_id() -> str:
+    execution = (os.environ.get("CLOUD_RUN_EXECUTION") or "").strip()
+    if execution:
+        return execution.rsplit("/", 1)[-1]
+    return f"local-{uuid.uuid4().hex[:8]}"
+
+
+def _run_data_validation(data: dict) -> int:
     from validators.data_validation_pipeline import run_data_validation
 
     try:
-        run_data_validation(
+        dataset_parameters = utils.DatasetParameters(**data)
+    except ValidationError as e:
+        logging.error("Payload validation failed: %s", e)
+        return 1
+
+    if not dataset_parameters.send_slack:
+        dataset_parameters = dataset_parameters.model_copy(update={"send_slack": True})
+
+    job_id = _job_id()
+    org_count = len(dataset_parameters.orgs)
+    slack_org_progress = org_count > 1
+
+    try:
+        from shared.slack_services import format_validation_job_started_slack, notify_slack
+
+        notify_slack(
+            message=format_validation_job_started_slack(
+                dataset_id=dataset_parameters.dataset_id,
+                org_count=org_count,
+                job_id=job_id,
+            )
+        )
+    except Exception as e:
+        logging.error("job start Slack post failed: %s", e)
+
+    t0 = time.time()
+    try:
+        body, status = run_data_validation(
             dataset_parameters,
-            start_time=start_time,
+            start_time=t0,
             slack_org_progress=slack_org_progress,
             slack_summary_always=True,
         )
@@ -43,212 +84,153 @@ def _run_data_validation_background(
             from shared.slack_services import notify_slack
 
             notify_slack(
-                f":rotating_light: *data-validator failed* for "
+                f":rotating_light: *data-validator job failed* for "
                 f"`{dataset_parameters.dataset_id}` (job `{job_id}`)\n"
                 f"```{type(e).__name__}: {e}```"
             )
         except Exception as slack_err:
             logging.error("crash-alert Slack post failed: %s", slack_err)
+        return 1
 
-
-def _accept_data_validation_job(
-    dataset_parameters: utils.DatasetParameters,
-    *,
-    start_time: float,
-) -> tuple[str, int]:
-    """Return 202 immediately; run validation in a background thread."""
-    job_id = (
-        f"{dataset_parameters.dataset_id}-"
-        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-"
-        f"{uuid.uuid4().hex[:8]}"
-    )
-    org_count = len(dataset_parameters.orgs)
-    slack_org_progress = org_count > 1 and dataset_parameters.send_slack
-
-    if dataset_parameters.send_slack:
+    if status != 200:
+        logging.error("pipeline returned HTTP %s: %s", status, body)
         try:
-            from shared.slack_services import format_validation_job_started_slack, notify_slack
+            from shared.slack_services import notify_slack
 
             notify_slack(
-                message=format_validation_job_started_slack(
-                    dataset_id=dataset_parameters.dataset_id,
-                    org_count=org_count,
-                    job_id=job_id,
-                )
+                f":rotating_light: *data-validator job failed* for "
+                f"`{dataset_parameters.dataset_id}` (job `{job_id}`)\n"
+                f"Pipeline returned status {status}."
             )
-        except Exception as e:
-            logging.error("job start Slack post failed: %s", e)
+        except Exception as slack_err:
+            logging.error("failure Slack post failed: %s", slack_err)
+        return 1
 
-    thread = threading.Thread(
-        target=_run_data_validation_background,
-        kwargs={
-            "dataset_parameters": dataset_parameters,
-            "start_time": start_time,
-            "job_id": job_id,
-            "slack_org_progress": slack_org_progress,
-        },
-        daemon=False,
-    )
-    thread.start()
-    response = {
-        "operation": "data_validation",
-        "status": "accepted",
-        "job_id": job_id,
-        "dataset_id": dataset_parameters.dataset_id,
-        "org_count": org_count,
-        "slack_org_progress": slack_org_progress,
-        "message": (
-            "Validation started in the background. "
-            "Monitor Slack for progress and a final summary."
-        ),
-        "api_version": settings.config["VERSION"],
-    }
-    logging.info(json.dumps(response))
-    return json.dumps(response), 202
+    logging.info("job completed successfully for %s", dataset_parameters.dataset_id)
+    return 0
 
 
-def process(req):
-    start_time = time.time()
-    from shared.secret_services import secret_service
+def _run_open_assignments_sync(data: dict) -> int:
+    from sync.open_assignments import sync_open_assignments_from_airtable
 
-    admin_api_key = secret_service.get_secret_payload(
-        secret_id=settings.config["VALIDATOR_API_SECRET_ID"],
-        version_id="latest",
-    ).strip().lower()
-
-    api_key = req.headers.get("API-Key")
-    api_key = api_key.strip().lower()
-
-    if api_key != admin_api_key:
-        return "Invalid API Key", 403
-
-    if req.method != "POST":
-        return "Function needs to receive POST request", 500
-
-    request_json = req.get_json(silent=True)
-    if not request_json:
-        return "Request body is not received properly", 500
-
-    data = dict(request_json)
-    operation = data.pop("operation", "data_validation")
-
-    if operation == "open_assignments_sync":
-        from sync.open_assignments import sync_open_assignments_from_airtable
-
-        dry_run = bool(data.pop("dry_run", False))
-        try:
-            result = sync_open_assignments_from_airtable(dry_run=dry_run)
-        except ValueError as e:
-            return str(e), 400
-        elapsed_time = time.time() - start_time
-        response = {
-            "operation": operation,
-            "result": result,
-            "elapsed_time": elapsed_time,
-            "api_version": settings.config["VERSION"],
-        }
-        logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
-        return json.dumps(response, cls=utils.CustomJSONEncoder), 200
-
-    if operation == "weekly_report":
-        from validators.weekly_report import run_weekly_report
-
-        dry_run = bool(data.pop("dry_run", False))
-        try:
-            result = run_weekly_report(dry_run=dry_run)
-        except Exception as e:
-            logging.exception("weekly_report crashed")
-            return json.dumps({"error": "weekly_report_crashed",
-                               "message": f"{type(e).__name__}: {e}"}), 500
-        elapsed_time = time.time() - start_time
-        response = {
-            "operation": operation,
-            "result": result,
-            "elapsed_time": elapsed_time,
-            "api_version": settings.config["VERSION"],
-        }
-        logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
-        return json.dumps(response, cls=utils.CustomJSONEncoder), 200
-
-    if operation == "redivis_individual_release":
-        from sync.redivis_release import check_redivis_individual_release_awaiting_slack
-
-        dry_run = bool(data.pop("dry_run", False))
-        dataset_name_raw = data.pop("dataset_name", None)
-        dataset_name = (
-            str(dataset_name_raw).strip() if dataset_name_raw is not None else None
-        ) or None
-        try:
-            result = check_redivis_individual_release_awaiting_slack(
-                dry_run=dry_run, dataset_name=dataset_name
-            )
-        except ValueError as e:
-            return str(e), 400
-        elapsed_time = time.time() - start_time
-        response = {
-            "operation": operation,
-            "result": result,
-            "elapsed_time": elapsed_time,
-            "api_version": settings.config["VERSION"],
-        }
-        logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
-        return json.dumps(response, cls=utils.CustomJSONEncoder), 200
-
-    if operation == "start_batch_job":
-        try:
-            dataset_parameters = utils.DatasetParameters(**data)
-        except ValidationError as e:
-            return json.dumps({"error": "validation_error", "detail": e.errors()}), 400
-        except Exception as e:
-            return str(e), 400
-
-        from shared.batch_job_services import start_batch_validation_job
-
-        try:
-            batch_result = start_batch_validation_job(payload=data)
-        except Exception as e:
-            logging.exception("start_batch_job failed for dataset_id=%s", data.get("dataset_id"))
-            return json.dumps({
-                "error": "batch_job_start_failed",
-                "dataset_id": data.get("dataset_id"),
-                "message": f"{type(e).__name__}: {e}",
-                "api_version": settings.config["VERSION"],
-            }), 500
-
-        response = {
-            "operation": operation,
-            "status": "accepted",
-            "message": (
-                "Cloud Run batch job started. Monitor Slack for progress and a final summary. "
-                f"Task timeout: {settings.config['CLOUD_RUN_BATCH_TASK_TIMEOUT_SECONDS']}s."
-            ),
-            "batch": batch_result,
-            "dataset_id": dataset_parameters.dataset_id,
-            "org_count": len(dataset_parameters.orgs),
-            "api_version": settings.config["VERSION"],
-        }
-        logging.info(json.dumps(response))
-        return json.dumps(response), 202
-
-    # Default: full data validation + optional GCP / Redivis pipeline (always fire-and-forget).
+    dry_run = bool(data.get("dry_run", False))
     try:
-        dataset_parameters = utils.DatasetParameters(**data)
-    except ValidationError as e:
-        return json.dumps({"error": "validation_error", "detail": e.errors()}), 400
-    except Exception as e:
-        return str(e), 400
-
-    return _accept_data_validation_job(dataset_parameters, start_time=start_time)
-
-
-def data_validator(request):
-    return process(request)
+        result = sync_open_assignments_from_airtable(dry_run=dry_run)
+    except ValueError as e:
+        logging.error("open_assignments_sync failed: %s", e)
+        return 1
+    logging.info("open_assignments_sync result: %s", json.dumps(result, cls=utils.CustomJSONEncoder))
+    return 0
 
 
-@app.route("/", methods=["POST"])
-def local_run():
-    return process(request)
+def _run_weekly_report(data: dict) -> int:
+    from validators.weekly_report import run_weekly_report
+
+    dry_run = bool(data.get("dry_run", False))
+    try:
+        result = run_weekly_report(dry_run=dry_run)
+    except Exception:
+        logging.exception("weekly_report crashed")
+        return 1
+    logging.info("weekly_report result keys: %s", sorted(result.keys()))
+    return 0
+
+
+def _run_migrate_scheduler_jobs(data: dict) -> int:
+    from shared.scheduler_services import SchedulerServices
+
+    dry_run = bool(data.get("dry_run", False))
+    if dry_run:
+        logging.info("migrate_scheduler_jobs dry_run=true — listing jobs only")
+        try:
+            from google.cloud import scheduler_v1
+
+            scheduler = SchedulerServices()
+            legacy = []
+            for job in scheduler._client.list_jobs(parent=scheduler.parent):
+                if scheduler._needs_target_migration(job):
+                    legacy.append(job.name.rsplit("/", 1)[-1])
+            logging.info(
+                "migrate_scheduler_jobs dry_run: %s job(s) would migrate: %s",
+                len(legacy),
+                legacy,
+            )
+        except Exception:
+            logging.exception("migrate_scheduler_jobs dry_run failed")
+            return 1
+        return 0
+
+    try:
+        scheduler = SchedulerServices()
+        summary = scheduler.migrate_all_legacy_scheduler_jobs()
+    except Exception:
+        logging.exception("migrate_scheduler_jobs failed")
+        return 1
+
+    if summary.get("errors"):
+        logging.error("migrate_scheduler_jobs completed with errors: %s", summary)
+        return 1
+    logging.info("migrate_scheduler_jobs completed: %s", summary)
+    return 0
+
+
+def _run_redivis_individual_release(data: dict) -> int:
+    from sync.redivis_release import check_redivis_individual_release_awaiting_slack
+
+    dry_run = bool(data.get("dry_run", False))
+    dataset_name_raw = data.get("dataset_name")
+    dataset_name = (
+        str(dataset_name_raw).strip() if dataset_name_raw is not None else None
+    ) or None
+    try:
+        check_redivis_individual_release_awaiting_slack(
+            dry_run=dry_run, dataset_name=dataset_name
+        )
+    except ValueError as e:
+        logging.error("redivis_individual_release failed: %s", e)
+        return 1
+    return 0
+
+
+def main() -> int:
+    utils.setup_project_environment()
+
+    raw = os.environ.get("DATA_VALIDATOR_PAYLOAD")
+    if not raw:
+        logging.error("DATA_VALIDATOR_PAYLOAD environment variable is not set")
+        return 1
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logging.error("Invalid DATA_VALIDATOR_PAYLOAD JSON: %s", e)
+        return 1
+
+    if not isinstance(payload, dict):
+        logging.error("DATA_VALIDATOR_PAYLOAD must be a JSON object")
+        return 1
+
+    operation = payload.pop("operation", "data_validation")
+    logging.info(
+        "data-validator job starting operation=%s at %s",
+        operation,
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+    if operation == "data_validation":
+        return _run_data_validation(payload)
+    if operation == "open_assignments_sync":
+        return _run_open_assignments_sync(payload)
+    if operation == "weekly_report":
+        return _run_weekly_report(payload)
+    if operation == "redivis_individual_release":
+        return _run_redivis_individual_release(payload)
+    if operation == "migrate_scheduler_jobs":
+        return _run_migrate_scheduler_jobs(payload)
+
+    logging.error("Unknown operation: %r", operation)
+    return 1
 
 
 if __name__ == "__main__":
-    app.run(port=8080)
+    sys.exit(main())

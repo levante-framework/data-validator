@@ -323,6 +323,14 @@ def process_doc_dict(doc_dict, ignore_keys=None):
     return converted_doc_dict
 
 
+def promote_last_updated_to_updated_at(converted: dict) -> dict:
+    """Map Firestore ``lastUpdated`` (``last_updated``) to ``updated_at`` when needed."""
+    if converted.get("updated_at") is None and converted.get("last_updated") is not None:
+        converted["updated_at"] = converted["last_updated"]
+    converted.pop("last_updated", None)
+    return converted
+
+
 def camel_to_snake(camel_str):
     # Find all matches where a lowercase letter is followed by an uppercase letter
     matches = re.finditer(r'([a-z])([A-Z])', camel_str)

@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir 'setuptools>=69,<82' wheel \
 
 COPY . .
 
-CMD ["python", "batch_main.py"]
+CMD ["python", "main.py"]

@@ -732,7 +732,8 @@ class TaskBase(BaseModel):
     task_id: str
     task_name: str
     description: Optional[str] = None
-    last_updated: datetime
+    created_at: datetime
+    updated_at: datetime
 
 
 class VariantBase(BaseModel):
@@ -754,7 +755,8 @@ class VariantBase(BaseModel):
     skip_instructions: Optional[bool] = None
     stimulus_blocks: Optional[int] = None
     store_item_id: Optional[bool] = None
-    last_updated: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
     valid_variant: Optional[bool] = None
     validation_msg_variant: Optional[str] = None
 
@@ -831,6 +833,8 @@ class AdministrationBase(BaseModel):
     public_name: Optional[str] = None
     sequential: bool
     created_by: str
+    created_at: datetime
+    updated_at: datetime
     date_created: datetime
     date_closed: datetime
     date_opened: datetime

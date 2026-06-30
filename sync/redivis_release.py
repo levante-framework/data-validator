@@ -29,6 +29,7 @@ def _build_dry_run_scheduler_plan(*, dataset_id: str, payload: dict) -> dict:
     Snapshot of the Cloud Scheduler job that *would* be created in a live run.
     Computed locally so dry_run never needs to import the Scheduler client.
     """
+    from shared.run_job_services import run_job_api_uri
     from shared.scheduler_services import compute_staggered_cron
 
     project_id = os.getenv("project_id") or "{project_id}"
@@ -36,9 +37,7 @@ def _build_dry_run_scheduler_plan(*, dataset_id: str, payload: dict) -> dict:
     timezone = settings.config.get("CLOUD_SCHEDULER_TIMEZONE", "America/Los_Angeles")
     cron = compute_staggered_cron(dataset_id)
     prefix = (settings.config.get("CLOUD_SCHEDULER_JOB_PREFIX") or "").strip("-")
-    url = settings.config["DATA_VALIDATOR_FUNCTION_URL_TEMPLATE"].format(
-        project_id=project_id
-    )
+    url = run_job_api_uri(project_id=project_id, region=region)
     suffix = _safe_job_id_suffix(dataset_id)
     job_id = f"{prefix}-{suffix}" if prefix else suffix
     retry_config = {
@@ -70,7 +69,8 @@ def _build_dry_run_scheduler_plan(*, dataset_id: str, payload: dict) -> dict:
         "timezone": timezone,
         "method": "POST",
         "url": url,
-        "headers": ["Content-Type", "API-Key"],
+        "headers": ["Content-Type"],
+        "auth": "OAuth (Cloud Scheduler service account → Run Job API)",
         "payload": payload,
         "description": f"Pushing {dataset_id} data to redivis on daily basis",
         "retry_config": retry_config,
@@ -384,9 +384,10 @@ def check_redivis_individual_release_awaiting_slack(
        (matches ``name`` or ``normalizedName``). When found, write the id back to
        Airtable; when not found, write the placeholder ``missing_site_id``.
     2. When a real siteId exists (i.e. not empty and not the placeholder), provision
-       a daily Cloud Scheduler job (12:00 PDT) that POSTs the standard data-validator
-       payload (see ``_build_validator_payload``). Job creation is idempotent — an
-       existing job is left alone. On success, today's date (PDT) is written to
+       a daily Cloud Scheduler job (staggered ~12:00 PDT) that starts the
+       ``data-validator`` Cloud Run Job with the standard payload (see
+       ``_build_validator_payload``). Job creation is idempotent — an existing
+       job is migrated from the retired Cloud Function URL when needed. On success, today's date (PDT) is written to
        **validator pipeline date** if that cell is empty.
     3. Once the scheduler job is in place, ensure an empty Redivis dataset exists
        under the Airtable ``Name``. Idempotent — existing datasets are skipped.
@@ -520,6 +521,7 @@ def check_redivis_individual_release_awaiting_slack(
         "site_id_resolved_from_names": 0,
         "site_id_set_missing_placeholder": 0,
         "scheduler_jobs_created": 0,
+        "scheduler_jobs_updated": 0,
         "scheduler_jobs_already_existed": 0,
         "scheduler_jobs_failed": 0,
         "redivis_datasets_created": 0,
@@ -654,6 +656,12 @@ def check_redivis_individual_release_awaiting_slack(
                         changes.append(
                             f"Created Cloud Scheduler job `{scheduler_status['job_name']}`"
                         )
+                    elif scheduler_status.get("updated"):
+                        counters["scheduler_jobs_updated"] += 1
+                        changes.append(
+                            f"Migrated Cloud Scheduler job `{scheduler_status['job_name']}` "
+                            "to Cloud Run Job API target"
+                        )
                     elif scheduler_status.get("already_exists"):
                         counters["scheduler_jobs_already_existed"] += 1
                         notes.append(
@@ -679,6 +687,7 @@ def check_redivis_individual_release_awaiting_slack(
                 and not scheduler_status.get("error")
                 and (
                     scheduler_status.get("created")
+                    or scheduler_status.get("updated")
                     or scheduler_status.get("already_exists")
                     or scheduler_status.get("would_create")
                 )

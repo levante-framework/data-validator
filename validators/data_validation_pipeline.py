@@ -1,5 +1,5 @@
 """
-Firestore → validate → GCS → Redivis pipeline (HTTP handler calls ``run_data_validation``).
+Firestore → validate → GCS → Redivis pipeline (``main.py`` / Cloud Run Job calls ``run_data_validation``).
 """
 
 import json
@@ -38,7 +38,8 @@ def run_data_validation(
     """
     Run validation and optional GCP / Redivis upload for the given parameters.
 
-    Returns ``(json_body, http_status)`` compatible with the Cloud Function / Flask handler.
+    Returns ``(json_body, http_status)`` for logging; the Cloud Run Job entrypoint
+    treats non-200 as failure.
     """
     t0 = start_time if start_time is not None else time.time()
 

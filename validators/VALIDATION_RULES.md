@@ -222,6 +222,41 @@ valid_trial = True  iff  validation_msg_trial is empty
 
 ---
 
+## Tasks (`TaskBase`)
+
+**Model:** `TaskBase` in `core_models.py`  
+**Controller:** `EntityController.set_tasks()`
+
+### Required schema fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `task_id` | `str` | Required |
+| `task_name` | `str` | Required |
+| `created_at` | `datetime` | Required; Firestore `createdAt` |
+| `updated_at` | `datetime` | Required; Firestore `lastUpdated` → `updated_at` |
+
+---
+
+## Administrations (`AdministrationBase`)
+
+**Model:** `AdministrationBase` in `core_models.py`  
+**Controller:** `EntityController.set_administrations()`
+
+### Required schema fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `administration_id` | `str` | Required |
+| `administration_name` | `str` | Required |
+| `created_at` | `datetime` | Required; Firestore `createdAt` |
+| `updated_at` | `datetime` | Required; Firestore `updatedAt` |
+| `date_created` | `datetime` | Required; Firestore `dateCreated` |
+| `date_opened` | `datetime` | Required |
+| `date_closed` | `datetime` | Required |
+
+---
+
 ## Variants (`VariantBase`)
 
 **Model:** `VariantBase` in `core_models.py`  
@@ -233,6 +268,8 @@ valid_trial = True  iff  validation_msg_trial is empty
 |-------|------|-------|
 | `variant_id` | `str` | Required |
 | `task_id` | `str` | Required |
+| `created_at` | `datetime` | Required; Firestore `createdAt` |
+| `updated_at` | `datetime` | Required; Firestore `lastUpdated` or `updatedAt` → `updated_at` |
 
 ### Transformations (not failures)
 
@@ -289,6 +326,12 @@ Pydantic schema parse failures still go to `invalid_variants` / `invalid_data` o
 | `task_run` | Run-like doc with `taskId`, `timeStarted`; answers in `trials` subcollection |
 | `pageNo_marker` | Draft/autosave row — **skipped** |
 | `unknown` | Unrecognized shape — **skipped** (logged) |
+
+### Date-range filtering (per section)
+
+After a Firestore doc is fetched, each **general**, **specific**, **legacy data**, or **run-like** section is exported only if it has at least one response whose computed `timestamp` is within the request `start_date`–`end_date` window. Sections with no in-range answers are omitted entirely (no orphan `Survey` row). Within a kept section, only in-range responses are exported.
+
+Example: a doc with `general` answered in 2025 and `specific[0]` answered in 2026 is exported for `2024-01-01`–`2025-12-31` as the general survey only.
 
 ### Duplicate Firestore documents
 
@@ -371,6 +414,8 @@ Each catalog entry includes `survey_section`, `question_survey_type`, `response_
 
 ### Ingest logic (`get_surveys`)
 
+- Firestore docs are queried by top-level `createdAt` or `timeStarted`, then **each survey section** (general, specific, legacy `data`, run-like trials) is kept only when it has at least one response whose `timestamp` falls in the request date range.
+- Per-response `timestamp`: `responseTime` when present on the answer object, otherwise the parent survey doc's `createdAt` (legacy) or trial `serverTimestamp` / `createdAt` / `timeStarted` (run-like).
 - Intro question keys (containing `"intro"`) are skipped when flattening legacy responses.
 - Nested dict/list response shapes are flattened or JSON-stringified as needed.
 - Run-like (`task_run`) responses use trial `audioFile` as `question` and `responseLocation` as numeric response; practice and instruction trials are skipped.
