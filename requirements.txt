@@ -19,7 +19,8 @@ gunicorn==22.0.0
 pydantic==2.5.3
 pydantic_core==2.14.6
 
-# Redivis API
+# Redivis API (requires pkg_resources from setuptools on slim Python images)
+setuptools>=69.0.0
 redivis==0.14.9
 
 # HTTP and config
