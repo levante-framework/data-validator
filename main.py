@@ -1,7 +1,8 @@
 """
 Cloud Run Job entrypoint for data-validator.
 
-Set ``DATA_VALIDATOR_PAYLOAD`` to a JSON object. Optional top-level ``operation``:
+Set ``DATA_VALIDATOR_PAYLOAD`` to a JSON object, or pass a ``.json`` file path as
+the first CLI argument, or set ``DATA_VALIDATOR_PAYLOAD_FILE``, or pipe JSON on stdin.
 
 - ``data_validation`` (default) — full Firestore → validate → GCS → Redivis pipeline
 - ``open_assignments_sync`` — sync open assignments from Airtable
@@ -26,6 +27,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from shared import utils
+from shared.payload_loader import load_payload_dict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -195,19 +197,10 @@ def _run_redivis_individual_release(data: dict) -> int:
 def main() -> int:
     utils.setup_project_environment()
 
-    raw = os.environ.get("DATA_VALIDATOR_PAYLOAD")
-    if not raw:
-        logging.error("DATA_VALIDATOR_PAYLOAD environment variable is not set")
-        return 1
-
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as e:
-        logging.error("Invalid DATA_VALIDATOR_PAYLOAD JSON: %s", e)
-        return 1
-
-    if not isinstance(payload, dict):
-        logging.error("DATA_VALIDATOR_PAYLOAD must be a JSON object")
+        payload = load_payload_dict()
+    except RuntimeError as e:
+        logging.error("%s", e)
         return 1
 
     operation = payload.pop("operation", "data_validation")

@@ -131,28 +131,91 @@ Exit code `0` = success; non-zero = failure (Slack crash alert on failure when `
 
 ## Triggering in GCP
 
-**There is no HTTP URL anymore.** The retired Cloud Function URL
-(`https://us-central1-….cloudfunctions.net/data-validator`) is replaced by the
-Cloud Run Job `data-validator`.
+Use the **HTTP trigger service** for the same clean JSON body as before (Postman,
+curl, etc.). It validates `API-Key`, starts the Cloud Run Job, and returns **202**.
 
-### Manual run (gcloud)
-
-```bash
-gcloud config set project hs-levante-data-validator
-
-gcloud run jobs execute data-validator \
-  --region us-central1 \
-  --update-env-vars DATA_VALIDATOR_PAYLOAD='{"dataset_id":"...", ...}'
+```
+POST https://data-validator-trigger-<hash>-uc.a.run.app/
 ```
 
-For large payloads, put JSON in a file and use:
+(Find the exact URL: `gcloud run services describe data-validator-trigger --region us-central1 --format='value(status.url)'`)
+
+### Headers
+
+```
+Content-Type: application/json
+API-Key: <validator api key>
+```
+
+### Request body (unchanged from the Cloud Function era)
+
+```json
+{
+  "dataset_id": "pilot-uniandes-co-bogota",
+  "is_save_to_storage": false,
+  "send_slack": true,
+  "orgs": [
+    {
+      "org_id": "pilot-uniandes-co-bogota",
+      "is_guest": false,
+      "filters": {
+        "org_filter": {
+          "key": "districts",
+          "operator": "array_contains_any",
+          "value": ["YOUR_SITE_ID"]
+        },
+        "date_filter": {
+          "start_date": "2024-01-01",
+          "end_date": "2025-12-31"
+        }
+      }
+    }
+  ]
+}
+```
+
+Optional `"operation"` for auxiliary jobs: `weekly_report`, `open_assignments_sync`,
+`redivis_individual_release`, `migrate_scheduler_jobs`.
+
+### Postman / curl example
 
 ```bash
-PAYLOAD=$(python3 -c "import json; print(json.dumps(json.load(open('payload.json')), separators=(',', ':')))")
+curl -X POST "$TRIGGER_URL" \
+  -H "Content-Type: application/json" \
+  -H "API-Key: $VALIDATOR_API_KEY" \
+  -d @payload.json
+```
+
+The heavy work runs in the **Cloud Run Job** (`data-validator`); the HTTP service
+only launches it and returns immediately with execution metadata.
+
+### Manual run (gcloud or JSON file)
+
+**CLI helper** (recommended — pass a pretty-printed JSON file):
+
+```bash
+python trigger_job.py payload.json
+```
+
+**gcloud** with a JSON file:
+
+```bash
+export DATA_VALIDATOR_PAYLOAD_FILE=payload.json
+PAYLOAD=$(python3 -c "import json; print(json.dumps(json.load(open('$DATA_VALIDATOR_PAYLOAD_FILE')), separators=(',', ':')))")
 gcloud run jobs execute data-validator \
   --region us-central1 \
   --update-env-vars "DATA_VALIDATOR_PAYLOAD=${PAYLOAD}"
 ```
+
+**Local job run** (same pretty JSON file, no GCP):
+
+```bash
+export project_id=hs-levante-data-validator
+export LOCAL_ADMIN_SERVICE_ACCOUNT=/path/to/admin_sa.json
+python main.py payload.json
+```
+
+Or: `export DATA_VALIDATOR_PAYLOAD_FILE=payload.json && python main.py`
 
 Monitor execution:
 
@@ -161,44 +224,15 @@ gcloud run jobs executions list --job data-validator --region us-central1
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="data-validator"' --limit 50
 ```
 
-### Postman / manual API trigger
-
-There is **no** Cloud Function URL anymore. To trigger from Postman (or curl), call the
-**Cloud Run Admin API** with a Google OAuth bearer token:
-
-```
-POST https://run.googleapis.com/v2/projects/hs-levante-data-validator/locations/us-central1/jobs/data-validator:run
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-Body (per-site validation example):
-
-```json
-{
-  "overrides": {
-    "containerOverrides": [
-      {
-        "env": [
-          {
-            "name": "DATA_VALIDATOR_PAYLOAD",
-            "value": "{\"dataset_id\":\"pilot-uniandes-co-bogota\",\"is_save_to_storage\":false,\"send_slack\":true,\"orgs\":[{\"org_id\":\"pilot-uniandes-co-bogota\",\"is_guest\":false,\"filters\":{\"org_filter\":{\"key\":\"districts\",\"operator\":\"array_contains_any\",\"value\":[\"SITE_ID_HERE\"]},\"date_filter\":{\"start_date\":\"2024-01-01\",\"end_date\":\"2025-12-31\"}}}]}"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Get an access token locally:
+### Local HTTP trigger (Postman against localhost)
 
 ```bash
-gcloud auth print-access-token
+export project_id=hs-levante-data-validator
+export LOCAL_ADMIN_SERVICE_ACCOUNT=/path/to/admin_sa.json
+flask --app trigger_main run --port 8080
 ```
 
-Your Google account (or service account) needs permission to run the job
-(`roles/run.developer` or `run.jobs.run`).
+Then POST the same JSON body to `http://127.0.0.1:8080/` with the `API-Key` header.
 
 ### Migrate existing Cloud Scheduler jobs
 
@@ -227,11 +261,15 @@ The scheduler OAuth service account needs permission to run the job
 ## Deployment
 
 GitHub Actions (`.github/workflows/deploy_to_gcf.yml`) deploys on push to `main` or
-`dev`. The deploy service account needs:
+`dev`:
+
+- **Cloud Run Job** `data-validator` — runs validation (32 GiB, 24h)
+- **Cloud Run Service** `data-validator-trigger` — HTTP API with clean JSON (512 MiB)
+
+The deploy service account needs:
 
 - `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/storage.admin`
 - `roles/cloudbuild.builds.editor`, `roles/artifactregistry.writer` (for `--source` deploy)
-- `roles/cloudfunctions.admin` (only to delete the retired gen2 function)
 
 Manual deploy:
 
@@ -245,6 +283,15 @@ gcloud run jobs deploy data-validator \
   --max-retries 0 \
   --command python \
   --args main.py
+
+gcloud run deploy data-validator-trigger \
+  --source . \
+  --region us-central1 \
+  --memory 512Mi \
+  --timeout 60s \
+  --allow-unauthenticated \
+  --command gunicorn \
+  --args trigger_main:app,--bind,:8080,--workers,1,--threads,2
 ```
 
 ## Slack

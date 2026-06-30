@@ -12,6 +12,7 @@ env:
   GCP_PROJECT: hs-levante-data-validator
   GCP_REGION: us-central1
   JOB_NAME: data-validator
+  TRIGGER_SERVICE: data-validator-trigger
 
 jobs:
   deploy:
@@ -45,4 +46,19 @@ jobs:
             --max-retries 0 \
             --command python \
             --args main.py \
+            --quiet
+
+      - name: Deploy HTTP trigger service (clean JSON API)
+        run: |
+          gcloud run deploy ${{ env.TRIGGER_SERVICE }} \
+            --project ${{ env.GCP_PROJECT }} \
+            --source . \
+            --region ${{ env.GCP_REGION }} \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 60s \
+            --max-instances 5 \
+            --allow-unauthenticated \
+            --command gunicorn \
+            --args trigger_main:app,--bind,:8080,--workers,1,--threads,2 \
             --quiet

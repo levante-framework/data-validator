@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.26',
+    'VERSION': '1.9.27',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -61,4 +61,6 @@ config = {
     'CLOUD_RUN_JOB_NAME': 'data-validator',
     'CLOUD_RUN_JOB_REGION': 'us-central1',
     'CLOUD_RUN_JOB_TASK_TIMEOUT_SECONDS': 86400,
+    # Thin HTTP service that accepts clean JSON + API-Key and starts the job (202).
+    'CLOUD_RUN_TRIGGER_SERVICE_NAME': 'data-validator-trigger',
 }
