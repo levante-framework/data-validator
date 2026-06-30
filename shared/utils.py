@@ -167,7 +167,7 @@ class DatasetParameters(BaseModel):
         return bool(v)
 
     def to_dict(self):
-        # Build a shorter description from params
+        # Build a shorter description from params (also used for Redivis version text).
         org_summary = []
         for org in self.orgs:
             f = org.filters
@@ -183,18 +183,56 @@ class DatasetParameters(BaseModel):
                 f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}"
             )
 
-        # Join all summaries, but check length constraint
-        full_description_org = "; ".join(org_summary)
-        if len(full_description_org) > 1950:  # Leave some room for static text
-            full_description_org = full_description_org[:1950] + "..."  # Truncate to fit
+        if len(self.orgs) > 10:
+            org_ids = ", ".join(org.org_id for org in self.orgs)
+            date_ranges = {
+                (
+                    f"{org.filters.date_filter.start_date} to {org.filters.date_filter.end_date}"
+                    if org.filters.date_filter is not None
+                    else "No date limit"
+                )
+                for org in self.orgs
+            }
+            date_note = date_ranges.pop() if len(date_ranges) == 1 else "mixed date ranges"
+            full_description_org = (
+                f"{len(self.orgs)} orgs: {org_ids}. Date range: {date_note}"
+            )
+        else:
+            full_description_org = "; ".join(org_summary)
 
         return {
             "dataset_id": self.dataset_id,
             "is_save_to_storage": self.is_save_to_storage,
             "is_force_uploading_to_redivis": self.is_force_uploading_to_redivis,
             "send_slack": self.send_slack,
+            "org_count": len(self.orgs),
             "orgs": full_description_org,
         }
+
+
+REDIVIS_VERSION_DESCRIPTION_MAX = 2000
+
+
+def format_redivis_version_description(params: dict, *, dataset_id: str | None = None) -> str:
+    """Build a Redivis version description capped at 2000 characters."""
+    ds = dataset_id or params.get("dataset_id") or ""
+    org_count = params.get("org_count")
+    header = (
+        f"Dataset {ds}. "
+        f"{org_count if org_count is not None else '?'} org(s). "
+        f"save_to_storage={params.get('is_save_to_storage')}, "
+        f"force_redivis={params.get('is_force_uploading_to_redivis')}."
+    )
+    orgs = params.get("orgs") or ""
+    if not orgs:
+        return header[:REDIVIS_VERSION_DESCRIPTION_MAX]
+    scope_label = " Scope: "
+    budget = REDIVIS_VERSION_DESCRIPTION_MAX - len(header) - len(scope_label)
+    if budget <= 0:
+        return header[: REDIVIS_VERSION_DESCRIPTION_MAX - 3] + "..."
+    if len(orgs) <= budget:
+        return header + scope_label + orgs
+    return header + scope_label + orgs[: budget - 3] + "..."
 
 
 def setup_project_environment():

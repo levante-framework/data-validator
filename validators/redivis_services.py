@@ -3,6 +3,7 @@ import logging
 import settings
 import os
 from shared.secret_services import secret_service
+from shared.utils import format_redivis_version_description
 
 logging.basicConfig(level=logging.INFO)
 
@@ -75,8 +76,14 @@ class RedivisServices:
             if self.dataset.exists():
                 self.dataset = self.dataset.create_next_version(if_not_exists=True)
             else:
-                self.dataset.create(description=f"Dataset_id: {self.dataset_id}, params: {params}",
-                                    public_access_level="overview")
+                description = format_redivis_version_description(
+                    {"dataset_id": self.dataset_id, "orgs": params},
+                    dataset_id=self.dataset_id,
+                )
+                self.dataset.create(
+                    description=description,
+                    public_access_level="overview",
+                )
         except Exception as e:
             logging.info(f"Failed on create_dateset_version: {e}")
             self.upload_to_redivis_log['dataset_fails'].append(f"create_dateset_version: {e}")
@@ -121,7 +128,10 @@ class RedivisServices:
 
     def release_dataset(self, params: dict):
         try:
-            self.dataset.update(description=f"This is a dataset for {self.dataset_id}, current API params: {params}")
+            description = format_redivis_version_description(
+                params, dataset_id=self.dataset_id
+            )
+            self.dataset.update(description=description)
             self.dataset.release()
         except Exception as e:
             self.upload_to_redivis_log['dataset_fails'].append(f"release_dataset: {e}")
