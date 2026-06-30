@@ -172,6 +172,8 @@ class SchedulerServices:
             return None
         if "dataset_id" in parsed:
             return parsed
+        if "operation" in parsed:
+            return parsed
         return None
 
     def _needs_target_migration(self, existing: scheduler_v1.Job) -> bool:
@@ -182,7 +184,7 @@ class SchedulerServices:
         uri = http.uri.strip()
         if uri == self._target_url:
             payload = self._payload_from_http_target(http)
-            return payload is None or "dataset_id" not in payload
+            return payload is None
         legacy_markers = (
             "cloudfunctions.net/data-validator",
             "run.app/data-validator",
@@ -208,18 +210,18 @@ class SchedulerServices:
                 summary["already_current"] += 1
                 continue
             payload = self._payload_from_http_target(existing.http_target)
-            if not payload or "dataset_id" not in payload:
+            if not payload:
                 summary["skipped_no_payload"] += 1
                 job_id = existing.name.rsplit("/", 1)[-1]
                 summary["jobs"].append(
                     {"job_id": job_id, "status": "skipped_no_payload"}
                 )
                 logging.warning(
-                    "scheduler: cannot migrate %s — no validation payload in body",
+                    "scheduler: cannot migrate %s — no recognizable payload in body",
                     existing.name,
                 )
                 continue
-            dataset_id = str(payload["dataset_id"])
+            dataset_id = str(payload.get("dataset_id") or existing.name.rsplit("/", 1)[-1])
             result = self._update_validator_job(
                 dataset_id=dataset_id,
                 payload=payload,

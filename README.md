@@ -161,6 +161,55 @@ gcloud run jobs executions list --job data-validator --region us-central1
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="data-validator"' --limit 50
 ```
 
+### Postman / manual API trigger
+
+There is **no** Cloud Function URL anymore. To trigger from Postman (or curl), call the
+**Cloud Run Admin API** with a Google OAuth bearer token:
+
+```
+POST https://run.googleapis.com/v2/projects/hs-levante-data-validator/locations/us-central1/jobs/data-validator:run
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+Body (per-site validation example):
+
+```json
+{
+  "overrides": {
+    "containerOverrides": [
+      {
+        "env": [
+          {
+            "name": "DATA_VALIDATOR_PAYLOAD",
+            "value": "{\"dataset_id\":\"pilot-uniandes-co-bogota\",\"is_save_to_storage\":false,\"send_slack\":true,\"orgs\":[{\"org_id\":\"pilot-uniandes-co-bogota\",\"is_guest\":false,\"filters\":{\"org_filter\":{\"key\":\"districts\",\"operator\":\"array_contains_any\",\"value\":[\"SITE_ID_HERE\"]},\"date_filter\":{\"start_date\":\"2024-01-01\",\"end_date\":\"2025-12-31\"}}}]}"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Get an access token locally:
+
+```bash
+gcloud auth print-access-token
+```
+
+Your Google account (or service account) needs permission to run the job
+(`roles/run.developer` or `run.jobs.run`).
+
+### Migrate existing Cloud Scheduler jobs
+
+After deploy, run once to retarget legacy Cloud Function cron jobs:
+
+```bash
+gcloud run jobs execute data-validator \
+  --region us-central1 \
+  --update-env-vars DATA_VALIDATOR_PAYLOAD='{"operation":"migrate_scheduler_jobs"}'
+```
+
 ### Daily per-site cron (Cloud Scheduler)
 
 `redivis_individual_release` creates or **migrates** Cloud Scheduler jobs to POST
