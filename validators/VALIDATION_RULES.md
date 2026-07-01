@@ -64,6 +64,33 @@ Optional fields include `assessment_pid`, `email`, `birth_year`, `birth_month`, 
 - Duplicate `user_id` values are skipped (first occurrence wins).
 - Schema parse failures are recorded in `invalid_users`.
 
+Firestore inclusion (non-guest), before sampling:
+
+| `user_type` | Required activity in `date_filter` window |
+|-------------|-------------------------------------------|
+| `student` | Assignment in range **and** ≥1 run (`timeStarted`) |
+| `teacher` | Assignment in range **and** ≥1 survey response (`createdAt` or `timeStarted`) |
+| `parent` | Assignment in range **and** ≥1 survey response (when not using stratified sample) |
+| `admin` | Excluded |
+
+Guests: must have ≥1 run (any time); `user_number_limit` uses random sampling without stratification.
+
+### `user_number_limit` (stratified sample)
+
+When `user_number_limit` is set on an org (non-guest), users are **not** chosen uniformly at random. The limit is a **total headcount** split as:
+
+| Slot | Share of limit | Rule |
+|------|----------------|------|
+| Students | 40% (`int(limit × 0.4)`) | Random sample from eligible students (assignment + run in range) |
+| Parents | 40% (`int(limit × 0.4)`) | Random sample from `parent1_id` / `parent2_id` of selected students with a survey in range |
+| Teachers | Remainder (`limit − student − parent quotas`) | Random sample from eligible teachers (assignment + survey in range) |
+
+Example: `user_number_limit: 20` → **8** students + **8** parents + **4** teachers = **20 total**.
+
+If a bucket has fewer eligible users than its quota, all eligible users in that bucket are taken and a warning is logged (total may be below the limit).
+
+Without `user_number_limit`, all users passing the filters above are included (plus one-hop relationship backfill for linked parents/teachers/children).
+
 ### Business rules (students only)
 
 When `user_type == 'student'`, birth date checks run in `check_birth_year_month`:

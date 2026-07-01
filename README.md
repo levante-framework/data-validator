@@ -15,6 +15,52 @@ High-level flow:
 Daily per-site cron jobs are **Cloud Scheduler → Run Job API** triggers (not HTTP
 to a Cloud Function).
 
+## Architecture
+
+Three ways to **start** a run; one place where **work** happens.
+
+```mermaid
+flowchart LR
+  subgraph triggers["Triggers (start only)"]
+    Postman["Postman / curl"]
+    CLI["trigger_job.py"]
+    Scheduler["Cloud Scheduler"]
+  end
+
+  subgraph gcp["GCP"]
+    TriggerSvc["data-validator-trigger\n(Cloud Run Service)"]
+    RunAPI["Run Job API"]
+    Job["data-validator\n(Cloud Run Job)"]
+  end
+
+  subgraph worker["main.py"]
+    Pipeline["Validate → GCS → Redivis\n+ Slack"]
+  end
+
+  Postman -->|"POST clean JSON + API-Key"| TriggerSvc
+  CLI -->|"start_validation_job()"| RunAPI
+  Scheduler -->|"OAuth POST :run"| RunAPI
+  TriggerSvc --> RunAPI
+  RunAPI --> Job
+  Job --> Pipeline
+```
+
+| Component | File | Deployed as | Role |
+|-----------|------|-------------|------|
+| **Worker** | `main.py` | Cloud Run **Job** `data-validator` | Runs the pipeline (up to 24h, 32 GiB). Reads payload from env var, JSON file, or stdin. |
+| **HTTP trigger** | `trigger_main.py` | Cloud Run **Service** `data-validator-trigger` | Accepts the same flat JSON + `API-Key` as the old Cloud Function; returns **202** and starts the job. |
+| **CLI trigger** | `trigger_job.py` | Not deployed (run on your laptop) | Reads `payload.json`, calls the Run Job API via `shared/run_job_services.py`. |
+| **Shared launcher** | `shared/run_job_services.py` | Library | Wraps clean JSON into the Run Job API request (`DATA_VALIDATOR_PAYLOAD` env injection). Used by HTTP trigger, CLI, and tests. |
+
+**Why two trigger files?** They serve different callers, not duplicate logic:
+
+- **`trigger_main.py`** — long-lived **HTTP server** (Flask/gunicorn) for Postman, curl, and the public trigger URL. Must stay up, validate `API-Key`, and speak HTTP.
+- **`trigger_job.py`** — one-shot **CLI script** for developers who prefer `python trigger_job.py payload.json` or `--dry-run` without running a server or opening Postman.
+
+Both call the same function: `start_validation_job()` in `shared/run_job_services.py`. Neither runs validation itself.
+
+**Daily cron** bypasses both trigger files: Cloud Scheduler calls the Run Job API directly (OAuth), which is appropriate for automation and matches how GCP expects scheduled job runs.
+
 ## Features
 
 - **Data extraction** from Firestore for users, runs, trials, surveys, and org entities.

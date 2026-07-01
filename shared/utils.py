@@ -130,7 +130,10 @@ class Organization(BaseModel):
     user_number_limit: Optional[int] = Field(
         default=None,
         ge=1,
-        description="Optional. Cap the number of users sampled for this org when set.",
+        description=(
+            "Optional. Total users to sample for this org (non-guest). Split "
+            "40% students, 40% parents of those students, 20% teachers."
+        ),
     )
     filters: Filters
 

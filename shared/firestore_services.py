@@ -641,6 +641,27 @@ class FirestoreServices:
                     .limit(1).get())
             return bool(runs)
 
+        def _has_survey_in_range(doc_ref, start_dt, end_dt) -> bool:
+            sr = doc_ref.collection('surveyResponses')
+            by_created = (
+                sr.where('createdAt', '>=', start_dt)
+                .where('createdAt', '<=', end_dt)
+                .limit(1)
+                .get()
+            )
+            if by_created:
+                return True
+            try:
+                by_started = (
+                    sr.where('timeStarted', '>=', start_dt)
+                    .where('timeStarted', '<=', end_dt)
+                    .limit(1)
+                    .get()
+                )
+                return bool(by_started)
+            except Exception:
+                return False
+
         def _has_activity(doc_ref, doc_dict: dict) -> bool:
             start_dt = to_datetime(date_filter.start_date, 'start')
             end_dt = to_datetime(date_filter.end_date, 'end')
@@ -652,13 +673,100 @@ class FirestoreServices:
             has_runs = _has_run_in_range(doc_ref, start_dt, end_dt)
 
             # surveys in filtered date range
-            surveys = (doc_ref.collection('surveyResponses')
-                       .where('createdAt', '>=', start_dt)
-                       .where('createdAt', '<=', end_dt)
-                       .limit(1).get())
-            has_surveys = bool(surveys)
+            has_surveys = _has_survey_in_range(doc_ref, start_dt, end_dt)
 
             return has_admin or has_runs or has_surveys
+
+        def _apply_stratified_user_limit(
+            *,
+            students: list[dict],
+            teachers: list[dict],
+            user_number_limit: int,
+        ) -> dict[str, dict]:
+            """
+            When ``user_number_limit`` is set, sample exactly up to that total:
+            40% students, 40% parents (of those students, with surveys), 20% teachers.
+            """
+            student_quota = int(user_number_limit * 0.4)
+            parent_quota = int(user_number_limit * 0.4)
+            teacher_quota = user_number_limit - student_quota - parent_quota
+            selected: dict[str, dict] = {}
+
+            picked_students = (
+                random.sample(students, min(student_quota, len(students)))
+                if students
+                else []
+            )
+            if len(picked_students) < student_quota:
+                logging.warning(
+                    "stratified user sample: wanted %s students, only %s eligible",
+                    student_quota,
+                    len(picked_students),
+                )
+            for student in picked_students:
+                selected[student["user_id"]] = student
+
+            start_dt = to_datetime(date_filter.start_date, 'start')
+            end_dt = to_datetime(date_filter.end_date, 'end')
+            users_col = self.admin_db.collection('users')
+
+            parent_candidates: dict[str, dict] = {}
+            for student in picked_students:
+                for parent_id in (student.get("parent1_id"), student.get("parent2_id")):
+                    if not parent_id or parent_id in selected or parent_id in parent_candidates:
+                        continue
+                    snap = users_col.document(parent_id).get()
+                    if not snap.exists:
+                        continue
+                    if not _has_survey_in_range(snap.reference, start_dt, end_dt):
+                        continue
+                    parent_candidates[parent_id] = _normalize_user_doc(
+                        user_id=snap.id, doc_dict=snap.to_dict() or {}
+                    )
+
+            parent_pool = list(parent_candidates.values())
+            picked_parents = (
+                random.sample(parent_pool, min(parent_quota, len(parent_pool)))
+                if parent_pool
+                else []
+            )
+            if len(picked_parents) < parent_quota:
+                logging.warning(
+                    "stratified user sample: wanted %s parents, only %s eligible "
+                    "among selected students",
+                    parent_quota,
+                    len(picked_parents),
+                )
+            for parent in picked_parents:
+                selected[parent["user_id"]] = parent
+
+            picked_teachers = (
+                random.sample(teachers, min(teacher_quota, len(teachers)))
+                if teachers
+                else []
+            )
+            if len(picked_teachers) < teacher_quota:
+                logging.warning(
+                    "stratified user sample: wanted %s teachers, only %s eligible",
+                    teacher_quota,
+                    len(picked_teachers),
+                )
+            for teacher in picked_teachers:
+                selected[teacher["user_id"]] = teacher
+
+            logging.info(
+                "stratified user sample: limit=%s students=%s/%s parents=%s/%s "
+                "teachers=%s/%s total=%s",
+                user_number_limit,
+                len(picked_students),
+                student_quota,
+                len(picked_parents),
+                parent_quota,
+                len(picked_teachers),
+                teacher_quota,
+                len(selected),
+            )
+            return selected
 
         def _normalize_user_doc(user_id: str, doc_dict: dict) -> dict:
             doc_dict = dict(doc_dict or {})
@@ -695,6 +803,11 @@ class FirestoreServices:
             current_chunk = 0
             selected_by_id: dict[str, dict] = {}
             related_user_ids: set[str] = set()
+            use_stratified_sample = (
+                bool(user_number_limit and user_number_limit > 0 and not is_guest)
+            )
+            students_pool: list[dict] = []
+            teachers_pool: list[dict] = []
 
             while True:
                 try:
@@ -724,12 +837,15 @@ class FirestoreServices:
                             ):
                                 continue
                             user_type = doc_dict.get('userType', None)
-                            survey_responses = doc.reference.collection('surveyResponses').limit(1).get()
                             if user_type == 'student' and not _has_run_in_range(doc.reference, start_dt, end_dt):
                                 continue
-                            if user_type in ['teacher', 'parent'] and not survey_responses:
+                            if user_type in ['teacher', 'parent'] and not _has_survey_in_range(
+                                doc.reference, start_dt, end_dt
+                            ):
                                 continue
                             if user_type in ['admin']:
+                                continue
+                            if use_stratified_sample and user_type == 'parent':
                                 continue
 
                         # Check if user filter is being used
@@ -742,8 +858,14 @@ class FirestoreServices:
                         #             continue
 
                         converted_doc_dict = _normalize_user_doc(user_id=doc.id, doc_dict=doc_dict)
-                        related_user_ids.update(_extract_related_user_ids(doc_dict))
-                        if user_number_limit and user_number_limit > 0:
+                        if not use_stratified_sample:
+                            related_user_ids.update(_extract_related_user_ids(doc_dict))
+                        if use_stratified_sample:
+                            if user_type == 'student':
+                                students_pool.append(converted_doc_dict)
+                            elif user_type == 'teacher':
+                                teachers_pool.append(converted_doc_dict)
+                        elif user_number_limit and user_number_limit > 0:
                             if _has_activity(doc.reference, doc_dict):
                                 selected_by_id[converted_doc_dict["user_id"]] = converted_doc_dict
                         else:
@@ -753,26 +875,34 @@ class FirestoreServices:
                     logging.error(f"Error in get_users: {e}")
                     break
 
-            selected_users = list(selected_by_id.values())
-            if user_number_limit and user_number_limit > 0 and len(selected_users) > user_number_limit:
-                selected_users = random.sample(selected_users, user_number_limit)
-                selected_by_id = {u["user_id"]: u for u in selected_users}
+            if use_stratified_sample:
+                selected_by_id = _apply_stratified_user_limit(
+                    students=students_pool,
+                    teachers=teachers_pool,
+                    user_number_limit=user_number_limit,
+                )
+            else:
+                selected_users = list(selected_by_id.values())
+                if user_number_limit and user_number_limit > 0 and len(selected_users) > user_number_limit:
+                    selected_users = random.sample(selected_users, user_number_limit)
+                    selected_by_id = {u["user_id"]: u for u in selected_users}
 
             # Backfill one-hop relationship-linked users even if they have no runs/surveys/admin activity.
-            missing_related_ids = related_user_ids - set(selected_by_id.keys())
-            if missing_related_ids:
-                rel_collection = self.admin_db.collection('users')
-                missing_related_ids = list(missing_related_ids)
-                random.shuffle(missing_related_ids)
-                rel_refs = [rel_collection.document(uid) for uid in missing_related_ids]
-                for snap in self.admin_db.get_all(rel_refs):
-                    if not snap.exists:
-                        continue
-                    if user_number_limit and user_number_limit > 0 and len(selected_by_id) >= user_number_limit:
-                        break
-                    rel_doc = snap.to_dict() or {}
-                    normalized = _normalize_user_doc(user_id=snap.id, doc_dict=rel_doc)
-                    selected_by_id[normalized["user_id"]] = normalized
+            if not use_stratified_sample:
+                missing_related_ids = related_user_ids - set(selected_by_id.keys())
+                if missing_related_ids:
+                    rel_collection = self.admin_db.collection('users')
+                    missing_related_ids = list(missing_related_ids)
+                    random.shuffle(missing_related_ids)
+                    rel_refs = [rel_collection.document(uid) for uid in missing_related_ids]
+                    for snap in self.admin_db.get_all(rel_refs):
+                        if not snap.exists:
+                            continue
+                        if user_number_limit and user_number_limit > 0 and len(selected_by_id) >= user_number_limit:
+                            break
+                        rel_doc = snap.to_dict() or {}
+                        normalized = _normalize_user_doc(user_id=snap.id, doc_dict=rel_doc)
+                        selected_by_id[normalized["user_id"]] = normalized
 
             for user in selected_by_id.values():
                 yield user
