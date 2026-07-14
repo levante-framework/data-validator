@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.28',
+    'VERSION': '1.9.29',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -21,12 +21,17 @@ config = {
     'AIRTABLE_FIELD_FIRESTORE_SITE_ID': 'Firestore siteId',
     'AIRTABLE_FIELD_OPEN_ASSIGNMENTS': 'Open Assignments',
     'AIRTABLE_FIELD_REDIVIS_INDIVIDUAL': 'Redivis individual',
-    # Airtable column that matches the Redivis dataset name (not Firebase name).
+    # Airtable ``Name`` = processed (unmarked) Redivis dataset name.
     'AIRTABLE_FIELD_REDIVIS_DATASET_NAME': 'Name',
     # District label for Firestore lookup when Firestore siteId is empty (open-assignments sync).
     'AIRTABLE_FIELD_SITE_NAME': 'Firebase name',
-    # Additional fallback column tried when resolving Firestore siteId.
+    # Airtable ``Redivis name`` = raw Redivis dataset name (``{Name}-raw``).
     'AIRTABLE_FIELD_REDIVIS_NAME': 'Redivis name',
+    # Persistent Redivis referenceIds (4-char) for raw / processed datasets.
+    'AIRTABLE_FIELD_DATASET_REF_ID': 'dataset_ref_id',
+    'AIRTABLE_FIELD_PROCESSED_REF_ID': 'processed_ref_id',
+    # Raw companion suffix: validator uploads to ``{Name}-raw``; processed stays unmarked.
+    'RAW_DATASET_SUFFIX': '-raw',
     # Date column updated by the redivis_individual_release sync.
     'AIRTABLE_FIELD_VALIDATOR_PIPELINE_DATE': 'validator pipeline date',
     # Placeholder written into Firestore siteId when no Firestore district matches.
