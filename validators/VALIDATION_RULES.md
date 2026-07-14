@@ -240,6 +240,7 @@ Practice trials skip RT validation.
 |-----------|---------------------|
 | `trial_index` missing | `trial_index_missing` |
 | `trial_index` present but not `int` | `trial_index_not_int` |
+| `input_type` present but not `touch` or `mouse/keyboard` (case-insensitive) | `input_type_invalid` |
 
 ### Validity flag
 

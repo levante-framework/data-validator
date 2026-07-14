@@ -114,6 +114,7 @@ class TrialBase(BaseModel):
 
 
 class LevanteTrial(TrialBase):
+    input_type: Optional[str] = None
     is_practice_trial: Optional[bool] = None
     corpus_id: Optional[str] = None
     corpus_trial_type: Optional[Any] = None
@@ -243,10 +244,27 @@ class LevanteTrial(TrialBase):
     def check_trial_index(self):
         if self.trial_index is not None:
             if not isinstance(self.trial_index, int):
-                self.warning_msg_trial = f"trial_index_not_int"
+                self._append_warning_msg_trial("trial_index_not_int")
         else:
-            self.warning_msg_trial = f"trial_index_missing"
+            self._append_warning_msg_trial("trial_index_missing")
         return self
+
+    @model_validator(mode='after')
+    def check_input_type(self):
+        if self.input_type is None:
+            return self
+        normalized = str(self.input_type).strip().lower()
+        if not normalized:
+            return self
+        if normalized not in {"touch", "mouse/keyboard"}:
+            self._append_warning_msg_trial("input_type_invalid")
+        return self
+
+    def _append_warning_msg_trial(self, msg: str) -> None:
+        if self.warning_msg_trial:
+            self.warning_msg_trial = f"{self.warning_msg_trial};{msg}"
+        else:
+            self.warning_msg_trial = msg
 
     @model_validator(mode='after')
     def update_valid_trial(self):
