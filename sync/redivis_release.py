@@ -398,10 +398,12 @@ def check_redivis_individual_release_awaiting_slack(
       - Airtable **Redivis name** = raw Redivis dataset (``{Name}-raw``)
       - Validator cron / GCS / Redivis upload target = raw (``{Name}-raw``)
 
-    1. If **Firestore siteId** is empty, try to resolve it from ``Name`` →
-       ``Firebase name`` against Firestore ``districts`` (matches ``name`` or
-       ``normalizedName``). When found, write the id back to Airtable; when not
-       found, write the placeholder ``missing_site_id``.
+    1. If **Firestore siteId** is empty *or* still ``missing_site_id``, try to
+       resolve it from ``Name`` → ``Firebase name`` against Firestore
+       ``districts`` (matches ``name`` or ``normalizedName``). When found, write
+       the id back to Airtable; when not found and the cell was empty, write the
+       placeholder ``missing_site_id`` (a cell already set to the placeholder is
+       left as-is until a later run resolves it).
     2. Backfill **Redivis name** to ``{Name}-raw`` when the cell is empty (never
        overwrite an existing value).
     3. When a real siteId exists, ensure empty Redivis datasets exist first:
@@ -578,9 +580,11 @@ def check_redivis_individual_release_awaiting_slack(
         changes: list[str] = []
         notes: list[str] = []
 
-        # 1) Resolve Firestore siteId if empty.
+        # 1) Resolve Firestore siteId when empty or still ``missing_site_id``
+        # (daily cron re-tries previously unresolved districts).
         site_id_source = "existing"
-        if not site_id:
+        needs_site_lookup = (not site_id) or (site_id == missing_placeholder)
+        if needs_site_lookup:
             resolved, source_label = _resolve_site_id_from_names(
                 name=fields.get(name_field),
                 firebase_name=fields.get(firebase_name_field),
@@ -596,12 +600,15 @@ def check_redivis_individual_release_awaiting_slack(
             else:
                 site_id = missing_placeholder
                 site_id_source = "missing"
-                airtable_payload[site_field] = site_id
-                counters["site_id_set_missing_placeholder"] += 1
-                changes.append(
-                    f"Set `{site_field}` → `{missing_placeholder}` "
-                    "(no Firestore district match for Name / Firebase name)"
-                )
+                # Only write the placeholder when the cell was empty — avoid
+                # rewriting ``missing_site_id`` → ``missing_site_id`` every run.
+                if not site_raw or not str(site_raw).strip():
+                    airtable_payload[site_field] = site_id
+                    counters["site_id_set_missing_placeholder"] += 1
+                    changes.append(
+                        f"Set `{site_field}` → `{missing_placeholder}` "
+                        "(no Firestore district match for Name / Firebase name)"
+                    )
 
         # 1.5) Backfill Redivis name → {Name}-raw only when empty.
         if dataset_name and _airtable_text_is_empty(fields.get(redivis_name_field)):
