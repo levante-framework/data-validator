@@ -298,6 +298,7 @@ class LevanteRun(RunBase):
     num_correct: Optional[int] = None
     test_comp_theta_estimate: Optional[float] = None
     test_comp_theta_se: Optional[float] = None
+    stop_type: Optional[str] = None
 
     valid_run: Optional[bool] = None
     validation_msg_run: Optional[str] = None
@@ -420,6 +421,21 @@ class LevanteRun(RunBase):
         self.update_valid_run()
         self.compute_below_chance_flags_scipy()
 
+    _ALLOWED_STOP_TYPES = {"taskAbort", "timeOut", "errorOut", "sufficientTrials", "earlyCompletion"}
+
+    @model_validator(mode='after')
+    def check_stop_type(self):
+        if self.stop_type is None:
+            return self
+        normalized = str(self.stop_type).strip()
+        if not normalized:
+            return self
+        if normalized not in self._ALLOWED_STOP_TYPES:
+            if self.warning_msg_run:
+                self.warning_msg_run = f"{self.warning_msg_run};stop_type_invalid({normalized})"
+            else:
+                self.warning_msg_run = f"stop_type_invalid({normalized})"
+        return self
 
 class UserBase(BaseModel):
     user_id: str
