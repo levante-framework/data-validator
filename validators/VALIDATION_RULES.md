@@ -167,6 +167,11 @@ Non-practice **test trials** are collected during trial ingest (see Trials). The
 ```text
 valid_run = True  iff  validation_msg_run is empty
 ```
+### Warnings (do not fail the run)
+
+| Condition | `warning_msg_run` |
+|-----------|-------------------|
+| `stop_type` present but not `taskAbort`, `timeOut`, `errorOut`, `sufficientTrials`, or `earlyCompletion`  | `stop_type_invalid(<value>)` |
 
 ---
 
