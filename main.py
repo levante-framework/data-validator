@@ -52,21 +52,9 @@ def _run_data_validation(data: dict) -> int:
         dataset_parameters = dataset_parameters.model_copy(update={"send_slack": True})
 
     job_id = _job_id()
-    org_count = len(dataset_parameters.orgs)
-    slack_org_progress = org_count > 1
-
-    try:
-        from shared.slack_services import format_validation_job_started_slack, notify_slack
-
-        notify_slack(
-            message=format_validation_job_started_slack(
-                dataset_id=dataset_parameters.dataset_id,
-                org_count=org_count,
-                job_id=job_id,
-            )
-        )
-    except Exception as e:
-        logging.error("job start Slack post failed: %s", e)
+    # Per-site progress pings are noisy for daily crons; final Slack is gated on
+    # a successful new Redivis release inside run_data_validation.
+    slack_org_progress = False
 
     t0 = time.time()
     try:
@@ -74,7 +62,7 @@ def _run_data_validation(data: dict) -> int:
             dataset_parameters,
             start_time=t0,
             slack_org_progress=slack_org_progress,
-            slack_summary_always=True,
+            slack_summary_always=False,
         )
     except Exception as e:
         logging.exception(

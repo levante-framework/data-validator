@@ -244,3 +244,90 @@ class RedivisServices:
                 self.upload_to_redivis_log['table_deletions'].append(f"{table_name}_removed")
         except Exception as e:
             self.upload_to_redivis_log['table_deletions'].append(f"{table_name}_removed_failed, {e}")
+
+    @staticmethod
+    def processed_name_from_raw(raw_dataset_id: str) -> str:
+        """Map ``{Name}-raw`` → unmarked processed ``{Name}``."""
+        suffix = settings.config["RAW_DATASET_SUFFIX"]
+        raw_dataset_id = (raw_dataset_id or "").strip()
+        if raw_dataset_id.endswith(suffix):
+            return raw_dataset_id[: -len(suffix)]
+        return raw_dataset_id
+
+    def run_process_dataset_workflow(self, raw_dataset_id: str) -> dict:
+        """
+        Point Levante ``process_dataset`` at ``levante.{raw_dataset_id}`` and run
+        the notebook (waits until finished).
+
+        Mirrors ``process_all_datasets.R``: refresh datasource versions, replace the
+        non-metadata datasource, then ``notebook.run(wait_for_finish=True)``.
+        The notebook is expected to write/release the unmarked processed dataset
+        ``{Name}`` (Airtable Name).
+
+        Note: all sites share one workflow, so concurrent Cloud Run Jobs can race
+        on the datasource pointer. Prefer staggered schedules / avoid overlapping
+        process runs until a queue or lock is added.
+        """
+        result = {
+            "ran": False,
+            "raw_dataset_id": raw_dataset_id,
+            "processed_dataset_id": self.processed_name_from_raw(raw_dataset_id),
+            "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+            "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+            "error": None,
+        }
+        raw_dataset_id = (raw_dataset_id or "").strip()
+        if not raw_dataset_id:
+            result["error"] = "raw_dataset_id is empty"
+            return result
+        try:
+            user_name = settings.config["REDIVIS_PROCESS_WORKFLOW_USER"]
+            workflow_name = settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"]
+            notebook_name = settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"]
+            wf = redivis.user(user_name).workflow(workflow_name)
+            datasources = wf.list_datasources()
+            for ds in datasources:
+                ds.get()
+                ds.update(version="current")
+
+            data_source = None
+            for ds in datasources:
+                props = ds.properties or {}
+                source = props.get("sourceDataset") or {}
+                source_name = (source.get("name") or "") if isinstance(source, dict) else ""
+                if "metadata" not in source_name.lower():
+                    data_source = ds
+                    break
+            if data_source is None:
+                result["error"] = (
+                    f"No non-metadata datasource found on workflow {workflow_name!r}"
+                )
+                logging.error("run_process_dataset_workflow: %s", result["error"])
+                return result
+
+            qualified = f"{settings.config['INSTANCE'].lower()}.{raw_dataset_id}"
+            logging.info(
+                "run_process_dataset_workflow: pointing datasource at %s",
+                qualified,
+            )
+            data_source.update(source_dataset=qualified)
+
+            logging.info(
+                "run_process_dataset_workflow: running notebook %s on %s",
+                notebook_name,
+                workflow_name,
+            )
+            nb = wf.notebook(notebook_name)
+            nb.run(wait_for_finish=True)
+            result["ran"] = True
+            logging.info(
+                "run_process_dataset_workflow: completed for raw=%r processed=%r",
+                raw_dataset_id,
+                result["processed_dataset_id"],
+            )
+        except Exception as e:
+            result["error"] = str(e)
+            logging.error(
+                "run_process_dataset_workflow(%r) failed: %s", raw_dataset_id, e
+            )
+        return result
