@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.29',
+    'VERSION': '1.9.30',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -32,8 +32,14 @@ config = {
     'AIRTABLE_FIELD_PROCESSED_REF_ID': 'processed_ref_id',
     # Raw companion suffix: validator uploads to ``{Name}-raw``; processed stays unmarked.
     'RAW_DATASET_SUFFIX': '-raw',
-    # Date column updated by the redivis_individual_release sync.
-    'AIRTABLE_FIELD_VALIDATOR_PIPELINE_DATE': 'validator pipeline date',
+    # Date column set once when the per-site validator scheduler is first provisioned.
+    'AIRTABLE_FIELD_VALIDATOR_PIPELINE_DATE': 'validator pipeline setup date',
+    # Date column updated after a successful process_dataset run for the unmarked processed dataset.
+    'AIRTABLE_FIELD_PROCESSED_DATASET_LAST_UPDATE': 'Redivis processed dataset last update',
+    # Levante Redivis workflow that fills the unmarked processed dataset from raw.
+    'REDIVIS_PROCESS_WORKFLOW_USER': 'levante',
+    'REDIVIS_PROCESS_WORKFLOW_NAME': 'process_dataset:zr0v',
+    'REDIVIS_PROCESS_NOTEBOOK_NAME': 'process_dataset',
     # Placeholder written into Firestore siteId when no Firestore district matches.
     'MISSING_SITE_ID_PLACEHOLDER': 'missing_site_id',
     # Cloud Scheduler config used to provision daily data-validator jobs per site.

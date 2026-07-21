@@ -156,7 +156,10 @@ class DatasetParameters(BaseModel):
     is_force_uploading_to_redivis: bool = False
     send_slack: bool = Field(
         default=False,
-        description="If true, post a Slack summary when validation finishes (and on upload/release when applicable).",
+        description=(
+            "If true, post a Slack summary only when a new Redivis version is "
+            "successfully released (includes process_dataset status)."
+        ),
     )
     orgs: List[Organization] = Field(min_length=1)
 

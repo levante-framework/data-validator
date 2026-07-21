@@ -19,7 +19,7 @@ pydantic_core==2.14.6
 
 # Redivis API (requires pkg_resources; setuptools 82+ removed it — pin below 82)
 setuptools>=69.0.0,<82
-redivis==0.14.9
+redivis==0.20.12
 
 # HTTP and config
 requests~=2.32.0
