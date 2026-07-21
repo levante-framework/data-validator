@@ -99,14 +99,27 @@ def _airtable_date_is_empty(value) -> bool:
     return False
 
 
-# Suffix appended to the Airtable Name to form the companion "processed" dataset
-# on Redivis. Kept as a module-level constant so the test/dry-run plan can show
-# both names without duplication.
-PROCESSED_DATASET_SUFFIX = "-processed"
+# Suffix appended to the Airtable Name to form the raw dataset on Redivis.
+# Airtable Name = processed (unmarked); Redivis name / scheduler target = {Name}-raw.
+RAW_DATASET_SUFFIX = settings.config.get("RAW_DATASET_SUFFIX", "-raw")
 
 
 def _processed_dataset_name(dataset_id: str) -> str:
-    return f"{dataset_id}{PROCESSED_DATASET_SUFFIX}"
+    """Processed dataset is the unmarked Airtable Name."""
+    return dataset_id
+
+
+def _raw_dataset_name(dataset_id: str) -> str:
+    """Raw dataset written by the validator cron: ``{Name}-raw``."""
+    return f"{dataset_id}{RAW_DATASET_SUFFIX}"
+
+
+def _airtable_text_is_empty(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
 
 
 def _ensure_redivis_dataset(
@@ -117,34 +130,32 @@ def _ensure_redivis_dataset(
     changes: list,
     notes: list,
     counters: dict,
-) -> None:
+) -> tuple[bool, str | None]:
     """
-    Idempotently ensure a Redivis dataset exists. Side-effects only via
-    ``changes`` / ``notes`` / ``counters``. ``dry_run`` is read-only on Redivis
-    (calls ``get_current_dataset_status`` only).
+    Idempotently ensure a Redivis dataset exists.
+
+    Returns ``(ok, reference_id)``. ``ok`` is False only on a live create/get
+    failure. ``reference_id`` is set when the dataset exists (or was just created).
     """
     rs.set_dataset(dataset_id=dataset_id)
     if dry_run:
         pre_status = rs.get_current_dataset_status()
         if pre_status.get("exists"):
-            notes.append(
-                f"Redivis dataset `{dataset_id}` already exists — skipped creating"
-            )
             logging.info(
                 "redivis_individual_release: [dry_run] Redivis dataset %r "
                 "already exists — would skip",
                 dataset_id,
             )
-        else:
-            changes.append(
-                f"[dry_run] would create empty Redivis dataset `{dataset_id}`"
-            )
-            logging.info(
-                "redivis_individual_release: [dry_run] would create empty "
-                "Redivis dataset %r",
-                dataset_id,
-            )
-        return
+            return True, rs.get_reference_id()
+        changes.append(
+            f"[dry_run] would create empty Redivis dataset `{dataset_id}`"
+        )
+        logging.info(
+            "redivis_individual_release: [dry_run] would create empty "
+            "Redivis dataset %r",
+            dataset_id,
+        )
+        return True, None
 
     create_status = rs.create_empty_dataset_if_missing()
     if create_status.get("created"):
@@ -152,14 +163,17 @@ def _ensure_redivis_dataset(
         changes.append(f"Created empty Redivis dataset `{dataset_id}`")
     elif create_status.get("already_exists"):
         counters["redivis_datasets_already_existed"] += 1
-        notes.append(
-            f"Redivis dataset `{dataset_id}` already exists — skipped creating"
+        logging.info(
+            "redivis_individual_release: Redivis dataset %r already exists — skipped",
+            dataset_id,
         )
     if create_status.get("error"):
         counters["redivis_datasets_failed"] += 1
         changes.append(
             f"Redivis dataset `{dataset_id}` create error: {create_status['error']}"
         )
+        return False, None
+    return True, rs.get_reference_id()
 
 
 def _build_validator_payload(*, dataset_id: str, site_id: str) -> dict:
@@ -186,17 +200,17 @@ def _build_validator_payload(*, dataset_id: str, site_id: str) -> dict:
 
 
 def _resolve_site_id_from_names(
-    *, name: str | None, firebase_name: str | None, redivis_name: str | None
+    *, name: str | None, firebase_name: str | None
 ) -> tuple[str | None, str | None]:
     """
-    Try ``Name`` → ``Firebase name`` → ``Redivis name`` against ``districts.name`` /
+    Try ``Name`` → ``Firebase name`` against ``districts.name`` /
     ``districts.normalizedName``. Returns ``(site_id, source_field_label)`` or
-    ``(None, None)`` when no Firestore district matches any of the candidates.
+    ``(None, None)`` when no Firestore district matches. Does not use
+    ``Redivis name`` (that value is ``{Name}-raw`` and is not a Firebase district).
     """
     candidates = [
         ("Name", name),
         ("Firebase name", firebase_name),
-        ("Redivis name", redivis_name),
     ]
     for label, raw in candidates:
         s = (raw or "").strip() if raw is not None else ""
@@ -379,18 +393,29 @@ def check_redivis_individual_release_awaiting_slack(
     """
     For every Airtable row with **Redivis individual** checked:
 
-    1. If **Firestore siteId** is empty, try to resolve it from ``Name`` →
-       ``Firebase name`` → ``Redivis name`` against Firestore ``districts``
-       (matches ``name`` or ``normalizedName``). When found, write the id back to
-       Airtable; when not found, write the placeholder ``missing_site_id``.
-    2. When a real siteId exists (i.e. not empty and not the placeholder), provision
-       a daily Cloud Scheduler job (staggered ~12:00 PDT) that starts the
-       ``data-validator`` Cloud Run Job with the standard payload (see
-       ``_build_validator_payload``). Job creation is idempotent — an existing
-       job is migrated from the retired Cloud Function URL when needed. On success, today's date (PDT) is written to
-       **validator pipeline date** if that cell is empty.
-    3. Once the scheduler job is in place, ensure an empty Redivis dataset exists
-       under the Airtable ``Name``. Idempotent — existing datasets are skipped.
+    Naming convention (post ``-raw`` migration):
+      - Airtable **Name** = processed Redivis dataset (unmarked)
+      - Airtable **Redivis name** = raw Redivis dataset (``{Name}-raw``)
+      - Validator cron / GCS / Redivis upload target = raw (``{Name}-raw``)
+
+    1. If **Firestore siteId** is empty *or* still ``missing_site_id``, try to
+       resolve it from ``Name`` → ``Firebase name`` against Firestore
+       ``districts`` (matches ``name`` or ``normalizedName``). When found, write
+       the id back to Airtable; when not found and the cell was empty, write the
+       placeholder ``missing_site_id`` (a cell already set to the placeholder is
+       left as-is until a later run resolves it).
+    2. Backfill **Redivis name** to ``{Name}-raw`` when the cell is empty (never
+       overwrite an existing value).
+    3. When a real siteId exists, ensure empty Redivis datasets exist first:
+       ``{Name}-raw`` (raw upload target) and unmarked ``{Name}`` (processed
+       companion). Idempotent create-if-missing.
+    4. Backfill **dataset_ref_id** (raw) and **processed_ref_id** (processed)
+       from Redivis ``referenceId`` only when those Airtable cells are empty.
+    5. Only after both Redivis datasets are in place, create a daily Cloud
+       Scheduler job (staggered ~12:00 PDT) targeting the **raw** dataset id.
+       **Create-if-missing only** — an existing job is left unchanged. On
+       success, today's date (PDT) is written to **validator pipeline date**
+       if that cell is empty.
 
     Single-dataset mode: pass ``dataset_name`` to limit processing to the one
     Airtable row whose **Name** matches (case-insensitive, trimmed). When no row
@@ -410,6 +435,8 @@ def check_redivis_individual_release_awaiting_slack(
     firebase_name_field = settings.config["AIRTABLE_FIELD_SITE_NAME"]
     redivis_name_field = settings.config["AIRTABLE_FIELD_REDIVIS_NAME"]
     pipeline_date_field = settings.config["AIRTABLE_FIELD_VALIDATOR_PIPELINE_DATE"]
+    dataset_ref_field = settings.config["AIRTABLE_FIELD_DATASET_REF_ID"]
+    processed_ref_field = settings.config["AIRTABLE_FIELD_PROCESSED_REF_ID"]
     missing_placeholder = settings.config["MISSING_SITE_ID_PLACEHOLDER"]
 
     target_name = (dataset_name or "").strip()
@@ -520,14 +547,16 @@ def check_redivis_individual_release_awaiting_slack(
         "rows_with_individual_flag": 0,
         "site_id_resolved_from_names": 0,
         "site_id_set_missing_placeholder": 0,
+        "redivis_name_backfilled": 0,
         "scheduler_jobs_created": 0,
-        "scheduler_jobs_updated": 0,
         "scheduler_jobs_already_existed": 0,
         "scheduler_jobs_failed": 0,
         "redivis_datasets_created": 0,
         "redivis_datasets_already_existed": 0,
         "redivis_datasets_failed": 0,
         "pipeline_date_written": 0,
+        "dataset_ref_id_written": 0,
+        "processed_ref_id_written": 0,
     }
 
     for rec in records:
@@ -541,6 +570,8 @@ def check_redivis_individual_release_awaiting_slack(
         name_raw = fields.get(name_field)
         dataset_name = str(name_raw).strip() if name_raw is not None else ""
         site_label = dataset_name or "(no name)"
+        processed_name = _processed_dataset_name(dataset_name) if dataset_name else ""
+        raw_name = _raw_dataset_name(dataset_name) if dataset_name else ""
 
         site_raw = fields.get(site_field)
         site_id = str(site_raw).strip() if site_raw is not None else ""
@@ -549,13 +580,14 @@ def check_redivis_individual_release_awaiting_slack(
         changes: list[str] = []
         notes: list[str] = []
 
-        # 1) Resolve Firestore siteId if empty.
+        # 1) Resolve Firestore siteId when empty or still ``missing_site_id``
+        # (daily cron re-tries previously unresolved districts).
         site_id_source = "existing"
-        if not site_id:
+        needs_site_lookup = (not site_id) or (site_id == missing_placeholder)
+        if needs_site_lookup:
             resolved, source_label = _resolve_site_id_from_names(
                 name=fields.get(name_field),
                 firebase_name=fields.get(firebase_name_field),
-                redivis_name=fields.get(redivis_name_field),
             )
             if resolved:
                 site_id = resolved
@@ -568,163 +600,193 @@ def check_redivis_individual_release_awaiting_slack(
             else:
                 site_id = missing_placeholder
                 site_id_source = "missing"
-                airtable_payload[site_field] = site_id
-                counters["site_id_set_missing_placeholder"] += 1
-                changes.append(
-                    f"Set `{site_field}` → `{missing_placeholder}` "
-                    "(no Firestore district match for Name / Firebase name / Redivis name)"
-                )
+                # Only write the placeholder when the cell was empty — avoid
+                # rewriting ``missing_site_id`` → ``missing_site_id`` every run.
+                if not site_raw or not str(site_raw).strip():
+                    airtable_payload[site_field] = site_id
+                    counters["site_id_set_missing_placeholder"] += 1
+                    changes.append(
+                        f"Set `{site_field}` → `{missing_placeholder}` "
+                        "(no Firestore district match for Name / Firebase name)"
+                    )
 
-        # 2) Cloud Scheduler — only when we have a real siteId and a dataset name.
+        # 1.5) Backfill Redivis name → {Name}-raw only when empty.
+        if dataset_name and _airtable_text_is_empty(fields.get(redivis_name_field)):
+            airtable_payload[redivis_name_field] = raw_name
+            counters["redivis_name_backfilled"] += 1
+            changes.append(
+                f"Set `{redivis_name_field}` → `{raw_name}`"
+                + (" [dry_run]" if dry_run else "")
+            )
+
+        # 2) Redivis shells first (before cron): {Name}-raw + unmarked {Name}.
+        # Then ref-id backfill; then create-if-missing scheduler job.
         scheduler_status: dict | None = None
         if dataset_name and site_id and site_id != missing_placeholder:
-            payload = _build_validator_payload(
-                dataset_id=dataset_name, site_id=site_id
+            raw_ok, raw_ref_id = _ensure_redivis_dataset(
+                rs,
+                raw_name,
+                dry_run=dry_run,
+                changes=changes,
+                notes=notes,
+                counters=counters,
             )
-            if dry_run:
-                plan = _build_dry_run_scheduler_plan(
-                    dataset_id=dataset_name, payload=payload
-                )
-                scheduler_status = {
-                    "created": False,
-                    "already_exists": False,
-                    "job_name": plan["job_full_name"],
-                    "url": plan["url"],
-                    "error": None,
-                    "would_create": True,
-                    "plan": plan,
-                }
-                logging.info(
-                    "redivis_individual_release: [dry_run] would create Cloud Scheduler job "
-                    "id=%s schedule=%r tz=%s url=%s payload_dataset_id=%s "
-                    "payload_org_filter_value=%s",
-                    plan["job_id"],
-                    plan["schedule"],
-                    plan["timezone"],
-                    plan["url"],
-                    payload["dataset_id"],
-                    payload["orgs"][0]["filters"]["org_filter"]["value"],
-                )
-                changes.append(
-                    f"[dry_run] would ensure Cloud Scheduler job `{plan['job_id']}` "
-                    f"({plan['schedule']} {plan['timezone']})"
-                )
-            else:
-                if scheduler is None:
-                    try:
-                        from shared.scheduler_services import SchedulerServices
-                    except ImportError as e:
-                        scheduler_unavailable_reason = (
-                            f"google-cloud-scheduler not installed in this "
-                            f"deployment ({e}). Redeploy with the updated "
-                            f"requirements.txt."
-                        )
-                        logging.error(
-                            "redivis_individual_release: %s",
-                            scheduler_unavailable_reason,
-                        )
-                        scheduler = False
-                    else:
-                        try:
-                            scheduler = SchedulerServices()
-                        except Exception as e:
-                            scheduler_unavailable_reason = f"scheduler_init_error: {e}"
-                            logging.error(
-                                "redivis_individual_release: scheduler init failed: %s",
-                                e,
-                            )
-                            scheduler = False  # sentinel — don't keep retrying
-                if scheduler is False:
-                    scheduler_status = {
-                        "created": False,
-                        "already_exists": False,
-                        "job_name": None,
-                        "url": None,
-                        "error": scheduler_unavailable_reason
-                        or "scheduler_init_failed",
-                    }
-                    counters["scheduler_jobs_failed"] += 1
-                    changes.append(
-                        f"Scheduler unavailable: {scheduler_status['error']}"
-                    )
-                else:
-                    scheduler_status = scheduler.get_or_create_validator_job(
-                        dataset_id=dataset_name, payload=payload
-                    )
-                    if scheduler_status.get("created"):
-                        counters["scheduler_jobs_created"] += 1
-                        changes.append(
-                            f"Created Cloud Scheduler job `{scheduler_status['job_name']}`"
-                        )
-                    elif scheduler_status.get("updated"):
-                        counters["scheduler_jobs_updated"] += 1
-                        changes.append(
-                            f"Migrated Cloud Scheduler job `{scheduler_status['job_name']}` "
-                            "to Cloud Run Job API target"
-                        )
-                    elif scheduler_status.get("already_exists"):
-                        counters["scheduler_jobs_already_existed"] += 1
-                        notes.append(
-                            f"Cloud Scheduler job `{scheduler_status['job_name']}` "
-                            "already exists — skipped creating"
-                        )
-                        logging.info(
-                            "redivis_individual_release: scheduler job already exists "
-                            "for dataset_id=%s name=%s — skipping create",
-                            dataset_name,
-                            scheduler_status.get("job_name"),
-                        )
-                    if scheduler_status.get("error"):
-                        counters["scheduler_jobs_failed"] += 1
-                        changes.append(
-                            f"Scheduler error: {scheduler_status['error']}"
-                        )
+            processed_ok, processed_ref_id = _ensure_redivis_dataset(
+                rs,
+                processed_name,
+                dry_run=dry_run,
+                changes=changes,
+                notes=notes,
+                counters=counters,
+            )
 
-            # Backfill validator pipeline date when the cell is empty and the job
-            # exists (just-created OR already-existed; never on failure).
-            job_present = bool(
-                scheduler_status
-                and not scheduler_status.get("error")
-                and (
-                    scheduler_status.get("created")
-                    or scheduler_status.get("updated")
-                    or scheduler_status.get("already_exists")
-                    or scheduler_status.get("would_create")
-                )
-            )
-            if job_present and _airtable_date_is_empty(fields.get(pipeline_date_field)):
-                airtable_payload[pipeline_date_field] = today
-                counters["pipeline_date_written"] += 1
+            if raw_ref_id and _airtable_text_is_empty(fields.get(dataset_ref_field)):
+                airtable_payload[dataset_ref_field] = raw_ref_id
+                counters["dataset_ref_id_written"] += 1
                 changes.append(
-                    f"Set `{pipeline_date_field}` → `{today}`"
+                    f"Set `{dataset_ref_field}` → `{raw_ref_id}` (raw)"
+                    + (" [dry_run]" if dry_run else "")
+                )
+            if processed_ref_id and _airtable_text_is_empty(
+                fields.get(processed_ref_field)
+            ):
+                airtable_payload[processed_ref_field] = processed_ref_id
+                counters["processed_ref_id_written"] += 1
+                changes.append(
+                    f"Set `{processed_ref_field}` → `{processed_ref_id}` (processed)"
                     + (" [dry_run]" if dry_run else "")
                 )
 
-            # 2.5) Create empty Redivis datasets if missing — only when the
-            # scheduler job is present. Always create both:
-            #   - {dataset_name}                 (raw data target, used by the cron)
-            #   - {dataset_name}{SUFFIX}         (downstream processed companion)
-            # Both creations are idempotent on Redivis side.
-            if job_present:
-                for ds_id in (dataset_name, _processed_dataset_name(dataset_name)):
-                    _ensure_redivis_dataset(
-                        rs,
-                        ds_id,
-                        dry_run=dry_run,
-                        changes=changes,
-                        notes=notes,
-                        counters=counters,
+            datasets_ready = raw_ok and processed_ok
+            if not datasets_ready:
+                changes.append(
+                    "Skipped Cloud Scheduler — Redivis raw/processed dataset "
+                    "shells not both ready"
+                )
+            else:
+                payload = _build_validator_payload(
+                    dataset_id=raw_name, site_id=site_id
+                )
+                if dry_run:
+                    plan = _build_dry_run_scheduler_plan(
+                        dataset_id=raw_name, payload=payload
+                    )
+                    scheduler_status = {
+                        "created": False,
+                        "already_exists": False,
+                        "job_name": plan["job_full_name"],
+                        "url": plan["url"],
+                        "error": None,
+                        "would_create": True,
+                        "plan": plan,
+                    }
+                    logging.info(
+                        "redivis_individual_release: [dry_run] would create Cloud Scheduler job "
+                        "id=%s schedule=%r tz=%s url=%s payload_dataset_id=%s "
+                        "payload_org_filter_value=%s",
+                        plan["job_id"],
+                        plan["schedule"],
+                        plan["timezone"],
+                        plan["url"],
+                        payload["dataset_id"],
+                        payload["orgs"][0]["filters"]["org_filter"]["value"],
+                    )
+                    changes.append(
+                        f"[dry_run] would ensure Cloud Scheduler job `{plan['job_id']}` "
+                        f"({plan['schedule']} {plan['timezone']})"
+                    )
+                else:
+                    if scheduler is None:
+                        try:
+                            from shared.scheduler_services import SchedulerServices
+                        except ImportError as e:
+                            scheduler_unavailable_reason = (
+                                f"google-cloud-scheduler not installed in this "
+                                f"deployment ({e}). Redeploy with the updated "
+                                f"requirements.txt."
+                            )
+                            logging.error(
+                                "redivis_individual_release: %s",
+                                scheduler_unavailable_reason,
+                            )
+                            scheduler = False
+                        else:
+                            try:
+                                scheduler = SchedulerServices()
+                            except Exception as e:
+                                scheduler_unavailable_reason = (
+                                    f"scheduler_init_error: {e}"
+                                )
+                                logging.error(
+                                    "redivis_individual_release: scheduler init failed: %s",
+                                    e,
+                                )
+                                scheduler = False  # sentinel — don't keep retrying
+                    if scheduler is False:
+                        scheduler_status = {
+                            "created": False,
+                            "already_exists": False,
+                            "job_name": None,
+                            "url": None,
+                            "error": scheduler_unavailable_reason
+                            or "scheduler_init_failed",
+                        }
+                        counters["scheduler_jobs_failed"] += 1
+                        changes.append(
+                            f"Scheduler unavailable: {scheduler_status['error']}"
+                        )
+                    else:
+                        scheduler_status = scheduler.get_or_create_validator_job(
+                            dataset_id=raw_name, payload=payload
+                        )
+                        if scheduler_status.get("created"):
+                            counters["scheduler_jobs_created"] += 1
+                            changes.append(
+                                f"Created Cloud Scheduler job `{scheduler_status['job_name']}`"
+                            )
+                        elif scheduler_status.get("already_exists"):
+                            counters["scheduler_jobs_already_existed"] += 1
+                            logging.info(
+                                "redivis_individual_release: scheduler job already exists "
+                                "for dataset_id=%s name=%s — skipping create",
+                                raw_name,
+                                scheduler_status.get("job_name"),
+                            )
+                        if scheduler_status.get("error"):
+                            counters["scheduler_jobs_failed"] += 1
+                            changes.append(
+                                f"Scheduler error: {scheduler_status['error']}"
+                            )
+
+                # Backfill validator pipeline date when empty and the job is present.
+                job_present = bool(
+                    scheduler_status
+                    and not scheduler_status.get("error")
+                    and (
+                        scheduler_status.get("created")
+                        or scheduler_status.get("already_exists")
+                        or scheduler_status.get("would_create")
+                    )
+                )
+                if job_present and _airtable_date_is_empty(
+                    fields.get(pipeline_date_field)
+                ):
+                    airtable_payload[pipeline_date_field] = today
+                    counters["pipeline_date_written"] += 1
+                    changes.append(
+                        f"Set `{pipeline_date_field}` → `{today}`"
+                        + (" [dry_run]" if dry_run else "")
                     )
 
-        # 3) Redivis status — used for the awaiting-release Slack section.
+        # 3) Redivis status — awaiting release tracks the *raw* upload target.
         redivis_status = {
             "exists": None,
             "is_released": None,
             "version_tag": None,
             "is_deleted": None,
         }
-        if dataset_name:
-            rs.set_dataset(dataset_id=dataset_name)
+        if raw_name:
+            rs.set_dataset(dataset_id=raw_name)
             redivis_status = rs.get_current_dataset_status()
 
             if not (redivis_status.get("exists") and redivis_status.get("is_released")):
@@ -732,7 +794,7 @@ def check_redivis_individual_release_awaiting_slack(
                     {
                         "airtable_record_id": rid,
                         "site_label": site_label,
-                        "redivis_dataset_name": dataset_name,
+                        "redivis_dataset_name": raw_name,
                     }
                 )
 
@@ -758,7 +820,8 @@ def check_redivis_individual_release_awaiting_slack(
             {
                 "airtable_record_id": rid,
                 "site_label": site_label,
-                "redivis_dataset_name": dataset_name or None,
+                "redivis_dataset_name": raw_name or None,
+                "processed_dataset_name": processed_name or None,
                 "site_id": site_id or None,
                 "site_id_source": site_id_source,
                 "dataset_exists": redivis_status.get("exists"),

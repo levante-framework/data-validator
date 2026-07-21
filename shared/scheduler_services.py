@@ -315,8 +315,11 @@ class SchedulerServices:
         description: str | None = None,
     ) -> dict[str, Any]:
         """
-        Idempotent: create a daily scheduler job, or migrate an existing one from
-        the retired Cloud Function HTTP target to the Cloud Run Job Run API.
+        Create a daily scheduler job if missing. If a job with this id already
+        exists, leave it untouched (no payload / schedule update).
+
+        Use ``migrate_all_legacy_to_run_job_api`` for one-time Cloud Function →
+        Run Job API target migrations.
 
         Returns ``{"created", "updated", "already_exists", "job_name", "url", "error"}``.
         """
@@ -335,12 +338,13 @@ class SchedulerServices:
             existing = None
 
         if existing is not None:
-            return self._update_validator_job(
-                dataset_id=dataset_id,
-                payload=payload,
-                description=description,
-                existing=existing,
+            result["already_exists"] = True
+            logging.info(
+                "scheduler: job already exists — left unchanged dataset_id=%s name=%s",
+                dataset_id,
+                result["job_name"],
             )
+            return result
 
         cron = compute_staggered_cron(dataset_id)
         job = scheduler_v1.Job(

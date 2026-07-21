@@ -780,6 +780,22 @@ class VariantBase(BaseModel):
 
     _LANGUAGE_BCP47_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 
+    @field_validator("cat", mode="before")
+    def coerce_cat(cls, v):
+        """Coerce Firestore ``params.cat`` (bool/str/None) to bool/None."""
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes"):
+                return True
+            if s in ("false", "0", "no", ""):
+                return False
+            return None
+        return None
+
     @field_validator("language", mode="before")
     def normalize_language(cls, v):
         """
@@ -816,16 +832,13 @@ class VariantBase(BaseModel):
     @model_validator(mode="after")
     def set_adaptive(self):
         """
-        Adaptive when params.cat is true, else when variant_name contains 'adaptive'.
-        If cat is false, not adaptive. If cat is missing, fall back to the name only.
+        Prefer explicit ``params.cat`` for adaptivity; when absent, fall back to
+        the legacy heuristic of ``'adaptive'`` in ``variant_name``.
         """
-        if self.cat is True:
-            self.adaptive = True
-        elif self.cat is False:
-            self.adaptive = False
+        if self.cat is not None:
+            self.adaptive = self.cat
         else:
-            name = (self.variant_name or "").lower()
-            self.adaptive = "adaptive" in name
+            self.adaptive = "adaptive" in (self.variant_name or "").lower()
         return self
 
     @model_validator(mode="after")

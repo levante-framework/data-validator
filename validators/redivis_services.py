@@ -126,6 +126,62 @@ class RedivisServices:
             result["error"] = str(e)
         return result
 
+    def get_reference_id(self) -> str | None:
+        """Return the dataset's persistent 4-char ``referenceId`` after ``set_dataset``."""
+        try:
+            if self.dataset is None or not self.dataset.exists():
+                return None
+            self.dataset.get()
+            props = self.dataset.properties or {}
+            ref = props.get("referenceId")
+            return str(ref) if ref else None
+        except Exception as e:
+            logging.info("get_reference_id failed for %r: %s", self.dataset_id, e)
+            return None
+
+    def rename_dataset(self, new_name: str) -> dict:
+        """
+        Rename the dataset currently selected via ``set_dataset``.
+
+        Returns ``{renamed, already_target, error, reference_id}``.
+        """
+        result = {
+            "renamed": False,
+            "already_target": False,
+            "error": None,
+            "reference_id": None,
+        }
+        if self.dataset is None:
+            result["error"] = "set_dataset() not called before rename_dataset()"
+            return result
+        new_name = (new_name or "").strip()
+        if not new_name:
+            result["error"] = "new_name is empty"
+            return result
+        if self.dataset_id == new_name:
+            result["already_target"] = True
+            result["reference_id"] = self.get_reference_id()
+            return result
+        try:
+            if not self.dataset.exists():
+                result["error"] = f"source dataset {self.dataset_id!r} does not exist"
+                return result
+            self.dataset.update(name=new_name)
+            result["renamed"] = True
+            self.set_dataset(dataset_id=new_name)
+            result["reference_id"] = self.get_reference_id()
+            logging.info(
+                "rename_dataset: renamed to %r referenceId=%s",
+                new_name,
+                result["reference_id"],
+            )
+        except Exception as e:
+            logging.error(
+                "rename_dataset(%r -> %r) failed: %s", self.dataset_id, new_name, e
+            )
+            result["error"] = str(e)
+        return result
+
     def release_dataset(self, params: dict):
         try:
             description = format_redivis_version_description(
