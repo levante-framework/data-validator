@@ -229,7 +229,8 @@ def run_data_validation(
             if release_ok:
                 new_version_release = True
 
-            # After a successful raw release, fill the unmarked processed dataset.
+            # After a successful raw release, run process_dataset for this site:
+            # source = dataset_id (*-raw), target = unmarked {Name}.
             raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
             raw_id = dataset_parameters.dataset_id or ""
             if release_ok and raw_id.endswith(raw_suffix):
