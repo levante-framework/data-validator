@@ -57,11 +57,12 @@ def format_data_validation_slack_summary(response: dict) -> str:
         orgs_block = orgs_block[:800] + "…"
 
     validation_only = dp.get("is_save_to_storage") is False
-    title = (
-        "*Levante data validator* — validation only (no GCP/Redivis upload)"
-        if validation_only
-        else "*Levante data validator* — run finished"
-    )
+    if validation_only:
+        title = "*Levante data validator* — validation only (no GCP/Redivis upload)"
+    elif nvr:
+        title = "*Levante data validator* — new Redivis version released"
+    else:
+        title = "*Levante data validator* — run finished"
     lines = [
         title,
         "",
@@ -145,6 +146,35 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"• Table deletions: {len(red.get('table_deletions') or [])}",
             ]
         )
+
+    process = response.get("process_dataset") or logs.get("process_dataset")
+    if process:
+        ran = process.get("ran")
+        err = process.get("error")
+        processed_id = process.get("processed_dataset_id") or "—"
+        if ran and not err:
+            status = "completed"
+        elif err:
+            status = f"failed — {err}"
+        else:
+            status = "skipped"
+        airtable = process.get("airtable") or {}
+        if airtable.get("updated"):
+            airtable_s = "Airtable processed date updated"
+        elif airtable.get("error"):
+            airtable_s = f"Airtable update failed — {airtable.get('error')}"
+        else:
+            airtable_s = "Airtable date not updated"
+        lines.extend(
+            [
+                "",
+                "*Processed dataset workflow*",
+                f"• Notebook `{process.get('notebook') or 'process_dataset'}` on "
+                f"`{process.get('workflow') or 'process_dataset'}`: {status}",
+                f"• Processed dataset `{processed_id}` · {airtable_s}",
+            ]
+        )
+
     if validation_only:
         lines.extend(
             [

@@ -5,9 +5,12 @@ Firestore → validate → GCS → Redivis pipeline (``main.py`` / Cloud Run Job
 import json
 import logging
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import settings
 from shared import utils
+from shared.airtable_services import AirtableServices
 from shared.firestore_services import firestore_services
 from shared.slack_services import (
     format_data_validation_slack_summary,
@@ -19,6 +22,12 @@ from validators.entity_controller import EntityController
 from validators.redivis_services import RedivisServices
 
 logging.basicConfig(level=logging.INFO)
+
+
+def _today_in_pdt() -> str:
+    """YYYY-MM-DD string in America/Los_Angeles for Airtable date columns."""
+    return datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+
 
 
 def _notify_slack_safe(message: str) -> None:
@@ -40,6 +49,10 @@ def run_data_validation(
 
     Returns ``(json_body, http_status)`` for logging; the Cloud Run Job entrypoint
     treats non-200 as failure.
+
+    Slack: when ``send_slack`` is true, a summary is posted only if a new Redivis
+    version was successfully released (includes ``process_dataset`` status), unless
+    ``slack_summary_always`` is set for debugging.
     """
     t0 = start_time if start_time is not None else time.time()
 
@@ -157,7 +170,8 @@ def run_data_validation(
         }
         logging.info(json.dumps(output, cls=utils.CustomJSONEncoder))
 
-        if dataset_parameters.send_slack:
+        # Validation-only / no-upload runs stay quiet unless explicitly forced.
+        if dataset_parameters.send_slack and slack_summary_always:
             slack_response = {
                 "dataset_parameters": dataset_parameters.to_dict(),
                 "logs": {"total_validation_stats": total_validation_stats},
@@ -184,8 +198,8 @@ def run_data_validation(
     )
     storage.process(validated_data=validated_data)
 
+    process_log = None
     if storage.is_new_version_needed:
-        new_version_release = storage.is_new_version_needed
         logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
 
         rs = RedivisServices()
@@ -209,7 +223,39 @@ def run_data_validation(
                 if table_name in table_names_in_redivis and table_name not in table_names_in_gcp_bucket:
                     rs.delete_table(table_name=table_name)
 
+            fails_before_release = len(rs.upload_to_redivis_log["dataset_fails"])
             rs.release_dataset(params=dataset_parameters.to_dict())
+            release_ok = len(rs.upload_to_redivis_log["dataset_fails"]) == fails_before_release
+            if release_ok:
+                new_version_release = True
+
+            # After a successful raw release, run process_dataset for this site:
+            # source = dataset_id (*-raw), target = unmarked {Name}.
+            raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
+            raw_id = dataset_parameters.dataset_id or ""
+            if release_ok and raw_id.endswith(raw_suffix):
+                process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
+                if process_log.get("ran") and not process_log.get("error"):
+                    try:
+                        airtable = AirtableServices()
+                        airtable_log = airtable.update_processed_dataset_last_update(
+                            processed_name=process_log["processed_dataset_id"],
+                            date_yyyy_mm_dd=_today_in_pdt(),
+                        )
+                        process_log["airtable"] = airtable_log
+                    except Exception as e:
+                        logging.error(
+                            "Airtable processed-date update failed for %r: %s",
+                            process_log.get("processed_dataset_id"),
+                            e,
+                        )
+                        process_log["airtable"] = {
+                            "updated": False,
+                            "record_id": None,
+                            "error": str(e),
+                        }
+                else:
+                    process_log.setdefault("airtable", None)
 
         rs.upload_to_redivis_log["table_counts"] = rs.count_tables()
         output = {
@@ -217,6 +263,8 @@ def run_data_validation(
             "gcp_logs": storage.upload_to_GCP_log,
             "redivis_logs": rs.upload_to_redivis_log,
         }
+        if process_log is not None:
+            output["process_dataset"] = process_log
     else:
         output = {
             "total_validation_stats": total_validation_stats,
@@ -231,14 +279,15 @@ def run_data_validation(
         "elapsed_time": elapsed_time,
         "api_version": settings.config["VERSION"],
         "new_version_release": new_version_release,
+        "process_dataset": (output or {}).get("process_dataset"),
     }
     logging.info(json.dumps(response))
     firestore_services.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
 
+    # Live per-site runs: Slack only when a new Redivis version was released
+    # (summary includes process_dataset when that workflow ran).
     if dataset_parameters.send_slack and (
-        slack_summary_always
-        or new_version_release
-        or any(total_validation_stats["new_schemas"].values())
+        slack_summary_always or new_version_release
     ):
         _notify_slack_safe(message=format_data_validation_slack_summary(response))
 

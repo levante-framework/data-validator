@@ -231,7 +231,7 @@ def _format_slack(
 ) -> str:
     """
     Single Slack summary covering both 'awaiting release' info and per-row Airtable
-    changes (siteId resolution, validator pipeline date, scheduler creation,
+    changes (siteId resolution, validator pipeline setup date, scheduler creation,
     empty-dataset creation). In live runs, only rows with at least one change
     are listed.
     """
@@ -414,7 +414,7 @@ def check_redivis_individual_release_awaiting_slack(
     5. Only after both Redivis datasets are in place, create a daily Cloud
        Scheduler job (staggered ~12:00 PDT) targeting the **raw** dataset id.
        **Create-if-missing only** — an existing job is left unchanged. On
-       success, today's date (PDT) is written to **validator pipeline date**
+       success, today's date (PDT) is written to **validator pipeline setup date**
        if that cell is empty.
 
     Single-dataset mode: pass ``dataset_name`` to limit processing to the one
@@ -758,7 +758,7 @@ def check_redivis_individual_release_awaiting_slack(
                                 f"Scheduler error: {scheduler_status['error']}"
                             )
 
-                # Backfill validator pipeline date when empty and the job is present.
+                # Backfill validator pipeline setup date when empty and the job is present.
                 job_present = bool(
                     scheduler_status
                     and not scheduler_status.get("error")

@@ -156,7 +156,10 @@ class DatasetParameters(BaseModel):
     is_force_uploading_to_redivis: bool = False
     send_slack: bool = Field(
         default=False,
-        description="If true, post a Slack summary when validation finishes (and on upload/release when applicable).",
+        description=(
+            "If true, post a Slack summary only when a new Redivis version is "
+            "successfully released (includes process_dataset status)."
+        ),
     )
     orgs: List[Organization] = Field(min_length=1)
 
@@ -253,9 +256,22 @@ def setup_project_environment():
     except requests.exceptions.RequestException:
         load_dotenv()
         os.environ['ENV'] = "local"
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT')
-        with open(os.getenv('LOCAL_ADMIN_SERVICE_ACCOUNT'), 'r') as sa:
-            os.environ['project_id'] = json.load(sa).get('project_id', None)
+        sa_path = (os.getenv("LOCAL_ADMIN_SERVICE_ACCOUNT") or "").strip()
+        if not sa_path:
+            raise ValueError(
+                "LOCAL_ADMIN_SERVICE_ACCOUNT must be set for local runs "
+                "(path to the admin SA JSON used as ADC to read Secret Manager)."
+            )
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = sa_path
+        # App project for Secret Manager / Scheduler / Cloud Run / GCS bucket.
+        # Do NOT take this from the admin SA JSON — that key often lives in
+        # hs-levante-admin-prod (Firestore source data), while this app's secrets
+        # and automation live in hs-levante-data-validator.
+        explicit = (
+            (os.getenv("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT") or "")
+            .strip()
+        )
+        os.environ["project_id"] = explicit or "hs-levante-data-validator"
     pid = os.environ['project_id']
     if 'data-validator' in pid:
         # Dedicated data-validator project (post-migration) keeps its own bucket.
