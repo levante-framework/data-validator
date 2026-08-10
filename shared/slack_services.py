@@ -156,6 +156,8 @@ def format_data_validation_slack_summary(response: dict) -> str:
             status = "completed"
         elif err:
             status = f"failed — {err}"
+        elif process.get("skipped"):
+            status = "skipped (skip_process_dataset=true)"
         else:
             status = "skipped"
         airtable = process.get("airtable") or {}
@@ -165,12 +167,18 @@ def format_data_validation_slack_summary(response: dict) -> str:
             airtable_s = f"Airtable update failed — {airtable.get('error')}"
         else:
             airtable_s = "Airtable date not updated"
+        busy_retries = process.get("busy_retries") or 0
+        attempts = process.get("attempts") or 0
+        retry_note = ""
+        if busy_retries or attempts > 1:
+            retry_note = f" · attempts={attempts}, busy_retries={busy_retries}"
         lines.extend(
             [
                 "",
                 "*Processed dataset workflow*",
                 f"• Notebook `{process.get('notebook') or 'process_dataset'}` on "
-                f"`{process.get('workflow') or 'process_dataset'}`: {status}",
+                f"`{process.get('workflow') or 'process_dataset'}`: {status}"
+                f"{retry_note}",
                 f"• Processed dataset `{processed_id}` · {airtable_s}",
             ]
         )

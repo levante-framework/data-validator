@@ -56,6 +56,14 @@ def run_data_validation(
     """
     t0 = start_time if start_time is not None else time.time()
 
+    # Touch the admin client once so the Firestore project is logged before queries.
+    firestore_project = firestore_services.admin_db_project_id
+    logging.info(
+        "Syncing data from Firestore project=%s to Redivis for orgs: %s.",
+        firestore_project,
+        dataset_parameters.orgs,
+    )
+
     validated_data: dict = {}
     new_version_release = False
     total_validation_stats = {
@@ -70,7 +78,6 @@ def run_data_validation(
         "orgs": {},
     }
     org_count = len(dataset_parameters.orgs)
-    logging.info(f"Syncing data from Firestore to Redivis for orgs: {dataset_parameters.orgs}.")
 
     for org_index, org in enumerate(dataset_parameters.orgs, start=1):
         org_t0 = time.time()
@@ -231,31 +238,49 @@ def run_data_validation(
 
             # After a successful raw release, run process_dataset for this site:
             # source = dataset_id (*-raw), target = unmarked {Name}.
+            # Opt out with skip_process_dataset=true (cron payloads omit it).
             raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
             raw_id = dataset_parameters.dataset_id or ""
             if release_ok and raw_id.endswith(raw_suffix):
-                process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
-                if process_log.get("ran") and not process_log.get("error"):
-                    try:
-                        airtable = AirtableServices()
-                        airtable_log = airtable.update_processed_dataset_last_update(
-                            processed_name=process_log["processed_dataset_id"],
-                            date_yyyy_mm_dd=_today_in_pdt(),
-                        )
-                        process_log["airtable"] = airtable_log
-                    except Exception as e:
-                        logging.error(
-                            "Airtable processed-date update failed for %r: %s",
-                            process_log.get("processed_dataset_id"),
-                            e,
-                        )
-                        process_log["airtable"] = {
-                            "updated": False,
-                            "record_id": None,
-                            "error": str(e),
-                        }
+                if dataset_parameters.skip_process_dataset:
+                    processed_id = RedivisServices.processed_name_from_raw(raw_id)
+                    process_log = {
+                        "ran": False,
+                        "skipped": True,
+                        "raw_dataset_id": raw_id,
+                        "processed_dataset_id": processed_id,
+                        "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+                        "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+                        "error": None,
+                        "airtable": None,
+                    }
+                    logging.info(
+                        "skip_process_dataset=true — skipped process_dataset for %r",
+                        raw_id,
+                    )
                 else:
-                    process_log.setdefault("airtable", None)
+                    process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
+                    if process_log.get("ran") and not process_log.get("error"):
+                        try:
+                            airtable = AirtableServices()
+                            airtable_log = airtable.update_processed_dataset_last_update(
+                                processed_name=process_log["processed_dataset_id"],
+                                date_yyyy_mm_dd=_today_in_pdt(),
+                            )
+                            process_log["airtable"] = airtable_log
+                        except Exception as e:
+                            logging.error(
+                                "Airtable processed-date update failed for %r: %s",
+                                process_log.get("processed_dataset_id"),
+                                e,
+                            )
+                            process_log["airtable"] = {
+                                "updated": False,
+                                "record_id": None,
+                                "error": str(e),
+                            }
+                    else:
+                        process_log.setdefault("airtable", None)
 
         rs.upload_to_redivis_log["table_counts"] = rs.count_tables()
         output = {
@@ -275,6 +300,7 @@ def run_data_validation(
     response = {
         "operation": "data_validation",
         "dataset_parameters": dataset_parameters.to_dict(),
+        "firestore_project": firestore_project,
         "logs": output,
         "elapsed_time": elapsed_time,
         "api_version": settings.config["VERSION"],

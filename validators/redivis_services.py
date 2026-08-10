@@ -2,10 +2,16 @@ import redivis
 import logging
 import settings
 import os
+import time
 from shared.secret_services import secret_service
 from shared.utils import format_redivis_version_description
 
 logging.basicConfig(level=logging.INFO)
+
+# Redivis notebook job statuses that mean another process_dataset run is in flight.
+_NOTEBOOK_BUSY_STATUSES = frozenset(
+    {"running", "pending", "queued", "starting", "created"}
+)
 
 
 class RedivisServices:
@@ -286,6 +292,195 @@ class RedivisServices:
             if prev_id:
                 self.set_dataset(dataset_id=prev_id)
 
+    @staticmethod
+    def _is_notebook_busy_error(exc: BaseException) -> bool:
+        """True when Redivis rejected the run because the shared notebook is busy."""
+        msg = str(exc).lower()
+        return "already running" in msg
+
+    @staticmethod
+    def _notebook_is_busy(nb) -> bool:
+        """True when the notebook reports an in-flight ``currentJob``."""
+        try:
+            nb.get()
+            job = (nb.properties or {}).get("currentJob") or {}
+            status = str(job.get("status") or "").strip().lower()
+            return bool(status and status in _NOTEBOOK_BUSY_STATUSES)
+        except Exception as e:
+            logging.warning(
+                "run_process_dataset_workflow: could not read notebook "
+                "currentJob (continuing): %s",
+                e,
+            )
+            return False
+
+    def _wait_for_notebook_idle(self, nb, *, deadline: float, raw_dataset_id: str) -> bool:
+        """
+        Poll until the shared notebook has no busy ``currentJob``, or ``deadline``.
+
+        Returns True if idle (or status unreadable), False if still busy at deadline.
+        """
+        poll = max(5, int(settings.config["REDIVIS_PROCESS_BUSY_POLL_SECONDS"]))
+        while True:
+            if not self._notebook_is_busy(nb):
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            sleep_for = min(poll, remaining)
+            logging.info(
+                "run_process_dataset_workflow: notebook busy — waiting %.0fs "
+                "before retry for %r (%.0fs left in budget)",
+                sleep_for,
+                raw_dataset_id,
+                remaining,
+            )
+            time.sleep(sleep_for)
+
+    def _point_workflow_datasource(
+        self,
+        data_source,
+        *,
+        source_qualified: str,
+        raw_dataset_id: str,
+    ) -> str | None:
+        """
+        Point the shared site datasource at ``raw_dataset_id``.
+
+        Returns an error string on mismatch/failure, else None.
+        """
+        data_source.update(source_dataset=source_qualified, version="current")
+        data_source.get()
+        actual_name = self._datasource_source_name(data_source)
+        if self._redivis_name_key(actual_name) != self._redivis_name_key(raw_dataset_id):
+            return (
+                f"workflow datasource source mismatch after update: "
+                f"wanted {raw_dataset_id!r}, got {actual_name!r}"
+            )
+        return None
+
+    def _run_shared_notebook_with_busy_retry(
+        self,
+        *,
+        nb,
+        data_source,
+        metadata_sources: list,
+        source_qualified: str,
+        target_qualified: str,
+        raw_dataset_id: str,
+        notebook_name: str,
+    ) -> dict:
+        """
+        Run the shared process_dataset notebook, waiting/retrying while it is busy.
+
+        Re-points the workflow datasource before each attempt so a concurrent job
+        cannot leave us pointed at the wrong site after we waited.
+        """
+        max_wait = max(
+            0, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS"])
+        )
+        initial_sleep = max(
+            1, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_INITIAL_SECONDS"])
+        )
+        max_sleep = max(
+            initial_sleep,
+            int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SLEEP_SECONDS"]),
+        )
+        deadline = time.monotonic() + max_wait
+        attempt = 0
+        busy_retries = 0
+        next_sleep = initial_sleep
+        last_busy_error: str | None = None
+
+        while True:
+            attempt += 1
+            if not self._wait_for_notebook_idle(
+                nb, deadline=deadline, raw_dataset_id=raw_dataset_id
+            ):
+                return {
+                    "ran": False,
+                    "error": (
+                        "shared process_dataset notebook stayed busy for "
+                        f"{max_wait}s (last error: {last_busy_error or 'currentJob active'})"
+                    ),
+                    "busy_retries": busy_retries,
+                    "attempts": attempt,
+                }
+
+            # Another job may have swapped the datasource while we waited.
+            point_err = self._point_workflow_datasource(
+                data_source,
+                source_qualified=source_qualified,
+                raw_dataset_id=raw_dataset_id,
+            )
+            if point_err:
+                return {
+                    "ran": False,
+                    "error": point_err,
+                    "busy_retries": busy_retries,
+                    "attempts": attempt,
+                }
+
+            for ds in metadata_sources:
+                try:
+                    ds.update(version="current")
+                except Exception as e:
+                    logging.warning(
+                        "run_process_dataset_workflow: metadata datasource "
+                        "version=current refresh failed (continuing): %s",
+                        e,
+                    )
+
+            logging.info(
+                "run_process_dataset_workflow: running notebook %s "
+                "(source=%s target=%s attempt=%s busy_retries=%s)",
+                notebook_name,
+                source_qualified,
+                target_qualified,
+                attempt,
+                busy_retries,
+            )
+            try:
+                nb.run(wait_for_finish=True)
+                return {
+                    "ran": True,
+                    "error": None,
+                    "busy_retries": busy_retries,
+                    "attempts": attempt,
+                }
+            except Exception as e:
+                if not self._is_notebook_busy_error(e):
+                    return {
+                        "ran": False,
+                        "error": str(e),
+                        "busy_retries": busy_retries,
+                        "attempts": attempt,
+                    }
+                last_busy_error = str(e)
+                busy_retries += 1
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return {
+                        "ran": False,
+                        "error": (
+                            "shared process_dataset notebook stayed busy for "
+                            f"{max_wait}s (last error: {last_busy_error})"
+                        ),
+                        "busy_retries": busy_retries,
+                        "attempts": attempt,
+                    }
+                sleep_for = min(next_sleep, remaining, max_sleep)
+                logging.info(
+                    "run_process_dataset_workflow: %r — notebook already running; "
+                    "retry in %.0fs (busy_retries=%s, %.0fs left in budget)",
+                    raw_dataset_id,
+                    sleep_for,
+                    busy_retries,
+                    remaining,
+                )
+                time.sleep(sleep_for)
+                next_sleep = min(next_sleep * 2, max_sleep)
+
     def run_process_dataset_workflow(self, raw_dataset_id: str) -> dict:
         """
         Run Levante ``process_dataset`` for one site, driven only by ``raw_dataset_id``.
@@ -298,9 +493,9 @@ class RedivisServices:
 
         The shared workflow may still point at a previous site; this method always
         replaces the site (non-metadata) datasource with ``raw_dataset_id`` first,
-        then runs the notebook.
-
-        Note: concurrent jobs can race on the shared workflow datasource.
+        then runs the notebook. If another job holds the shared notebook, waits and
+        retries (re-pointing the datasource before each attempt) until the budget
+        in ``REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS`` is exhausted.
         """
         raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
         raw_dataset_id = (raw_dataset_id or "").strip()
@@ -315,6 +510,8 @@ class RedivisServices:
             "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
             "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
             "error": None,
+            "busy_retries": 0,
+            "attempts": 0,
         }
         if not raw_dataset_id:
             result["error"] = "raw_dataset_id is empty"
@@ -392,43 +589,36 @@ class RedivisServices:
                 source_qualified,
                 target_qualified,
             )
-            data_source.update(source_dataset=source_qualified, version="current")
-            data_source.get()
-            actual_name = self._datasource_source_name(data_source)
-            if self._redivis_name_key(actual_name) != self._redivis_name_key(
-                raw_dataset_id
-            ):
-                result["error"] = (
-                    f"workflow datasource source mismatch after update: "
-                    f"wanted {raw_dataset_id!r}, got {actual_name!r}"
+
+            nb = wf.notebook(notebook_name)
+            run_result = self._run_shared_notebook_with_busy_retry(
+                nb=nb,
+                data_source=data_source,
+                metadata_sources=metadata_sources,
+                source_qualified=source_qualified,
+                target_qualified=target_qualified,
+                raw_dataset_id=raw_dataset_id,
+                notebook_name=notebook_name,
+            )
+            result["busy_retries"] = run_result.get("busy_retries", 0)
+            result["attempts"] = run_result.get("attempts", 0)
+            if run_result.get("error"):
+                result["error"] = run_result["error"]
+                logging.error(
+                    "run_process_dataset_workflow(%r) failed: %s",
+                    raw_dataset_id,
+                    result["error"],
                 )
-                logging.error("run_process_dataset_workflow: %s", result["error"])
                 return result
 
-            for ds in metadata_sources:
-                try:
-                    ds.update(version="current")
-                except Exception as e:
-                    logging.warning(
-                        "run_process_dataset_workflow: metadata datasource "
-                        "version=current refresh failed (continuing): %s",
-                        e,
-                    )
-
-            logging.info(
-                "run_process_dataset_workflow: running notebook %s "
-                "(source=%s target=%s)",
-                notebook_name,
-                source_qualified,
-                target_qualified,
-            )
-            nb = wf.notebook(notebook_name)
-            nb.run(wait_for_finish=True)
             result["ran"] = True
             logging.info(
-                "run_process_dataset_workflow: completed source=%s target=%s",
+                "run_process_dataset_workflow: completed source=%s target=%s "
+                "(attempts=%s busy_retries=%s)",
                 source_qualified,
                 target_qualified,
+                result["attempts"],
+                result["busy_retries"],
             )
         except Exception as e:
             result["error"] = str(e)

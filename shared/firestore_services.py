@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import random
 import warnings
 from collections import defaultdict
@@ -361,21 +362,61 @@ class FirestoreServices:
     def __init__(self):
         self._admin_db = None
         self._admin_credentials = None
+        self._admin_db_project_id = None
+        self._admin_credentials_source = None
 
     @property
     def admin_credentials(self):
         if self._admin_credentials is None:
+            # Local runs: use LOCAL_ADMIN_SERVICE_ACCOUNT (ADC) so admin-dev vs
+            # admin-prod is chosen by the key file, not Secret Manager.
+            if (os.getenv("ENV") or "").strip().lower() == "local":
+                sa_path = (
+                    (os.getenv("LOCAL_ADMIN_SERVICE_ACCOUNT") or "").strip()
+                    or (os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+                )
+                if sa_path:
+                    self._admin_credentials = (
+                        service_account.Credentials.from_service_account_file(
+                            sa_path
+                        )
+                    )
+                    self._admin_credentials_source = sa_path
+                    return self._admin_credentials
             info = json.loads(
-                secret_service.get_secret_payload(secret_id=settings.config['ADMIN_SERVICE_ACCOUNT_SECRET_ID']))
-            self._admin_credentials = service_account.Credentials.from_service_account_info(info)
+                secret_service.get_secret_payload(
+                    secret_id=settings.config["ADMIN_SERVICE_ACCOUNT_SECRET_ID"]
+                )
+            )
+            self._admin_credentials = (
+                service_account.Credentials.from_service_account_info(info)
+            )
+            self._admin_credentials_source = (
+                f"secret:{settings.config['ADMIN_SERVICE_ACCOUNT_SECRET_ID']}"
+            )
         return self._admin_credentials
 
+    @property
+    def admin_db_project_id(self) -> str:
+        """GCP project id of the Firestore admin database in use."""
+        if self._admin_db_project_id is None:
+            _ = self.admin_db
+        return self._admin_db_project_id or ""
 
     @property
     def admin_db(self):
         if self._admin_db is None:
-            self._admin_db = firestore.Client(credentials=self.admin_credentials,
-                                              project=self.admin_credentials.project_id)
+            creds = self.admin_credentials
+            project_id = creds.project_id
+            self._admin_db = firestore.Client(
+                credentials=creds, project=project_id
+            )
+            self._admin_db_project_id = project_id
+            logging.info(
+                "Firestore admin DB project=%s (credentials from %s)",
+                project_id,
+                self._admin_credentials_source or "unknown",
+            )
         return self._admin_db
 
 

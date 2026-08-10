@@ -93,6 +93,7 @@ Optional top-level `operation` (default `data_validation`):
 | `open_assignments_sync` | Sync open assignments from Airtable |
 | `weekly_report` | Weekly ops report to Slack |
 | `redivis_individual_release` | Per-site scheduler + Redivis provisioning |
+| `special_dataset_validation` | Build a multi-site raw/processed dataset from Airtable Special Dataset rows |
 
 ### Data validation example
 
@@ -125,6 +126,8 @@ Optional top-level `operation` (default `data_validation`):
 Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list).
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
+- `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
+- After a new raw release, the job runs the shared Redivis notebook `process_dataset` on workflow `process_dataset:zr0v`. If another site already holds that notebook (`Notebook is already running`), the job waits and retries (re-pointing the datasource each attempt) for up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour).
 - Task timeout: **24 hours** (`86400s`).
 - If `is_save_to_storage` is `false`, the job validates and returns stats only.
 
@@ -136,6 +139,29 @@ Notes:
 
 ```json
 {"operation": "redivis_individual_release", "dry_run": false, "dataset_name": "optional-single-site"}
+```
+
+```json
+{"operation": "special_dataset_validation", "dataset_name": "levante-data-pilots-raw"}
+```
+
+This operation reads matching rows from Airtable table `tbllc141VVhJfsKNa`,
+builds one validator organization scope per row, forces a new raw Redivis release,
+runs `process_dataset`, verifies that the unmarked processed dataset received a
+new released version, backfills empty `processed_ref_id` cells, and posts one
+Slack summary.
+
+Test mode uses the same live Airtable query scopes but redirects all Redivis/GCS
+output to an explicit test raw dataset. It skips Airtable `processed_ref_id`
+verification/writeback and still sends Slack:
+
+```json
+{
+  "operation": "special_dataset_validation",
+  "dataset_name": "levante-data-pilots-raw",
+  "test_mode": true,
+  "test_dataset_name": "TEST-ethan-special-dataset-raw"
+}
 ```
 
 ```json

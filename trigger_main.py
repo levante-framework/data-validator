@@ -73,6 +73,7 @@ def _run_local_pipeline(body: dict) -> tuple[str, int]:
             "open_assignments_sync": job_main._run_open_assignments_sync,
             "weekly_report": job_main._run_weekly_report,
             "redivis_individual_release": job_main._run_redivis_individual_release,
+            "special_dataset_validation": job_main._run_special_dataset_validation,
             "migrate_scheduler_jobs": job_main._run_migrate_scheduler_jobs,
         }
         runner = runners.get(operation)

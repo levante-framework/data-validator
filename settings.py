@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.30',
+    'VERSION': '1.9.31',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -18,6 +18,19 @@ config = {
     'AIRTABLE_API_TOKEN_SECRET_ID': 'airtableTokenUpdateEntitiesDatasets',
     'AIRTABLE_LEVANTE_ENTITIES_BASE_ID': 'appIDUfcKdekzTiIJ',
     'AIRTABLE_DATASET_TABLE_ID': 'tblu4NwcVZX9MbuWK',
+    # Rows that define multi-site "special" raw datasets and their query scopes.
+    'AIRTABLE_SPECIAL_DATASET_TABLE_ID': 'tbllc141VVhJfsKNa',
+    'AIRTABLE_SPECIAL_FIELD_DATASET_NAME': 'dataset_name',
+    'AIRTABLE_SPECIAL_FIELD_DATASET_REF_ID': 'dataset_ref_id',
+    'AIRTABLE_SPECIAL_FIELD_PROCESSED_NAME': 'processed_name',
+    'AIRTABLE_SPECIAL_FIELD_PROCESSED_REF_ID': 'processed_ref_id',
+    'AIRTABLE_SPECIAL_FIELD_START_DATE': 'start_date',
+    'AIRTABLE_SPECIAL_FIELD_END_DATE': 'end_date',
+    'AIRTABLE_SPECIAL_FIELD_DATASET_LINK': 'dataset_link',
+    'AIRTABLE_SPECIAL_FIELD_ORG_ID': 'org_id',
+    'AIRTABLE_SPECIAL_FIELD_USER_LIMIT': 'user_limit',
+    'AIRTABLE_SPECIAL_FIELD_IS_GUEST': 'is_guest',
+    'AIRTABLE_SPECIAL_FIELD_USER_FILTER': 'user_filter',
     'AIRTABLE_FIELD_FIRESTORE_SITE_ID': 'Firestore siteId',
     'AIRTABLE_FIELD_OPEN_ASSIGNMENTS': 'Open Assignments',
     'AIRTABLE_FIELD_REDIVIS_INDIVIDUAL': 'Redivis individual',
@@ -40,6 +53,12 @@ config = {
     'REDIVIS_PROCESS_WORKFLOW_USER': 'levante',
     'REDIVIS_PROCESS_WORKFLOW_NAME': 'process_dataset:zr0v',
     'REDIVIS_PROCESS_NOTEBOOK_NAME': 'process_dataset',
+    # Shared notebook: per-site jobs may hit "Notebook is already running". Wait/retry
+    # until free (total budget), with exponential backoff between attempts.
+    'REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS': 3600,
+    'REDIVIS_PROCESS_BUSY_RETRY_INITIAL_SECONDS': 30,
+    'REDIVIS_PROCESS_BUSY_RETRY_MAX_SLEEP_SECONDS': 120,
+    'REDIVIS_PROCESS_BUSY_POLL_SECONDS': 30,
     # Placeholder written into Firestore siteId when no Firestore district matches.
     'MISSING_SITE_ID_PLACEHOLDER': 'missing_site_id',
     # Cloud Scheduler config used to provision daily data-validator jobs per site.
