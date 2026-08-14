@@ -206,7 +206,16 @@ def run_data_validation(
     storage.process(validated_data=validated_data)
 
     process_log = None
-    if storage.is_new_version_needed:
+    # Redivis ingests each table from its GCS blob, so releasing after a failed write
+    # would publish stale tables and hand process_dataset empty input.
+    if storage.is_new_version_needed and storage.has_upload_failures:
+        logging.error(
+            "Skipping Redivis upload/release for %s: %s GCS table upload(s) failed.",
+            dataset_parameters.dataset_id,
+            len(storage.upload_to_GCP_log["file_uploads_fail"]),
+        )
+
+    if storage.is_new_version_needed and not storage.has_upload_failures:
         logging.info(f"Uploading data to Redivis for dataset_id: {dataset_parameters.dataset_id}.")
 
         rs = RedivisServices()
@@ -311,9 +320,10 @@ def run_data_validation(
     firestore_services.set_logs_to_firebase(response=response, dataset_id=dataset_parameters.dataset_id)
 
     # Live per-site runs: Slack only when a new Redivis version was released
-    # (summary includes process_dataset when that workflow ran).
+    # (summary includes process_dataset when that workflow ran), or when GCS writes
+    # failed — those runs never reach a release and would otherwise be silent.
     if dataset_parameters.send_slack and (
-        slack_summary_always or new_version_release
+        slack_summary_always or new_version_release or storage.has_upload_failures
     ):
         _notify_slack_safe(message=format_data_validation_slack_summary(response))
 

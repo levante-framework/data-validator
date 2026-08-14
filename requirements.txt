@@ -22,6 +22,9 @@ setuptools>=69.0.0,<82
 redivis==0.20.12
 
 # HTTP and config
+# Pinned so the Dockerfile can restore genuine urllib3 after redivis' dependency
+# chain (niquests -> urllib3-future) overwrites it and breaks GCS uploads.
+urllib3==2.1.0
 requests~=2.32.0
 python-dotenv~=1.0.1
 pyairtable~=3.0.0

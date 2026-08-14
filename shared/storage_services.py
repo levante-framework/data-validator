@@ -1,12 +1,20 @@
 from google.cloud import storage
+from google.cloud.storage.retry import DEFAULT_RETRY
 import json
 import os
 import logging
+import time
 
 import settings
 from shared import utils
 
 logging.basicConfig(level=logging.INFO)
+
+# Redivis ingests each table from its GCS blob, so a silently dropped write would
+# publish stale tables. Writes are retried and then size-verified before counting.
+UPLOAD_ATTEMPTS = 3
+UPLOAD_BACKOFF_SECONDS = 2
+UPLOAD_TIMEOUT_SECONDS = 300
 
 
 class StorageServices:
@@ -28,12 +36,16 @@ class StorageServices:
             'file_deletion': [],
         }
 
+    @property
+    def has_upload_failures(self) -> bool:
+        return bool(self.upload_to_GCP_log['file_uploads_fail'])
+
     def process(self, validated_data: dict):
         for table_name, data in validated_data.items():
             if data and (not self.check_if_same_file(table_name=table_name,
                                                      local_data_list=data) or self.is_new_version_needed):
-                self.save_to_storage(table_name=table_name, data=data)
-                self.is_new_version_needed = True
+                if self.save_to_storage(table_name=table_name, data=data):
+                    self.is_new_version_needed = True
 
         self.delete_unmatched_json_files(data=validated_data)
         self.upload_to_GCP_log['new_version_needed'] = self.is_new_version_needed
@@ -53,7 +65,17 @@ class StorageServices:
         blob = self.gcp_bucket.blob(destination_blob_name)
 
         # Upload the file
-        blob.upload_from_string(data, content_type=content_type)
+        blob.upload_from_string(
+            data,
+            content_type=content_type,
+            timeout=UPLOAD_TIMEOUT_SECONDS,
+            retry=DEFAULT_RETRY,
+        )
+
+    def get_blob_size(self, destination_blob_name: str):
+        """Byte size of the stored blob, read fresh from GCS. None when missing."""
+        blob = self.gcp_bucket.get_blob(destination_blob_name)
+        return blob.size if blob is not None else None
 
     def check_if_same_file(self, table_name, local_data_list):
         blob = self.gcp_bucket.blob(f"{self.dataset_id}/{table_name}.json")
@@ -90,15 +112,37 @@ class StorageServices:
             })
         return is_same_length
 
-    def save_to_storage(self, table_name: str, data):
+    def save_to_storage(self, table_name: str, data) -> bool:
+        """Write one table to GCS. True only when the stored blob matches what we sent."""
         data_json = json.dumps(data, cls=utils.CustomJSONEncoder)
         destination_blob_name = f"{self.dataset_id}/{table_name}.json"
-        try:
-            self.upload_blob_from_memory(data=data_json,
-                                    destination_blob_name=destination_blob_name,
-                                    content_type='application/json')
-        except Exception as e:
-            self.upload_to_GCP_log['file_uploads_fail'].append(f"{table_name}, {e}")
+        expected_size = len(data_json.encode('utf-8'))
+        last_error = None
+
+        for attempt in range(1, UPLOAD_ATTEMPTS + 1):
+            try:
+                self.upload_blob_from_memory(data=data_json,
+                                        destination_blob_name=destination_blob_name,
+                                        content_type='application/json')
+                stored_size = self.get_blob_size(destination_blob_name)
+                if stored_size != expected_size:
+                    raise IOError(
+                        f"stored {stored_size} bytes, expected {expected_size}"
+                    )
+                logging.info(f"{destination_blob_name} uploaded ({expected_size} bytes).")
+                return True
+            except Exception as e:
+                last_error = e
+                logging.warning(
+                    "GCS upload of %s failed (attempt %s/%s): %s",
+                    destination_blob_name, attempt, UPLOAD_ATTEMPTS, e,
+                )
+                if attempt < UPLOAD_ATTEMPTS:
+                    time.sleep(UPLOAD_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+
+        logging.error("GCS upload of %s gave up: %s", destination_blob_name, last_error)
+        self.upload_to_GCP_log['file_uploads_fail'].append(f"{table_name}, {last_error}")
+        return False
 
     def append_list_to_json_in_gcp(self, data: dict, file_name: str):
         # Initialize the GCP Storage client
