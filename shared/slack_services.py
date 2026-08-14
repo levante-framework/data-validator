@@ -172,6 +172,24 @@ def format_data_validation_slack_summary(response: dict) -> str:
         retry_note = ""
         if busy_retries or attempts > 1:
             retry_note = f" · attempts={attempts}, busy_retries={busy_retries}"
+        release = process.get("processed_release") or {}
+        if release.get("released"):
+            release_s = (
+                f"released `{release.get('before_version') or '—'}` → "
+                f"`{release.get('after_version') or '—'}`"
+            )
+        elif release.get("skipped"):
+            release_s = (
+                f"already released at `{release.get('after_version') or '—'}`"
+            )
+        elif release.get("error"):
+            release_s = f"release failed — {release.get('error')}"
+        elif process.get("skipped"):
+            release_s = "n/a (workflow skipped)"
+        elif ran and not err:
+            release_s = "release status unknown"
+        else:
+            release_s = "not released"
         lines.extend(
             [
                 "",
@@ -179,7 +197,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"• Notebook `{process.get('notebook') or 'process_dataset'}` on "
                 f"`{process.get('workflow') or 'process_dataset'}`: {status}"
                 f"{retry_note}",
-                f"• Processed dataset `{processed_id}` · {airtable_s}",
+                f"• Processed dataset `{processed_id}` · {release_s} · {airtable_s}",
             ]
         )
 

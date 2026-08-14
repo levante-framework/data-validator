@@ -481,6 +481,84 @@ class RedivisServices:
                 time.sleep(sleep_for)
                 next_sleep = min(next_sleep * 2, max_sleep)
 
+    def release_processed_dataset(
+        self,
+        *,
+        processed_id: str,
+        raw_dataset_id: str,
+    ) -> dict:
+        """
+        Release the unmarked processed dataset after ``process_dataset`` finishes.
+
+        The shared notebook writes tables into the dataset's unreleased ``next``
+        version but does not release it; the validator triggers release here.
+        """
+        result = {
+            "released": False,
+            "skipped": False,
+            "processed_dataset_id": processed_id,
+            "before_version": None,
+            "after_version": None,
+            "is_released": False,
+            "error": None,
+        }
+        prev_id = self.dataset_id
+        try:
+            self.set_dataset(dataset_id=processed_id)
+            before = self.get_current_dataset_status()
+            result["before_version"] = before.get("version_tag")
+            if not before.get("exists"):
+                result["error"] = f"processed dataset {processed_id!r} does not exist"
+                return result
+
+            # Already on a released version with no pending "next" work.
+            if before.get("is_released") and before.get("version_tag") not in (
+                None,
+                "next",
+            ):
+                result["skipped"] = True
+                result["is_released"] = True
+                result["after_version"] = before.get("version_tag")
+                logging.info(
+                    "release_processed_dataset: %r already released at %s — skipped",
+                    processed_id,
+                    before.get("version_tag"),
+                )
+                return result
+
+            description = (
+                f"Processed companion for {raw_dataset_id}. "
+                f"Released by data-validator after process_dataset workflow."
+            )
+            self.dataset.update(description=description)
+            self.dataset.release()
+            after = self.get_current_dataset_status()
+            result["after_version"] = after.get("version_tag")
+            result["is_released"] = bool(after.get("is_released"))
+            if not result["is_released"]:
+                result["error"] = (
+                    f"release() returned but {processed_id!r} is still unreleased "
+                    f"(version={after.get('version_tag')!r})"
+                )
+                logging.error("release_processed_dataset: %s", result["error"])
+                return result
+            result["released"] = True
+            logging.info(
+                "release_processed_dataset: released %r %s → %s",
+                processed_id,
+                result["before_version"],
+                result["after_version"],
+            )
+        except Exception as e:
+            result["error"] = str(e)
+            logging.error(
+                "release_processed_dataset(%r) failed: %s", processed_id, e
+            )
+        finally:
+            if prev_id:
+                self.set_dataset(dataset_id=prev_id)
+        return result
+
     def run_process_dataset_workflow(self, raw_dataset_id: str) -> dict:
         """
         Run Levante ``process_dataset`` for one site, driven only by ``raw_dataset_id``.
@@ -490,6 +568,8 @@ class RedivisServices:
         - **Target** (notebook output dataset): unmarked ``{Name}`` derived by
           stripping ``-raw`` (e.g. ``TEST-Ethan-de-pilot``). Ensured to exist
           (create-if-missing) before the notebook runs.
+        - After the notebook completes successfully, **release** the processed
+          dataset (the notebook leaves an unreleased ``next`` version).
 
         The shared workflow may still point at a previous site; this method always
         replaces the site (non-metadata) datasource with ``raw_dataset_id`` first,
@@ -509,6 +589,7 @@ class RedivisServices:
             "processed_shell": None,
             "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
             "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+            "processed_release": None,
             "error": None,
             "busy_retries": 0,
             "attempts": 0,
@@ -613,12 +694,37 @@ class RedivisServices:
 
             result["ran"] = True
             logging.info(
-                "run_process_dataset_workflow: completed source=%s target=%s "
-                "(attempts=%s busy_retries=%s)",
+                "run_process_dataset_workflow: notebook completed source=%s "
+                "target=%s (attempts=%s busy_retries=%s) — releasing processed",
                 source_qualified,
                 target_qualified,
                 result["attempts"],
                 result["busy_retries"],
+            )
+
+            release_log = self.release_processed_dataset(
+                processed_id=processed_id,
+                raw_dataset_id=raw_dataset_id,
+            )
+            result["processed_release"] = release_log
+            if release_log.get("error"):
+                result["error"] = (
+                    f"process_dataset notebook completed but processed release "
+                    f"failed: {release_log['error']}"
+                )
+                logging.error(
+                    "run_process_dataset_workflow(%r): %s",
+                    raw_dataset_id,
+                    result["error"],
+                )
+                return result
+
+            logging.info(
+                "run_process_dataset_workflow: completed source=%s target=%s "
+                "processed_release=%s",
+                source_qualified,
+                target_qualified,
+                release_log.get("after_version") or release_log.get("before_version"),
             )
         except Exception as e:
             result["error"] = str(e)
