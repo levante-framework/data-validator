@@ -374,7 +374,9 @@ class RedivisServices:
         Run the shared process_dataset notebook, waiting/retrying while it is busy.
 
         Re-points the workflow datasource before each attempt so a concurrent job
-        cannot leave us pointed at the wrong site after we waited.
+        cannot leave us pointed at the wrong site after we waited. After a
+        successful ``nb.run``, re-reads the datasource and returns ``ran=False``
+        if it no longer matches ``raw_dataset_id`` (point→run is not atomic).
         """
         max_wait = max(
             0, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS"])
@@ -442,6 +444,37 @@ class RedivisServices:
             )
             try:
                 nb.run(wait_for_finish=True)
+                # Point→run is not atomic: another job can re-point the shared
+                # datasource after we pointed and before/during our run. If the
+                # source no longer matches, do not report ran=True (avoids a
+                # false Airtable processed-date stamp for this site).
+                try:
+                    data_source.get()
+                    actual_name = self._datasource_source_name(data_source)
+                except Exception as e:
+                    return {
+                        "ran": False,
+                        "error": (
+                            "could not re-read workflow datasource after notebook "
+                            f"run for {raw_dataset_id!r}: {e}"
+                        ),
+                        "busy_retries": busy_retries,
+                        "attempts": attempt,
+                    }
+                if self._redivis_name_key(actual_name) != self._redivis_name_key(
+                    raw_dataset_id
+                ):
+                    return {
+                        "ran": False,
+                        "error": (
+                            "workflow datasource drifted during notebook run: "
+                            f"wanted {raw_dataset_id!r}, got {actual_name!r} "
+                            "(another job may have re-pointed the shared source; "
+                            "not stamping Airtable for this site)"
+                        ),
+                        "busy_retries": busy_retries,
+                        "attempts": attempt,
+                    }
                 return {
                     "ran": True,
                     "error": None,
