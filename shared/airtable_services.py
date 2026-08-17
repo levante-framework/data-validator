@@ -28,6 +28,9 @@ class AirtableServices:
             )
         self._api = Api(token)
         self._table = self._api.table(base_id, table_id)
+        self._special_dataset_table = self._api.table(
+            base_id, settings.config["AIRTABLE_SPECIAL_DATASET_TABLE_ID"]
+        )
 
     def list_dataset_records(self, *, formula: str | None = None) -> list[dict]:
         """
@@ -40,6 +43,34 @@ class AirtableServices:
 
     def update_record_fields(self, record_id: str, fields: dict) -> dict:
         return self._table.update(record_id, fields)
+
+    def get_dataset_record(self, record_id: str) -> dict:
+        """Get one row from the primary Dataset table (used by linked records)."""
+        return self._table.get(record_id)
+
+    def list_special_dataset_records(self, dataset_name: str) -> list[dict]:
+        """List Special Dataset rows matching ``dataset_name``."""
+        dataset_name = (dataset_name or "").strip()
+        if not dataset_name:
+            return []
+        field = settings.config["AIRTABLE_SPECIAL_FIELD_DATASET_NAME"]
+        escaped = dataset_name.replace("\\", "\\\\").replace('"', '\\"')
+        rows = self._special_dataset_table.all(
+            formula=f'{{{field}}}="{escaped}"'
+        )
+        # Also enforce an exact normalized match locally.
+        wanted = dataset_name.casefold()
+        return [
+            row
+            for row in rows
+            if str((row.get("fields") or {}).get(field) or "").strip().casefold()
+            == wanted
+        ]
+
+    def update_special_dataset_record_fields(
+        self, record_id: str, fields: dict
+    ) -> dict:
+        return self._special_dataset_table.update(record_id, fields)
 
     def find_dataset_record_by_name(self, name: str) -> dict | None:
         """Return the Dataset row whose ``Name`` equals ``name``, or None."""

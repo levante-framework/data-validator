@@ -154,6 +154,14 @@ class DatasetParameters(BaseModel):
         description="Required. Whether to write validated JSON to GCS and optionally Redivis.",
     )
     is_force_uploading_to_redivis: bool = False
+    skip_process_dataset: bool = Field(
+        default=False,
+        description=(
+            "If true, skip the process_dataset workflow after a successful raw "
+            "Redivis release. Omit/false/null keep the default (run processing). "
+            "Existing cron payloads need no change."
+        ),
+    )
     send_slack: bool = Field(
         default=False,
         description=(
@@ -163,14 +171,23 @@ class DatasetParameters(BaseModel):
     )
     orgs: List[Organization] = Field(min_length=1)
 
-    @field_validator("send_slack", mode="before")
-    @classmethod
-    def coerce_send_slack(cls, v):
+    @staticmethod
+    def _coerce_bool(v) -> bool:
         if v is None:
             return False
         if isinstance(v, str):
             return v.strip().lower() in ("true", "1", "yes")
         return bool(v)
+
+    @field_validator("send_slack", mode="before")
+    @classmethod
+    def coerce_send_slack(cls, v):
+        return cls._coerce_bool(v)
+
+    @field_validator("skip_process_dataset", mode="before")
+    @classmethod
+    def coerce_skip_process_dataset(cls, v):
+        return cls._coerce_bool(v)
 
     def to_dict(self):
         # Build a shorter description from params (also used for Redivis version text).
@@ -210,6 +227,7 @@ class DatasetParameters(BaseModel):
             "dataset_id": self.dataset_id,
             "is_save_to_storage": self.is_save_to_storage,
             "is_force_uploading_to_redivis": self.is_force_uploading_to_redivis,
+            "skip_process_dataset": self.skip_process_dataset,
             "send_slack": self.send_slack,
             "org_count": len(self.orgs),
             "orgs": full_description_org,

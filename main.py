@@ -8,6 +8,7 @@ the first CLI argument, or set ``DATA_VALIDATOR_PAYLOAD_FILE``, or pipe JSON on 
 - ``open_assignments_sync`` — sync open assignments from Airtable
 - ``weekly_report`` — weekly ops report to Slack
 - ``redivis_individual_release`` — Airtable ↔ Redivis individual provisioning
+- ``special_dataset_validation`` — Airtable special rows → raw + processed dataset
 - ``migrate_scheduler_jobs`` — migrate daily cron jobs to the Cloud Run Job API
 
 For ``data_validation``, the payload matches ``DatasetParameters`` (same as before,
@@ -182,6 +183,29 @@ def _run_redivis_individual_release(data: dict) -> int:
     return 0
 
 
+def _run_special_dataset_validation(data: dict) -> int:
+    from sync.special_dataset import run_special_dataset_validation
+
+    dataset_name = str(data.get("dataset_name") or "").strip()
+    test_mode_raw = data.get("test_mode", False)
+    test_mode = (
+        test_mode_raw.strip().lower() in ("1", "true", "yes")
+        if isinstance(test_mode_raw, str)
+        else bool(test_mode_raw)
+    )
+    test_dataset_name = str(data.get("test_dataset_name") or "").strip() or None
+    result = run_special_dataset_validation(
+        dataset_name,
+        test_mode=test_mode,
+        test_dataset_name=test_dataset_name,
+    )
+    logging.info(
+        "special_dataset_validation result: %s",
+        json.dumps(result, cls=utils.CustomJSONEncoder),
+    )
+    return 0 if result.get("success") else 1
+
+
 def main() -> int:
     utils.setup_project_environment()
 
@@ -206,6 +230,8 @@ def main() -> int:
         return _run_weekly_report(payload)
     if operation == "redivis_individual_release":
         return _run_redivis_individual_release(payload)
+    if operation == "special_dataset_validation":
+        return _run_special_dataset_validation(payload)
     if operation == "migrate_scheduler_jobs":
         return _run_migrate_scheduler_jobs(payload)
 
