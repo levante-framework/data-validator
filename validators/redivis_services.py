@@ -544,16 +544,20 @@ class RedivisServices:
                 result["error"] = f"processed dataset {processed_id!r} does not exist"
                 return result
 
-            # Already on a released version with no pending "next" work.
-            if before.get("is_released") and before.get("version_tag") not in (
-                None,
-                "next",
-            ):
+            # Released current + pending unreleased next is the normal case after
+            # the notebook. Skip only when there is no next version to publish.
+            props = self.dataset.properties or {}
+            pending_next = bool(props.get("nextVersion"))
+            already_released_current = bool(before.get("is_released")) and before.get(
+                "version_tag"
+            ) not in (None, "next")
+            if already_released_current and not pending_next:
                 result["skipped"] = True
                 result["is_released"] = True
                 result["after_version"] = before.get("version_tag")
                 logging.info(
-                    "release_processed_dataset: %r already released at %s — skipped",
+                    "release_processed_dataset: %r has no unreleased next "
+                    "(current=%s) — skipped",
                     processed_id,
                     before.get("version_tag"),
                 )
@@ -572,6 +576,16 @@ class RedivisServices:
                 result["error"] = (
                     f"release() returned but {processed_id!r} is still unreleased "
                     f"(version={after.get('version_tag')!r})"
+                )
+                logging.error("release_processed_dataset: %s", result["error"])
+                return result
+            if (
+                already_released_current
+                and result["after_version"] == result["before_version"]
+            ):
+                result["error"] = (
+                    f"release() returned but processed version_tag stayed "
+                    f"{result['after_version']!r} (expected a new tag)"
                 )
                 logging.error("release_processed_dataset: %s", result["error"])
                 return result
