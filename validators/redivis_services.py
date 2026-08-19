@@ -299,6 +299,28 @@ class RedivisServices:
         return "already running" in msg
 
     @staticmethod
+    def _notebook_job_id(job: dict | None) -> str:
+        return str((job or {}).get("id") or "").strip()
+
+    @staticmethod
+    def _notebook_jobs(nb) -> tuple[dict, dict]:
+        props = nb.properties or {}
+        current = props.get("currentJob") or {}
+        last = props.get("lastRunJob") or {}
+        return (
+            current if isinstance(current, dict) else {},
+            last if isinstance(last, dict) else {},
+        )
+
+    def _notebook_job_matching(self, nb, job_id: str) -> dict | None:
+        current, last = self._notebook_jobs(nb)
+        if self._notebook_job_id(current) == job_id:
+            return current
+        if self._notebook_job_id(last) == job_id:
+            return last
+        return None
+
+    @staticmethod
     def _notebook_is_busy(nb) -> bool:
         """True when the notebook reports an in-flight ``currentJob``."""
         try:
@@ -313,6 +335,42 @@ class RedivisServices:
                 e,
             )
             return False
+
+    def _wait_for_notebook_job(
+        self, nb, *, job_id: str, raw_dataset_id: str
+    ) -> str | None:
+        """
+        Poll until the started notebook ``job_id`` completes or fails.
+
+        Do not follow whatever ``currentJob`` is live: another site can start
+        the shared notebook after ours finishes, and ``wait_for_finish=True``
+        would then wait on *their* job.
+        """
+        poll = 2
+        while True:
+            nb.get()
+            ours = self._notebook_job_matching(nb, job_id)
+            if ours is None:
+                current, last = self._notebook_jobs(nb)
+                logging.info(
+                    "run_process_dataset_workflow: waiting for notebook job %s "
+                    "for %r (current=%s last=%s)",
+                    job_id,
+                    raw_dataset_id,
+                    self._notebook_job_id(current) or "none",
+                    self._notebook_job_id(last) or "none",
+                )
+                time.sleep(poll)
+                continue
+            status = str(ours.get("status") or "").strip().lower()
+            if status == "completed":
+                return None
+            if status == "failed":
+                return (
+                    ours.get("errorMessage")
+                    or f"notebook job {job_id} failed"
+                )
+            time.sleep(poll)
 
     def _wait_for_notebook_idle(self, nb, *, deadline: float, raw_dataset_id: str) -> bool:
         """
@@ -374,9 +432,9 @@ class RedivisServices:
         Run the shared process_dataset notebook, waiting/retrying while it is busy.
 
         Re-points the workflow datasource before each attempt so a concurrent job
-        cannot leave us pointed at the wrong site after we waited. After a
-        successful ``nb.run``, re-reads the datasource and returns ``ran=False``
-        if it no longer matches ``raw_dataset_id`` (point→run is not atomic).
+        cannot leave us pointed at the wrong site after we waited. Starts the
+        notebook without following later ``currentJob`` values: wait is bound to
+        the job id returned by this start.
         """
         max_wait = max(
             0, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS"])
@@ -443,35 +501,32 @@ class RedivisServices:
                 busy_retries,
             )
             try:
-                nb.run(wait_for_finish=True)
-                # Point→run is not atomic: another job can re-point the shared
-                # datasource after we pointed and before/during our run. If the
-                # source no longer matches, do not report ran=True (avoids a
-                # false Airtable processed-date stamp for this site).
-                try:
-                    data_source.get()
-                    actual_name = self._datasource_source_name(data_source)
-                except Exception as e:
+                nb.run(wait_for_finish=False)
+                current, last = self._notebook_jobs(nb)
+                job_id = self._notebook_job_id(current) or self._notebook_job_id(last)
+                if not job_id:
                     return {
                         "ran": False,
                         "error": (
-                            "could not re-read workflow datasource after notebook "
-                            f"run for {raw_dataset_id!r}: {e}"
+                            "notebook run started but Redivis returned no job id"
                         ),
                         "busy_retries": busy_retries,
                         "attempts": attempt,
                     }
-                if self._redivis_name_key(actual_name) != self._redivis_name_key(
-                    raw_dataset_id
-                ):
+                logging.info(
+                    "run_process_dataset_workflow: started notebook job %s "
+                    "for %r (attempt=%s)",
+                    job_id,
+                    raw_dataset_id,
+                    attempt,
+                )
+                wait_err = self._wait_for_notebook_job(
+                    nb, job_id=job_id, raw_dataset_id=raw_dataset_id
+                )
+                if wait_err:
                     return {
                         "ran": False,
-                        "error": (
-                            "workflow datasource drifted during notebook run: "
-                            f"wanted {raw_dataset_id!r}, got {actual_name!r} "
-                            "(another job may have re-pointed the shared source; "
-                            "not stamping Airtable for this site)"
-                        ),
+                        "error": wait_err,
                         "busy_retries": busy_retries,
                         "attempts": attempt,
                     }
