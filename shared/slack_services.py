@@ -178,6 +178,8 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"released `{release.get('before_version') or '—'}` → "
                 f"`{release.get('after_version') or '—'}`"
             )
+        elif release.get("skip_reason") == "release_processed_dataset=false":
+            release_s = "skipped (release_processed_dataset=false)"
         elif release.get("skipped"):
             release_s = (
                 f"already released at `{release.get('after_version') or '—'}`"

@@ -268,8 +268,20 @@ def run_data_validation(
                         raw_id,
                     )
                 else:
-                    process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
-                    if process_log.get("ran") and not process_log.get("error"):
+                    process_log = rs.run_process_dataset_workflow(
+                        raw_dataset_id=raw_id,
+                        release_processed=dataset_parameters.release_processed_dataset,
+                    )
+                    rel = process_log.get("processed_release") or {}
+                    stamp_airtable = rel.get("released") or (
+                        rel.get("skipped")
+                        and rel.get("skip_reason") != "release_processed_dataset=false"
+                    )
+                    if (
+                        process_log.get("ran")
+                        and not process_log.get("error")
+                        and stamp_airtable
+                    ):
                         try:
                             airtable = AirtableServices()
                             airtable_log = airtable.update_processed_dataset_last_update(

@@ -661,7 +661,12 @@ class RedivisServices:
                 self.set_dataset(dataset_id=prev_id)
         return result
 
-    def run_process_dataset_workflow(self, raw_dataset_id: str) -> dict:
+    def run_process_dataset_workflow(
+        self,
+        raw_dataset_id: str,
+        *,
+        release_processed: bool = True,
+    ) -> dict:
         """
         Run Levante ``process_dataset`` for one site, driven only by ``raw_dataset_id``.
 
@@ -671,7 +676,8 @@ class RedivisServices:
           stripping ``-raw`` (e.g. ``TEST-Ethan-de-pilot``). Ensured to exist
           (create-if-missing) before the notebook runs.
         - After the notebook completes successfully, **release** the processed
-          dataset (the notebook leaves an unreleased ``next`` version).
+          dataset (the notebook leaves an unreleased ``next`` version) unless
+          ``release_processed`` is false.
 
         The shared workflow may still point at a previous site; this method always
         replaces the site (non-metadata) datasource with ``raw_dataset_id`` first,
@@ -795,6 +801,26 @@ class RedivisServices:
                 return result
 
             result["ran"] = True
+            if not release_processed:
+                result["processed_release"] = {
+                    "released": False,
+                    "skipped": True,
+                    "skip_reason": "release_processed_dataset=false",
+                    "processed_dataset_id": processed_id,
+                    "before_version": None,
+                    "after_version": None,
+                    "is_released": False,
+                    "error": None,
+                }
+                logging.info(
+                    "run_process_dataset_workflow: notebook completed source=%s "
+                    "target=%s — skipped processed release "
+                    "(release_processed_dataset=false)",
+                    source_qualified,
+                    target_qualified,
+                )
+                return result
+
             logging.info(
                 "run_process_dataset_workflow: notebook completed source=%s "
                 "target=%s (attempts=%s busy_retries=%s) — releasing processed",

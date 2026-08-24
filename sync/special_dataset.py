@@ -184,6 +184,10 @@ def _format_slack(result: dict) -> str:
             f"• Processed Redivis release: `{release.get('before_version') or '—'}` → "
             f"`{release.get('after_version') or '—'}`"
         )
+    elif release.get("skip_reason") == "release_processed_dataset=false":
+        lines.append(
+            "• Processed Redivis release: skipped (release_processed_dataset=false)"
+        )
     elif release.get("skipped"):
         lines.append(
             f"• Processed Redivis release: already at "
