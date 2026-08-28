@@ -171,7 +171,7 @@ valid_run = True  iff  validation_msg_run is empty
 
 | Condition | `warning_msg_run` |
 |-----------|-------------------|
-| `stop_type` present but not `taskAbort`, `timeOut`, `errorOut`, `sufficientTrials`, or `earlyCompletion`  | `stop_type_invalid(<value>)` |
+| `stop_reason` present but not `taskAbort`, `timeOut`, `errorOut`, `sufficientTrials`, or `earlyCompletion`  | `stop_reason_invalid(<value>)` |
 
 ---
 
