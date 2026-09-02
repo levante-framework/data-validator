@@ -176,7 +176,8 @@ def _format_slack(result: dict) -> str:
         f"• Processed dataset: `{result.get('processed_name') or '—'}`",
         f"• Airtable rows / validator orgs: {result.get('row_count', 0)}",
         f"• Raw Redivis release: {'yes' if (result.get('validation') or {}).get('new_version_release') else 'no'}",
-        f"• `process_dataset`: {'completed' if process.get('ran') and not process.get('error') else 'failed/skipped'}",
+        f"• `process_dataset` on `{process.get('workflow') or '—'}`: "
+        f"{'completed' if process.get('ran') and not process.get('error') else 'failed/skipped'}",
     ]
     release = process.get("processed_release") or {}
     if release.get("released"):

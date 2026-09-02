@@ -2,7 +2,14 @@ import redivis
 import logging
 import settings
 import os
+import re
 import time
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from google.cloud import firestore as google_firestore
+
+from shared.firestore_services import firestore_services
 from shared.secret_services import secret_service
 from shared.utils import format_redivis_version_description
 
@@ -336,8 +343,181 @@ class RedivisServices:
             )
             return False
 
+    @staticmethod
+    def _lease_doc_id(workflow_name: str) -> str:
+        safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", workflow_name or "").strip("_")
+        return f"process_dataset_{safe or 'unnamed'}"
+
+    @staticmethod
+    def _lease_utcnow() -> datetime:
+        return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _lease_expires_at(data: dict | None) -> datetime | None:
+        exp = (data or {}).get("expires_at")
+        if exp is None:
+            return None
+        if getattr(exp, "tzinfo", None) is None:
+            try:
+                return exp.replace(tzinfo=timezone.utc)
+            except Exception:
+                return None
+        return exp
+
+    def _copy_lease_ref(self, workflow_name: str):
+        return (
+            firestore_services.admin_db.collection("locks").document(
+                self._lease_doc_id(workflow_name)
+            )
+        )
+
+    def _copy_lease_held_by_other(self, workflow_name: str) -> bool:
+        """True when another job holds an unexpired lease on this copy."""
+        try:
+            snap = self._copy_lease_ref(workflow_name).get()
+        except Exception as e:
+            logging.warning(
+                "run_process_dataset_workflow: lease read failed for %s "
+                "(treating as held): %s",
+                workflow_name,
+                e,
+            )
+            return True
+        if not snap.exists:
+            return False
+        data = snap.to_dict() or {}
+        exp = self._lease_expires_at(data)
+        now = self._lease_utcnow()
+        return bool(data.get("owner") and exp and exp > now)
+
+    def _acquire_copy_lease(
+        self,
+        workflow_name: str,
+        *,
+        owner_token: str,
+        raw_dataset_id: str,
+    ) -> bool:
+        """
+        Transactionally take the copy lease if free or expired.
+
+        Fail closed on Firestore errors (do not point without a lease).
+        """
+        doc_ref = self._copy_lease_ref(workflow_name)
+        ttl = max(60, int(settings.config.get("REDIVIS_PROCESS_LEASE_TTL_SECONDS", 1800)))
+
+        @google_firestore.transactional
+        def _claim(transaction) -> bool:
+            snap = doc_ref.get(transaction=transaction)
+            now = self._lease_utcnow()
+            if snap.exists:
+                data = snap.to_dict() or {}
+                exp = self._lease_expires_at(data)
+                owner = data.get("owner")
+                if owner and owner != owner_token and exp and exp > now:
+                    return False
+            transaction.set(
+                doc_ref,
+                {
+                    "owner": owner_token,
+                    "workflow": workflow_name,
+                    "raw_dataset_id": raw_dataset_id,
+                    "expires_at": now + timedelta(seconds=ttl),
+                    "updated_at": now,
+                },
+            )
+            return True
+
+        try:
+            ok = bool(_claim(firestore_services.admin_db.transaction()))
+        except Exception as e:
+            logging.warning(
+                "run_process_dataset_workflow: lease acquire failed for %s "
+                "(fail closed): %s",
+                workflow_name,
+                e,
+            )
+            return False
+        if ok:
+            logging.info(
+                "run_process_dataset_workflow: acquired lease %s for %r",
+                workflow_name,
+                raw_dataset_id,
+            )
+        return ok
+
+    def _heartbeat_copy_lease(
+        self, workflow_name: str, *, owner_token: str
+    ) -> None:
+        doc_ref = self._copy_lease_ref(workflow_name)
+        ttl = max(60, int(settings.config.get("REDIVIS_PROCESS_LEASE_TTL_SECONDS", 1800)))
+
+        @google_firestore.transactional
+        def _beat(transaction) -> bool:
+            snap = doc_ref.get(transaction=transaction)
+            if not snap.exists:
+                return False
+            data = snap.to_dict() or {}
+            if data.get("owner") != owner_token:
+                return False
+            now = self._lease_utcnow()
+            transaction.update(
+                doc_ref,
+                {
+                    "expires_at": now + timedelta(seconds=ttl),
+                    "updated_at": now,
+                },
+            )
+            return True
+
+        try:
+            if not _beat(firestore_services.admin_db.transaction()):
+                logging.warning(
+                    "run_process_dataset_workflow: lease heartbeat skipped "
+                    "for %s (no longer owner)",
+                    workflow_name,
+                )
+        except Exception as e:
+            logging.warning(
+                "run_process_dataset_workflow: lease heartbeat failed for %s: %s",
+                workflow_name,
+                e,
+            )
+
+    def _release_copy_lease(
+        self, workflow_name: str, *, owner_token: str
+    ) -> None:
+        doc_ref = self._copy_lease_ref(workflow_name)
+
+        @google_firestore.transactional
+        def _drop(transaction) -> None:
+            snap = doc_ref.get(transaction=transaction)
+            if not snap.exists:
+                return
+            data = snap.to_dict() or {}
+            if data.get("owner") != owner_token:
+                return
+            transaction.delete(doc_ref)
+
+        try:
+            _drop(firestore_services.admin_db.transaction())
+            logging.info(
+                "run_process_dataset_workflow: released lease %s",
+                workflow_name,
+            )
+        except Exception as e:
+            logging.warning(
+                "run_process_dataset_workflow: lease release failed for %s: %s",
+                workflow_name,
+                e,
+            )
+
     def _wait_for_notebook_job(
-        self, nb, *, job_id: str, raw_dataset_id: str
+        self,
+        nb,
+        *,
+        job_id: str,
+        raw_dataset_id: str,
+        on_poll=None,
     ) -> str | None:
         """
         Poll until the started notebook ``job_id`` completes or fails.
@@ -348,6 +528,16 @@ class RedivisServices:
         """
         poll = 2
         while True:
+            if on_poll is not None:
+                try:
+                    on_poll()
+                except Exception as e:
+                    logging.warning(
+                        "run_process_dataset_workflow: wait poll hook failed "
+                        "for %r: %s",
+                        raw_dataset_id,
+                        e,
+                    )
             nb.get()
             ours = self._notebook_job_matching(nb, job_id)
             if ours is None:
@@ -372,26 +562,127 @@ class RedivisServices:
                 )
             time.sleep(poll)
 
-    def _wait_for_notebook_idle(self, nb, *, deadline: float, raw_dataset_id: str) -> bool:
-        """
-        Poll until the shared notebook has no busy ``currentJob``, or ``deadline``.
+    @staticmethod
+    def _process_workflow_pool() -> list[str]:
+        """Qualified workflow refs to idle-claim, NAME as fallback if the pool is empty."""
+        names: list[str] = []
+        seen: set[str] = set()
+        for raw in settings.config.get("REDIVIS_PROCESS_WORKFLOW_POOL") or []:
+            name = str(raw or "").strip()
+            if not name or name.startswith("#") or name in seen:
+                continue
+            seen.add(name)
+            names.append(name)
+        fallback = str(
+            settings.config.get("REDIVIS_PROCESS_WORKFLOW_NAME") or ""
+        ).strip()
+        if fallback and fallback not in seen:
+            names.append(fallback)
+        return names
 
-        Returns True if idle (or status unreadable), False if still busy at deadline.
+    def _open_workflow_slot(self, workflow_name: str, notebook_name: str) -> dict:
+        """
+        Resolve notebook + site/metadata datasources for one pool workflow.
+
+        Returns a slot dict, or ``{error: ...}`` if the copy cannot be used.
+        """
+        wf = redivis.organization(settings.config["INSTANCE"]).workflow(workflow_name)
+        try:
+            if not wf.exists():
+                return {"error": f"workflow {workflow_name!r} does not exist"}
+        except Exception as e:
+            return {"error": f"workflow {workflow_name!r} lookup failed: {e}"}
+
+        site_candidates = []
+        metadata_sources = []
+        for ds in wf.list_datasources():
+            ds.get()
+            source_ds = (ds.properties or {}).get("sourceDataset") or {}
+            if not isinstance(source_ds, dict) or not source_ds.get("name"):
+                continue
+            source_name = self._datasource_source_name(ds)
+            key = self._redivis_name_key(source_name)
+            if "metadata" in key:
+                metadata_sources.append(ds)
+            else:
+                site_candidates.append((ds, source_name, key))
+
+        data_source = None
+        prev_name = ""
+        for ds, source_name, key in site_candidates:
+            if key.endswith("_raw"):
+                data_source = ds
+                prev_name = source_name
+                break
+        if data_source is None and site_candidates:
+            data_source, prev_name, _ = site_candidates[0]
+        if data_source is None:
+            return {
+                "error": (
+                    f"No non-metadata (site) datasource found on workflow "
+                    f"{workflow_name!r}"
+                )
+            }
+
+        nb = wf.notebook(notebook_name)
+        try:
+            if not nb.exists():
+                return {
+                    "error": (
+                        f"notebook {notebook_name!r} missing on workflow "
+                        f"{workflow_name!r}"
+                    )
+                }
+        except Exception as e:
+            return {
+                "error": (
+                    f"notebook {notebook_name!r} on {workflow_name!r} "
+                    f"lookup failed: {e}"
+                )
+            }
+        return {
+            "workflow_name": workflow_name,
+            "nb": nb,
+            "data_source": data_source,
+            "metadata_sources": metadata_sources,
+            "prev_name": prev_name,
+        }
+
+    def _wait_for_any_pool_idle(
+        self, slots: list, *, deadline: float, raw_dataset_id: str
+    ) -> bool:
+        """
+        Poll until any pool copy is claimable (notebook idle and no foreign
+        lease), or ``deadline``.
+
+        Returns True if at least one copy is claimable, False if all stay busy.
         """
         poll = max(5, int(settings.config["REDIVIS_PROCESS_BUSY_POLL_SECONDS"]))
         while True:
-            if not self._notebook_is_busy(nb):
+            idle = [
+                s["workflow_name"]
+                for s in slots
+                if not self._notebook_is_busy(s["nb"])
+                and not self._copy_lease_held_by_other(s["workflow_name"])
+            ]
+            if idle:
+                logging.info(
+                    "run_process_dataset_workflow: idle copies for %r: %s",
+                    raw_dataset_id,
+                    idle,
+                )
                 return True
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return False
             sleep_for = min(poll, remaining)
             logging.info(
-                "run_process_dataset_workflow: notebook busy — waiting %.0fs "
-                "before retry for %r (%.0fs left in budget)",
+                "run_process_dataset_workflow: all copies busy — waiting %.0fs "
+                "for %r (%.0fs left in budget; pool=%s)",
                 sleep_for,
                 raw_dataset_id,
                 remaining,
+                [s["workflow_name"] for s in slots],
             )
             time.sleep(sleep_for)
 
@@ -420,22 +711,34 @@ class RedivisServices:
     def _run_shared_notebook_with_busy_retry(
         self,
         *,
-        nb,
-        data_source,
-        metadata_sources: list,
+        slots: list,
         source_qualified: str,
         target_qualified: str,
         raw_dataset_id: str,
         notebook_name: str,
     ) -> dict:
         """
-        Run the shared process_dataset notebook, waiting/retrying while it is busy.
+        Idle-claim a process_dataset copy, then run it.
 
-        Re-points the workflow datasource before each attempt so a concurrent job
-        cannot leave us pointed at the wrong site after we waited. Starts the
-        notebook without following later ``currentJob`` values: wait is bound to
-        the job id returned by this start.
+        Picks any idle notebook whose Firestore copy-lease is free. Acquires
+        that lease before re-pointing the datasource. If all copies are busy or
+        leased, waits until one is free. On ``already running`` or a held
+        lease, tries the other copies immediately (no sleep). Wait is bound to
+        the job id this start returned. The lease is held until that wait
+        finishes (heartbeat while polling) so another job cannot re-point
+        mid-run.
         """
+        empty = {
+            "ran": False,
+            "error": None,
+            "busy_retries": 0,
+            "attempts": 0,
+            "workflow": None,
+        }
+        if not slots:
+            empty["error"] = "no process_dataset workflow copies available"
+            return empty
+
         max_wait = max(
             0, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS"])
         )
@@ -451,123 +754,224 @@ class RedivisServices:
         busy_retries = 0
         next_sleep = initial_sleep
         last_busy_error: str | None = None
+        last_point_error: str | None = None
+        pool_names = [s["workflow_name"] for s in slots]
+
+        def _fail(error: str) -> dict:
+            return {
+                "ran": False,
+                "error": error,
+                "busy_retries": busy_retries,
+                "attempts": attempt,
+                "workflow": None,
+            }
 
         while True:
             attempt += 1
-            if not self._wait_for_notebook_idle(
-                nb, deadline=deadline, raw_dataset_id=raw_dataset_id
+            if not self._wait_for_any_pool_idle(
+                slots, deadline=deadline, raw_dataset_id=raw_dataset_id
             ):
-                return {
-                    "ran": False,
-                    "error": (
-                        "shared process_dataset notebook stayed busy for "
-                        f"{max_wait}s (last error: {last_busy_error or 'currentJob active'})"
-                    ),
-                    "busy_retries": busy_retries,
-                    "attempts": attempt,
-                }
+                return _fail(
+                    "process_dataset copies stayed busy for "
+                    f"{max_wait}s (pool={pool_names}; last error: "
+                    f"{last_busy_error or 'currentJob active'})"
+                )
 
-            # Another job may have swapped the datasource while we waited.
-            point_err = self._point_workflow_datasource(
-                data_source,
-                source_qualified=source_qualified,
-                raw_dataset_id=raw_dataset_id,
+            idle_slots = [
+                s
+                for s in slots
+                if not self._notebook_is_busy(s["nb"])
+                and not self._copy_lease_held_by_other(s["workflow_name"])
+            ]
+            if not idle_slots:
+                continue
+
+            claimed = False
+            heartbeat_every = max(
+                30,
+                int(
+                    settings.config.get(
+                        "REDIVIS_PROCESS_LEASE_HEARTBEAT_SECONDS", 120
+                    )
+                ),
             )
-            if point_err:
-                return {
-                    "ran": False,
-                    "error": point_err,
-                    "busy_retries": busy_retries,
-                    "attempts": attempt,
-                }
+            for slot in idle_slots:
+                workflow_name = slot["workflow_name"]
+                nb = slot["nb"]
+                owner_token = uuid.uuid4().hex
+                if not self._acquire_copy_lease(
+                    workflow_name,
+                    owner_token=owner_token,
+                    raw_dataset_id=raw_dataset_id,
+                ):
+                    claimed = True
+                    busy_retries += 1
+                    last_busy_error = f"{workflow_name} lease held"
+                    logging.info(
+                        "run_process_dataset_workflow: %r — %s lease held; "
+                        "trying next copy immediately (busy_retries=%s)",
+                        raw_dataset_id,
+                        workflow_name,
+                        busy_retries,
+                    )
+                    continue
 
-            for ds in metadata_sources:
+                last_beat = time.monotonic()
+
+                def _on_poll(
+                    _wf=workflow_name,
+                    _tok=owner_token,
+                    _every=heartbeat_every,
+                ):
+                    nonlocal last_beat
+                    if time.monotonic() - last_beat < _every:
+                        return
+                    last_beat = time.monotonic()
+                    self._heartbeat_copy_lease(_wf, owner_token=_tok)
+
                 try:
-                    ds.update(version="current")
-                except Exception as e:
-                    logging.warning(
-                        "run_process_dataset_workflow: metadata datasource "
-                        "version=current refresh failed (continuing): %s",
-                        e,
+                    if self._notebook_is_busy(nb):
+                        claimed = True
+                        busy_retries += 1
+                        last_busy_error = (
+                            f"{workflow_name} became busy after lease"
+                        )
+                        logging.info(
+                            "run_process_dataset_workflow: %r — %s busy after "
+                            "lease; releasing and trying next copy",
+                            raw_dataset_id,
+                            workflow_name,
+                        )
+                        continue
+
+                    point_err = self._point_workflow_datasource(
+                        slot["data_source"],
+                        source_qualified=source_qualified,
+                        raw_dataset_id=raw_dataset_id,
+                    )
+                    if point_err:
+                        last_point_error = f"{workflow_name}: {point_err}"
+                        logging.warning(
+                            "run_process_dataset_workflow: skip %s — %s",
+                            workflow_name,
+                            point_err,
+                        )
+                        continue
+
+                    for ds in slot["metadata_sources"]:
+                        try:
+                            ds.update(version="current")
+                        except Exception as e:
+                            logging.warning(
+                                "run_process_dataset_workflow: metadata datasource "
+                                "version=current refresh failed on %s (continuing): %s",
+                                workflow_name,
+                                e,
+                            )
+
+                    logging.info(
+                        "run_process_dataset_workflow: claiming %s notebook %s "
+                        "(source=%s target=%s attempt=%s busy_retries=%s)",
+                        workflow_name,
+                        notebook_name,
+                        source_qualified,
+                        target_qualified,
+                        attempt,
+                        busy_retries,
+                    )
+                    try:
+                        nb.run(wait_for_finish=False)
+                    except Exception as e:
+                        if not self._is_notebook_busy_error(e):
+                            return {
+                                "ran": False,
+                                "error": f"{workflow_name}: {e}",
+                                "busy_retries": busy_retries,
+                                "attempts": attempt,
+                                "workflow": workflow_name,
+                            }
+                        claimed = True
+                        last_busy_error = str(e)
+                        busy_retries += 1
+                        logging.info(
+                            "run_process_dataset_workflow: %r — %s already "
+                            "running; trying next idle copy immediately "
+                            "(busy_retries=%s)",
+                            raw_dataset_id,
+                            workflow_name,
+                            busy_retries,
+                        )
+                        continue
+
+                    current, last = self._notebook_jobs(nb)
+                    job_id = self._notebook_job_id(
+                        current
+                    ) or self._notebook_job_id(last)
+                    if not job_id:
+                        return {
+                            "ran": False,
+                            "error": (
+                                f"notebook run started on {workflow_name} but "
+                                "Redivis returned no job id"
+                            ),
+                            "busy_retries": busy_retries,
+                            "attempts": attempt,
+                            "workflow": workflow_name,
+                        }
+                    logging.info(
+                        "run_process_dataset_workflow: started notebook job %s "
+                        "on %s for %r (attempt=%s)",
+                        job_id,
+                        workflow_name,
+                        raw_dataset_id,
+                        attempt,
+                    )
+                    wait_err = self._wait_for_notebook_job(
+                        nb,
+                        job_id=job_id,
+                        raw_dataset_id=raw_dataset_id,
+                        on_poll=_on_poll,
+                    )
+                    if wait_err:
+                        return {
+                            "ran": False,
+                            "error": f"{workflow_name}: {wait_err}",
+                            "busy_retries": busy_retries,
+                            "attempts": attempt,
+                            "workflow": workflow_name,
+                        }
+                    return {
+                        "ran": True,
+                        "error": None,
+                        "busy_retries": busy_retries,
+                        "attempts": attempt,
+                        "workflow": workflow_name,
+                    }
+                finally:
+                    self._release_copy_lease(
+                        workflow_name, owner_token=owner_token
                     )
 
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return _fail(
+                    "process_dataset copies stayed busy for "
+                    f"{max_wait}s (pool={pool_names}; last error: "
+                    f"{last_busy_error or last_point_error or 'currentJob active'})"
+                )
+            if not claimed and last_point_error:
+                return _fail(last_point_error)
+            sleep_for = min(next_sleep, remaining, max_sleep)
             logging.info(
-                "run_process_dataset_workflow: running notebook %s "
-                "(source=%s target=%s attempt=%s busy_retries=%s)",
-                notebook_name,
-                source_qualified,
-                target_qualified,
-                attempt,
+                "run_process_dataset_workflow: %r — no copy claimed; "
+                "retry in %.0fs (busy_retries=%s, %.0fs left in budget)",
+                raw_dataset_id,
+                sleep_for,
                 busy_retries,
+                remaining,
             )
-            try:
-                nb.run(wait_for_finish=False)
-                current, last = self._notebook_jobs(nb)
-                job_id = self._notebook_job_id(current) or self._notebook_job_id(last)
-                if not job_id:
-                    return {
-                        "ran": False,
-                        "error": (
-                            "notebook run started but Redivis returned no job id"
-                        ),
-                        "busy_retries": busy_retries,
-                        "attempts": attempt,
-                    }
-                logging.info(
-                    "run_process_dataset_workflow: started notebook job %s "
-                    "for %r (attempt=%s)",
-                    job_id,
-                    raw_dataset_id,
-                    attempt,
-                )
-                wait_err = self._wait_for_notebook_job(
-                    nb, job_id=job_id, raw_dataset_id=raw_dataset_id
-                )
-                if wait_err:
-                    return {
-                        "ran": False,
-                        "error": wait_err,
-                        "busy_retries": busy_retries,
-                        "attempts": attempt,
-                    }
-                return {
-                    "ran": True,
-                    "error": None,
-                    "busy_retries": busy_retries,
-                    "attempts": attempt,
-                }
-            except Exception as e:
-                if not self._is_notebook_busy_error(e):
-                    return {
-                        "ran": False,
-                        "error": str(e),
-                        "busy_retries": busy_retries,
-                        "attempts": attempt,
-                    }
-                last_busy_error = str(e)
-                busy_retries += 1
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    return {
-                        "ran": False,
-                        "error": (
-                            "shared process_dataset notebook stayed busy for "
-                            f"{max_wait}s (last error: {last_busy_error})"
-                        ),
-                        "busy_retries": busy_retries,
-                        "attempts": attempt,
-                    }
-                sleep_for = min(next_sleep, remaining, max_sleep)
-                logging.info(
-                    "run_process_dataset_workflow: %r — notebook already running; "
-                    "retry in %.0fs (busy_retries=%s, %.0fs left in budget)",
-                    raw_dataset_id,
-                    sleep_for,
-                    busy_retries,
-                    remaining,
-                )
-                time.sleep(sleep_for)
-                next_sleep = min(next_sleep * 2, max_sleep)
+            time.sleep(sleep_for)
+            next_sleep = min(next_sleep * 2, max_sleep)
 
     def release_processed_dataset(
         self,
@@ -679,11 +1083,12 @@ class RedivisServices:
           dataset (the notebook leaves an unreleased ``next`` version) unless
           ``release_processed`` is false.
 
-        The shared workflow may still point at a previous site; this method always
-        replaces the site (non-metadata) datasource with ``raw_dataset_id`` first,
-        then runs the notebook. If another job holds the shared notebook, waits and
-        retries (re-pointing the datasource before each attempt) until the budget
-        in ``REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS`` is exhausted.
+        The workflow pool (``REDIVIS_PROCESS_WORKFLOW_POOL``) may still point at
+        a previous site; this method always replaces the chosen copy's site
+        (non-metadata) datasource with ``raw_dataset_id`` first, then runs that
+        notebook. Idle copies are claimed first; if all are busy, waits until
+        any is free. On ``already running``, tries the other copies immediately.
+        Retries until ``REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS`` is exhausted.
         """
         raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
         raw_dataset_id = (raw_dataset_id or "").strip()
@@ -696,6 +1101,7 @@ class RedivisServices:
             "target": None,
             "processed_shell": None,
             "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+            "workflow_pool": [],
             "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
             "processed_release": None,
             "error": None,
@@ -735,55 +1141,51 @@ class RedivisServices:
                 )
                 return result
 
-            user_name = settings.config["REDIVIS_PROCESS_WORKFLOW_USER"]
-            workflow_name = settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"]
             notebook_name = settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"]
-            wf = redivis.user(user_name).workflow(workflow_name)
-            datasources = wf.list_datasources()
-
-            site_candidates = []
-            metadata_sources = []
-            for ds in datasources:
-                ds.get()
-                source_name = self._datasource_source_name(ds)
-                key = self._redivis_name_key(source_name)
-                if "metadata" in key:
-                    metadata_sources.append(ds)
-                else:
-                    site_candidates.append((ds, source_name, key))
-
-            # Prefer the datasource already on a *-raw site dataset; else first
-            # non-metadata datasource (shared workflow only has one site source).
-            data_source = None
-            prev_name = ""
-            for ds, source_name, key in site_candidates:
-                if key.endswith("_raw"):
-                    data_source = ds
-                    prev_name = source_name
-                    break
-            if data_source is None and site_candidates:
-                data_source, prev_name, _ = site_candidates[0]
-
-            if data_source is None:
+            pool = self._process_workflow_pool()
+            result["workflow_pool"] = pool
+            if not pool:
                 result["error"] = (
-                    f"No non-metadata (site) datasource found on workflow "
-                    f"{workflow_name!r}"
+                    "REDIVIS_PROCESS_WORKFLOW_POOL / "
+                    "REDIVIS_PROCESS_WORKFLOW_NAME is empty"
+                )
+                logging.error("run_process_dataset_workflow: %s", result["error"])
+                return result
+
+            slots = []
+            slot_errors = []
+            for name in pool:
+                slot = self._open_workflow_slot(name, notebook_name)
+                if slot.get("error"):
+                    slot_errors.append(f"{name}: {slot['error']}")
+                    logging.warning(
+                        "run_process_dataset_workflow: skipping copy %s — %s",
+                        name,
+                        slot["error"],
+                    )
+                    continue
+                slots.append(slot)
+            if not slots:
+                result["error"] = (
+                    "No usable process_dataset copies in pool "
+                    f"{pool}: {'; '.join(slot_errors) or 'none opened'}"
                 )
                 logging.error("run_process_dataset_workflow: %s", result["error"])
                 return result
 
             logging.info(
-                "run_process_dataset_workflow: source %s → %s ; target %s",
-                prev_name or "(unknown)",
-                source_qualified,
+                "run_process_dataset_workflow: pool %s ; target %s ; "
+                "copy sources %s",
+                [s["workflow_name"] for s in slots],
                 target_qualified,
+                {
+                    s["workflow_name"]: s["prev_name"] or "(unknown)"
+                    for s in slots
+                },
             )
 
-            nb = wf.notebook(notebook_name)
             run_result = self._run_shared_notebook_with_busy_retry(
-                nb=nb,
-                data_source=data_source,
-                metadata_sources=metadata_sources,
+                slots=slots,
                 source_qualified=source_qualified,
                 target_qualified=target_qualified,
                 raw_dataset_id=raw_dataset_id,
@@ -791,6 +1193,8 @@ class RedivisServices:
             )
             result["busy_retries"] = run_result.get("busy_retries", 0)
             result["attempts"] = run_result.get("attempts", 0)
+            if run_result.get("workflow"):
+                result["workflow"] = run_result["workflow"]
             if run_result.get("error"):
                 result["error"] = run_result["error"]
                 logging.error(
@@ -813,17 +1217,20 @@ class RedivisServices:
                     "error": None,
                 }
                 logging.info(
-                    "run_process_dataset_workflow: notebook completed source=%s "
-                    "target=%s — skipped processed release "
+                    "run_process_dataset_workflow: notebook completed on %s "
+                    "source=%s target=%s — skipped processed release "
                     "(release_processed_dataset=false)",
+                    result["workflow"],
                     source_qualified,
                     target_qualified,
                 )
                 return result
 
             logging.info(
-                "run_process_dataset_workflow: notebook completed source=%s "
-                "target=%s (attempts=%s busy_retries=%s) — releasing processed",
+                "run_process_dataset_workflow: notebook completed on %s "
+                "source=%s target=%s (attempts=%s busy_retries=%s) — "
+                "releasing processed",
+                result["workflow"],
                 source_qualified,
                 target_qualified,
                 result["attempts"],
@@ -848,8 +1255,9 @@ class RedivisServices:
                 return result
 
             logging.info(
-                "run_process_dataset_workflow: completed source=%s target=%s "
-                "processed_release=%s",
+                "run_process_dataset_workflow: completed on %s source=%s "
+                "target=%s processed_release=%s",
+                result["workflow"],
                 source_qualified,
                 target_qualified,
                 release_log.get("after_version") or release_log.get("before_version"),

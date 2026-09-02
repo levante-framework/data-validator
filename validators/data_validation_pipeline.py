@@ -259,6 +259,7 @@ def run_data_validation(
                         "raw_dataset_id": raw_id,
                         "processed_dataset_id": processed_id,
                         "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+                        "workflow_pool": RedivisServices._process_workflow_pool(),
                         "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
                         "error": None,
                         "airtable": None,
