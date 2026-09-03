@@ -56,9 +56,21 @@ def format_data_validation_slack_summary(response: dict) -> str:
     if len(orgs_block) > 800:
         orgs_block = orgs_block[:800] + "…"
 
+    process = response.get("process_dataset") or logs.get("process_dataset")
+    process_err = bool(process and process.get("error"))
+    pending_next_released = bool(
+        process
+        and process.get("retry_release_only")
+        and (process.get("processed_release") or {}).get("released")
+    )
+
     validation_only = dp.get("is_save_to_storage") is False
     if validation_only:
         title = "*Levante data validator* — validation only (no GCP/Redivis upload)"
+    elif process_err:
+        title = "*Levante data validator* — processed dataset step failed"
+    elif pending_next_released:
+        title = "*Levante data validator* — processed `next` released (no new raw)"
     elif nvr:
         title = "*Levante data validator* — new Redivis version released"
     else:
@@ -67,7 +79,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
         title,
         "",
         f"*Dataset* `{ds}`",
-        f"*API* v{ver} · *Runtime* {elapsed} · *New Redivis release* {nvr_s}",
+        f"*API* v{ver} · *Runtime* {elapsed} · *New raw Redivis release* {nvr_s}",
         "",
         "*Pipeline*",
         f"• Save to storage: {dp.get('is_save_to_storage')} · Force Redivis: {dp.get('is_force_uploading_to_redivis')}",
@@ -156,6 +168,8 @@ def format_data_validation_slack_summary(response: dict) -> str:
             status = "completed"
         elif err:
             status = f"failed — {err}"
+        elif process.get("retry_release_only"):
+            status = "released pending next (no new raw)"
         elif process.get("skipped"):
             status = "skipped (skip_process_dataset=true)"
         else:
@@ -202,6 +216,18 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"• Processed dataset `{processed_id}` · {release_s} · {airtable_s}",
             ]
         )
+        if process.get("retry_release_only") and release.get("released"):
+            lines.append(
+                "• GCS/raw unchanged this run; published leftover unreleased "
+                "processed `next` from an earlier notebook (Scheduler retry / "
+                "next cron after a failed `release()`)."
+            )
+        elif ran and release.get("error"):
+            lines.append(
+                "• Notebook wrote unreleased processed `next`, but `release()` "
+                "failed. Job exits 1 so Scheduler retries; a later run with "
+                "unchanged GCS will only try `release()` again."
+            )
 
     if validation_only:
         lines.extend(

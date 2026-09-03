@@ -61,7 +61,7 @@ and `release_processed_dataset`.
 | `is_save_to_storage` | **yes** | — | `false`: validate only (no GCS / Redivis). `true`: write tables. |
 | `is_force_uploading_to_redivis` | no | `false` | `true`: force a new raw Redivis version even if GCS is unchanged. |
 | `skip_process_dataset` | no | `false` | `true`: after a new raw release, do **not** run `process_dataset`. Omit / `false` / `null`: run the notebook. **Cron jobs need no change.** |
-| `release_processed_dataset` | no | `true` | After a successful notebook run, release the unmarked processed dataset (`next`). Omit / `null` / `true`: release (default). `false`: leave `next` unreleased and skip the Airtable processed-date stamp. **Cron jobs need no change.** |
+| `release_processed_dataset` | no | `true` | After a successful notebook run, release the unmarked processed dataset (`next`). Omit / `null` / `true`: release (default). `false`: leave `next` unreleased and skip the Airtable processed-date stamp. **Cron jobs need no change.** If release (or the notebook) fails, the job **exits non-zero** so Cloud Scheduler retries. A retry with unchanged GCS still calls `release()` when processed `next` is pending. |
 | `send_slack` | no | `false` | `true`: Slack on start; final summary when a new Redivis version is released. Failures always Slack. |
 | `orgs` | **yes** | — | Non-empty list of organization scopes (see below). |
 
