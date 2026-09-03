@@ -37,6 +37,102 @@ def _notify_slack_safe(message: str) -> None:
         logging.error("Slack notification failed: %s", e)
 
 
+def _stamp_airtable_processed_date(process_log: dict) -> dict:
+    """Write Airtable processed-date when this run published processed data."""
+    rel = process_log.get("processed_release") or {}
+    if process_log.get("error"):
+        process_log.setdefault("airtable", None)
+        return process_log
+    if process_log.get("retry_release_only"):
+        should_stamp = bool(rel.get("released"))
+    else:
+        should_stamp = bool(process_log.get("ran")) and (
+            rel.get("released")
+            or (
+                rel.get("skipped")
+                and rel.get("skip_reason") != "release_processed_dataset=false"
+            )
+        )
+    if not should_stamp:
+        process_log.setdefault("airtable", None)
+        return process_log
+    try:
+        airtable = AirtableServices()
+        process_log["airtable"] = airtable.update_processed_dataset_last_update(
+            processed_name=process_log["processed_dataset_id"],
+            date_yyyy_mm_dd=_today_in_pdt(),
+        )
+    except Exception as e:
+        logging.error(
+            "Airtable processed-date update failed for %r: %s",
+            process_log.get("processed_dataset_id"),
+            e,
+        )
+        process_log["airtable"] = {
+            "updated": False,
+            "record_id": None,
+            "error": str(e),
+        }
+    return process_log
+
+
+def _try_release_processed_without_new_raw(
+    dataset_parameters: utils.DatasetParameters,
+) -> dict | None:
+    """
+    Scheduler retry / next cron with unchanged GCS: still release processed
+    ``next`` if the notebook already wrote it. Does not re-run the notebook.
+    """
+    if dataset_parameters.skip_process_dataset:
+        return None
+    if not dataset_parameters.release_processed_dataset:
+        return None
+    raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
+    raw_id = dataset_parameters.dataset_id or ""
+    if not raw_id.endswith(raw_suffix):
+        return None
+    processed_id = RedivisServices.processed_name_from_raw(raw_id)
+    rs = RedivisServices()
+    release_log = rs.release_processed_dataset(
+        processed_id=processed_id,
+        raw_dataset_id=raw_id,
+    )
+    process_log = {
+        "ran": False,
+        "skipped": bool(release_log.get("skipped")),
+        "retry_release_only": True,
+        "raw_dataset_id": raw_id,
+        "processed_dataset_id": processed_id,
+        "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+        "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+        "processed_release": release_log,
+        "error": release_log.get("error"),
+        "airtable": None,
+    }
+    if process_log["skipped"] and not process_log["error"]:
+        logging.info(
+            "no new raw for %r — processed has no unreleased next (current=%s)",
+            raw_id,
+            release_log.get("after_version") or release_log.get("before_version"),
+        )
+        return None
+    if release_log.get("released"):
+        logging.info(
+            "no new raw for %r — released pending processed %s → %s",
+            raw_id,
+            release_log.get("before_version"),
+            release_log.get("after_version"),
+        )
+        process_log = _stamp_airtable_processed_date(process_log)
+    elif process_log["error"]:
+        logging.error(
+            "no new raw for %r — processed release retry failed: %s",
+            raw_id,
+            process_log["error"],
+        )
+    return process_log
+
+
 def run_data_validation(
     dataset_parameters: utils.DatasetParameters,
     *,
@@ -268,34 +364,25 @@ def run_data_validation(
                         raw_id,
                     )
                 else:
-                    process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
-                    if process_log.get("ran") and not process_log.get("error"):
-                        try:
-                            airtable = AirtableServices()
-                            airtable_log = airtable.update_processed_dataset_last_update(
-                                processed_name=process_log["processed_dataset_id"],
-                                date_yyyy_mm_dd=_today_in_pdt(),
-                            )
-                            process_log["airtable"] = airtable_log
-                        except Exception as e:
-                            logging.error(
-                                "Airtable processed-date update failed for %r: %s",
-                                process_log.get("processed_dataset_id"),
-                                e,
-                            )
-                            process_log["airtable"] = {
-                                "updated": False,
-                                "record_id": None,
-                                "error": str(e),
-                            }
-                    else:
-                        process_log.setdefault("airtable", None)
+                    process_log = rs.run_process_dataset_workflow(
+                        raw_dataset_id=raw_id,
+                        release_processed=dataset_parameters.release_processed_dataset,
+                    )
+                    process_log = _stamp_airtable_processed_date(process_log)
 
         rs.upload_to_redivis_log["table_counts"] = rs.count_tables()
         output = {
             "total_validation_stats": total_validation_stats,
             "gcp_logs": storage.upload_to_GCP_log,
             "redivis_logs": rs.upload_to_redivis_log,
+        }
+        if process_log is not None:
+            output["process_dataset"] = process_log
+    elif not storage.has_upload_failures:
+        process_log = _try_release_processed_without_new_raw(dataset_parameters)
+        output = {
+            "total_validation_stats": total_validation_stats,
+            "gcp_logs": storage.upload_to_GCP_log,
         }
         if process_log is not None:
             output["process_dataset"] = process_log
@@ -323,8 +410,17 @@ def run_data_validation(
     # (summary includes process_dataset when that workflow ran), or when GCS writes
     # failed — those runs never reach a release and would otherwise be silent.
     if dataset_parameters.send_slack and (
-        slack_summary_always or new_version_release or storage.has_upload_failures
+        slack_summary_always
+        or new_version_release
+        or storage.has_upload_failures
+        or (process_log and process_log.get("error"))
+        or (
+            process_log
+            and process_log.get("retry_release_only")
+            and (process_log.get("processed_release") or {}).get("released")
+        )
     ):
         _notify_slack_safe(message=format_data_validation_slack_summary(response))
 
-    return json.dumps(response), 200
+    status = 500 if process_log and process_log.get("error") else 200
+    return json.dumps(response, cls=utils.CustomJSONEncoder), status

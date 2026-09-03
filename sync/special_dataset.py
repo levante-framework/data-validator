@@ -178,6 +178,23 @@ def _format_slack(result: dict) -> str:
         f"• Raw Redivis release: {'yes' if (result.get('validation') or {}).get('new_version_release') else 'no'}",
         f"• `process_dataset`: {'completed' if process.get('ran') and not process.get('error') else 'failed/skipped'}",
     ]
+    release = process.get("processed_release") or {}
+    if release.get("released"):
+        lines.append(
+            f"• Processed Redivis release: `{release.get('before_version') or '—'}` → "
+            f"`{release.get('after_version') or '—'}`"
+        )
+    elif release.get("skip_reason") == "release_processed_dataset=false":
+        lines.append(
+            "• Processed Redivis release: skipped (release_processed_dataset=false)"
+        )
+    elif release.get("skipped"):
+        lines.append(
+            f"• Processed Redivis release: already at "
+            f"`{release.get('after_version') or '—'}`"
+        )
+    elif release.get("error"):
+        lines.append(f"• Processed Redivis release: failed — {release.get('error')}")
     if result.get("test_mode"):
         lines.append("• Airtable processed_ref_id verification/writeback: skipped")
     else:

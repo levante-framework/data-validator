@@ -299,6 +299,28 @@ class RedivisServices:
         return "already running" in msg
 
     @staticmethod
+    def _notebook_job_id(job: dict | None) -> str:
+        return str((job or {}).get("id") or "").strip()
+
+    @staticmethod
+    def _notebook_jobs(nb) -> tuple[dict, dict]:
+        props = nb.properties or {}
+        current = props.get("currentJob") or {}
+        last = props.get("lastRunJob") or {}
+        return (
+            current if isinstance(current, dict) else {},
+            last if isinstance(last, dict) else {},
+        )
+
+    def _notebook_job_matching(self, nb, job_id: str) -> dict | None:
+        current, last = self._notebook_jobs(nb)
+        if self._notebook_job_id(current) == job_id:
+            return current
+        if self._notebook_job_id(last) == job_id:
+            return last
+        return None
+
+    @staticmethod
     def _notebook_is_busy(nb) -> bool:
         """True when the notebook reports an in-flight ``currentJob``."""
         try:
@@ -313,6 +335,80 @@ class RedivisServices:
                 e,
             )
             return False
+
+    def _snapshot_notebook_job_ids(self, nb) -> set[str]:
+        """Job ids currently visible on the notebook (current and last run)."""
+        current, last = self._notebook_jobs(nb)
+        ids = {
+            self._notebook_job_id(current),
+            self._notebook_job_id(last),
+        }
+        ids.discard("")
+        return ids
+
+    def _new_current_job_id_after_run(
+        self, nb, *, prior_ids: set[str], raw_dataset_id: str
+    ) -> str:
+        """
+        After ``nb.run(wait_for_finish=False)``, require a *new* ``currentJob.id``.
+
+        Do not fall back to ``lastRunJob`` — that is often the previous site.
+        Poll briefly in case ``run()`` returns before ``currentJob`` is visible.
+        """
+        deadline = time.monotonic() + 20
+        while True:
+            nb.get()
+            current, last = self._notebook_jobs(nb)
+            job_id = self._notebook_job_id(current)
+            if job_id and job_id not in prior_ids:
+                return job_id
+            if time.monotonic() >= deadline:
+                logging.error(
+                    "run_process_dataset_workflow: no new currentJob.id for %r "
+                    "(prior=%s current=%s last=%s)",
+                    raw_dataset_id,
+                    sorted(prior_ids) or "none",
+                    job_id or "none",
+                    self._notebook_job_id(last) or "none",
+                )
+                return ""
+            time.sleep(2)
+
+    def _wait_for_notebook_job(
+        self, nb, *, job_id: str, raw_dataset_id: str
+    ) -> str | None:
+        """
+        Poll until the started notebook ``job_id`` completes or fails.
+
+        Do not follow whatever ``currentJob`` is live: another site can start
+        the shared notebook after ours finishes, and ``wait_for_finish=True``
+        would then wait on *their* job.
+        """
+        poll = 2
+        while True:
+            nb.get()
+            ours = self._notebook_job_matching(nb, job_id)
+            if ours is None:
+                current, last = self._notebook_jobs(nb)
+                logging.info(
+                    "run_process_dataset_workflow: waiting for notebook job %s "
+                    "for %r (current=%s last=%s)",
+                    job_id,
+                    raw_dataset_id,
+                    self._notebook_job_id(current) or "none",
+                    self._notebook_job_id(last) or "none",
+                )
+                time.sleep(poll)
+                continue
+            status = str(ours.get("status") or "").strip().lower()
+            if status == "completed":
+                return None
+            if status == "failed":
+                return (
+                    ours.get("errorMessage")
+                    or f"notebook job {job_id} failed"
+                )
+            time.sleep(poll)
 
     def _wait_for_notebook_idle(self, nb, *, deadline: float, raw_dataset_id: str) -> bool:
         """
@@ -374,9 +470,9 @@ class RedivisServices:
         Run the shared process_dataset notebook, waiting/retrying while it is busy.
 
         Re-points the workflow datasource before each attempt so a concurrent job
-        cannot leave us pointed at the wrong site after we waited. After a
-        successful ``nb.run``, re-reads the datasource and returns ``ran=False``
-        if it no longer matches ``raw_dataset_id`` (point→run is not atomic).
+        cannot leave us pointed at the wrong site after we waited. Starts the
+        notebook without following later ``currentJob`` values: wait is bound to
+        the job id returned by this start.
         """
         max_wait = max(
             0, int(settings.config["REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS"])
@@ -443,35 +539,36 @@ class RedivisServices:
                 busy_retries,
             )
             try:
-                nb.run(wait_for_finish=True)
-                # Point→run is not atomic: another job can re-point the shared
-                # datasource after we pointed and before/during our run. If the
-                # source no longer matches, do not report ran=True (avoids a
-                # false Airtable processed-date stamp for this site).
-                try:
-                    data_source.get()
-                    actual_name = self._datasource_source_name(data_source)
-                except Exception as e:
+                nb.get()
+                prior_ids = self._snapshot_notebook_job_ids(nb)
+                nb.run(wait_for_finish=False)
+                job_id = self._new_current_job_id_after_run(
+                    nb, prior_ids=prior_ids, raw_dataset_id=raw_dataset_id
+                )
+                if not job_id:
                     return {
                         "ran": False,
                         "error": (
-                            "could not re-read workflow datasource after notebook "
-                            f"run for {raw_dataset_id!r}: {e}"
+                            "notebook run started but Redivis did not return a "
+                            "new currentJob.id (refusing lastRunJob fallback)"
                         ),
                         "busy_retries": busy_retries,
                         "attempts": attempt,
                     }
-                if self._redivis_name_key(actual_name) != self._redivis_name_key(
-                    raw_dataset_id
-                ):
+                logging.info(
+                    "run_process_dataset_workflow: started notebook job %s "
+                    "for %r (attempt=%s)",
+                    job_id,
+                    raw_dataset_id,
+                    attempt,
+                )
+                wait_err = self._wait_for_notebook_job(
+                    nb, job_id=job_id, raw_dataset_id=raw_dataset_id
+                )
+                if wait_err:
                     return {
                         "ran": False,
-                        "error": (
-                            "workflow datasource drifted during notebook run: "
-                            f"wanted {raw_dataset_id!r}, got {actual_name!r} "
-                            "(another job may have re-pointed the shared source; "
-                            "not stamping Airtable for this site)"
-                        ),
+                        "error": wait_err,
                         "busy_retries": busy_retries,
                         "attempts": attempt,
                     }
@@ -514,7 +611,104 @@ class RedivisServices:
                 time.sleep(sleep_for)
                 next_sleep = min(next_sleep * 2, max_sleep)
 
-    def run_process_dataset_workflow(self, raw_dataset_id: str) -> dict:
+    def release_processed_dataset(
+        self,
+        *,
+        processed_id: str,
+        raw_dataset_id: str,
+    ) -> dict:
+        """
+        Release the unmarked processed dataset after ``process_dataset`` finishes.
+
+        The shared notebook writes tables into the dataset's unreleased ``next``
+        version but does not release it; the validator triggers release here.
+        """
+        result = {
+            "released": False,
+            "skipped": False,
+            "processed_dataset_id": processed_id,
+            "before_version": None,
+            "after_version": None,
+            "is_released": False,
+            "error": None,
+        }
+        prev_id = self.dataset_id
+        try:
+            self.set_dataset(dataset_id=processed_id)
+            before = self.get_current_dataset_status()
+            result["before_version"] = before.get("version_tag")
+            if not before.get("exists"):
+                result["error"] = f"processed dataset {processed_id!r} does not exist"
+                return result
+
+            # Released current + pending unreleased next is the normal case after
+            # the notebook. Skip only when there is no next version to publish.
+            props = self.dataset.properties or {}
+            pending_next = bool(props.get("nextVersion"))
+            already_released_current = bool(before.get("is_released")) and before.get(
+                "version_tag"
+            ) not in (None, "next")
+            if already_released_current and not pending_next:
+                result["skipped"] = True
+                result["is_released"] = True
+                result["after_version"] = before.get("version_tag")
+                logging.info(
+                    "release_processed_dataset: %r has no unreleased next "
+                    "(current=%s) — skipped",
+                    processed_id,
+                    before.get("version_tag"),
+                )
+                return result
+
+            description = (
+                f"Processed companion for {raw_dataset_id}. "
+                f"Released by data-validator after process_dataset workflow."
+            )
+            self.dataset.update(description=description)
+            self.dataset.release()
+            after = self.get_current_dataset_status()
+            result["after_version"] = after.get("version_tag")
+            result["is_released"] = bool(after.get("is_released"))
+            if not result["is_released"]:
+                result["error"] = (
+                    f"release() returned but {processed_id!r} is still unreleased "
+                    f"(version={after.get('version_tag')!r})"
+                )
+                logging.error("release_processed_dataset: %s", result["error"])
+                return result
+            if (
+                already_released_current
+                and result["after_version"] == result["before_version"]
+            ):
+                result["error"] = (
+                    f"release() returned but processed version_tag stayed "
+                    f"{result['after_version']!r} (expected a new tag)"
+                )
+                logging.error("release_processed_dataset: %s", result["error"])
+                return result
+            result["released"] = True
+            logging.info(
+                "release_processed_dataset: released %r %s → %s",
+                processed_id,
+                result["before_version"],
+                result["after_version"],
+            )
+        except Exception as e:
+            result["error"] = str(e)
+            logging.error(
+                "release_processed_dataset(%r) failed: %s", processed_id, e
+            )
+        finally:
+            if prev_id:
+                self.set_dataset(dataset_id=prev_id)
+        return result
+
+    def run_process_dataset_workflow(
+        self,
+        raw_dataset_id: str,
+        *,
+        release_processed: bool = True,
+    ) -> dict:
         """
         Run Levante ``process_dataset`` for one site, driven only by ``raw_dataset_id``.
 
@@ -523,6 +717,9 @@ class RedivisServices:
         - **Target** (notebook output dataset): unmarked ``{Name}`` derived by
           stripping ``-raw`` (e.g. ``TEST-Ethan-de-pilot``). Ensured to exist
           (create-if-missing) before the notebook runs.
+        - After the notebook completes successfully, **release** the processed
+          dataset (the notebook leaves an unreleased ``next`` version) unless
+          ``release_processed`` is false.
 
         The shared workflow may still point at a previous site; this method always
         replaces the site (non-metadata) datasource with ``raw_dataset_id`` first,
@@ -542,6 +739,7 @@ class RedivisServices:
             "processed_shell": None,
             "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
             "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+            "processed_release": None,
             "error": None,
             "busy_retries": 0,
             "attempts": 0,
@@ -645,13 +843,58 @@ class RedivisServices:
                 return result
 
             result["ran"] = True
+            if not release_processed:
+                result["processed_release"] = {
+                    "released": False,
+                    "skipped": True,
+                    "skip_reason": "release_processed_dataset=false",
+                    "processed_dataset_id": processed_id,
+                    "before_version": None,
+                    "after_version": None,
+                    "is_released": False,
+                    "error": None,
+                }
+                logging.info(
+                    "run_process_dataset_workflow: notebook completed source=%s "
+                    "target=%s — skipped processed release "
+                    "(release_processed_dataset=false)",
+                    source_qualified,
+                    target_qualified,
+                )
+                return result
+
             logging.info(
-                "run_process_dataset_workflow: completed source=%s target=%s "
-                "(attempts=%s busy_retries=%s)",
+                "run_process_dataset_workflow: notebook completed source=%s "
+                "target=%s (attempts=%s busy_retries=%s) — releasing processed",
                 source_qualified,
                 target_qualified,
                 result["attempts"],
                 result["busy_retries"],
+            )
+
+            release_log = self.release_processed_dataset(
+                processed_id=processed_id,
+                raw_dataset_id=raw_dataset_id,
+            )
+            result["processed_release"] = release_log
+            if release_log.get("error"):
+                result["error"] = (
+                    f"process_dataset notebook completed but processed release "
+                    f"failed: {release_log['error']}"
+                )
+                logging.error(
+                    "run_process_dataset_workflow(%r): %s",
+                    raw_dataset_id,
+                    result["error"],
+                )
+                return result
+
+            logging.info(
+                "run_process_dataset_workflow: completed source=%s target=%s "
+                "processed_release=%s",
+                source_qualified,
+                target_qualified,
+                release_log.get("after_version") or release_log.get("before_version"),
             )
         except Exception as e:
             result["error"] = str(e)
