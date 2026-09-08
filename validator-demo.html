@@ -1,0 +1,1374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive overview of the LEVANTE data-validator">
+  <title>LEVANTE Data Validator — Team Demo</title>
+  <style>
+    /* Theme tokens mirror the LEVANTE admin app (PrimeVue theme + brand navy). */
+    :root {
+      --ink: #3f3f46;
+      --heading: #193860;
+      --muted: #71717a;
+      --paper: #fafafa;
+      --surface: #ffffff;
+      --surface-2: #f4f4f5;
+      --line: #e5e7eb;
+      --brand: #da3d16;
+      --brand-dark: #a22d10;
+      --brand-soft: #fceae5;
+      --accent: #d97706;
+      --accent-soft: #fdf1de;
+      --danger: #dc2626;
+      --danger-soft: #fdeaea;
+      --success: #15803d;
+      --success-soft: #e8f6ed;
+      --code: #18181b;
+      --code-text: #f4f4f5;
+      --radius: 6px;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 84px;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(25, 56, 96, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(25, 56, 96, .04) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, select { font: inherit; }
+    a { color: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(250, 250, 250, .95);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+
+    .topbar-inner {
+      max-width: var(--max);
+      min-height: 64px;
+      margin: 0 auto;
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 22px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      white-space: nowrap;
+      color: var(--heading);
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--brand);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .brand em {
+      color: var(--muted);
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    nav {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    nav a {
+      padding: 8px 10px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
+      border-radius: 8px;
+    }
+
+    nav a:hover, nav a:focus-visible {
+      color: var(--brand-dark);
+      background: var(--brand-soft);
+      outline: none;
+    }
+
+    main { overflow: hidden; }
+
+    .wrap {
+      width: min(var(--max), calc(100% - 44px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 72px 0 54px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .78);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+      gap: 54px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--brand);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { color: var(--heading); }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 18px;
+      font-size: clamp(42px, 6.5vw, 76px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    .hero-copy {
+      max-width: 720px;
+      margin-bottom: 28px;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 21px);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid var(--brand);
+      border-radius: 9px;
+      padding: 10px 14px;
+      background: var(--brand);
+      color: white;
+      font-weight: 750;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .button.secondary {
+      background: transparent;
+      color: var(--brand-dark);
+    }
+
+    .button:hover { background: var(--brand-dark); }
+    .button.secondary:hover { color: white; }
+
+    .hero-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 24px;
+    }
+
+    .hero-panel-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .hero-panel strong {
+      display: block;
+      margin: 5px 0 16px;
+      font-size: 24px;
+      letter-spacing: -.03em;
+    }
+
+    .mini-flow {
+      display: grid;
+      gap: 7px;
+    }
+
+    .mini-flow div {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .mini-flow i {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: white;
+      background: var(--brand);
+      font-style: normal;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .hero-note {
+      margin: 18px 0 0;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    section {
+      padding: 70px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, .7fr);
+      gap: 34px;
+      align-items: end;
+      margin-bottom: 32px;
+    }
+
+    h2 {
+      margin-bottom: 8px;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.05;
+      letter-spacing: -.045em;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(105px, 1fr));
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 156px;
+      padding: 17px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .stage:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      transform: translateY(-50%);
+      color: var(--brand);
+      font-weight: 900;
+    }
+
+    .stage:hover, .stage.active {
+      transform: translateY(-3px);
+      border-color: var(--brand);
+      background: var(--brand-soft);
+    }
+
+    .stage-index {
+      display: block;
+      margin-bottom: 26px;
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .12em;
+    }
+
+    .stage strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 15px;
+    }
+
+    .stage small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .stage-detail {
+      min-height: 89px;
+      margin-top: 18px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--brand);
+      background: var(--surface);
+    }
+
+    .stage-detail strong { display: block; margin-bottom: 5px; }
+    .stage-detail p { margin: 0; color: var(--muted); }
+
+    .mode-shell {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .mode-list {
+      padding: 10px;
+      border-right: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+
+    .mode-button {
+      width: 100%;
+      padding: 13px 12px;
+      border: 0;
+      border-radius: 9px;
+      text-align: left;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .mode-button:hover, .mode-button.active {
+      color: var(--brand-dark);
+      background: var(--surface);
+    }
+
+    .mode-view { padding: 28px; }
+
+    .mode-tag {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 4px 8px;
+      color: var(--brand-dark);
+      background: var(--brand-soft);
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .mode-view h3 {
+      margin-bottom: 8px;
+      font-size: 25px;
+      letter-spacing: -.025em;
+    }
+
+    .mode-view > p { color: var(--muted); }
+
+    .mode-steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 22px 0;
+    }
+
+    .mode-steps span {
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .mode-steps span + span::before {
+      content: "→";
+      margin-right: 10px;
+      color: var(--brand);
+    }
+
+    .outcome {
+      padding: 13px 15px;
+      border-radius: 9px;
+      background: var(--success-soft);
+      color: #14532d;
+      font-size: 14px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .open-block {
+      padding: 5px 4px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .open-block h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 19px;
+    }
+
+    .token {
+      width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid var(--brand);
+      border-radius: 50%;
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .open-block p, .open-block li { color: var(--muted); }
+    .open-block ul { margin: 8px 0 0; padding-left: 21px; }
+
+    .data-tables {
+      margin-top: 32px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .pill-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--paper);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .decision {
+      padding: 19px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .decision-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .decision h3 { margin: 0; font-size: 17px; }
+
+    .badge {
+      flex: 0 0 auto;
+      height: fit-content;
+      padding: 4px 7px;
+      border-radius: 5px;
+      color: var(--success);
+      background: var(--success-soft);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .badge.warn { color: #92400e; background: var(--accent-soft); }
+    .badge.fail { color: var(--danger); background: var(--danger-soft); }
+    .decision p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .reliability-flow {
+      margin-top: 28px;
+      padding: 24px;
+      background: var(--code);
+      color: var(--code-text);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+
+    .reliability-flow pre {
+      min-width: 720px;
+      margin: 0;
+      font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre;
+    }
+
+    .reliability-flow .yes { color: #86efac; }
+    .reliability-flow .no { color: #fdba74; }
+
+    .payload-shell {
+      overflow: hidden;
+      border-radius: var(--radius);
+      background: var(--code);
+      color: var(--code-text);
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px;
+      border-bottom: 1px solid rgba(255,255,255,.14);
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 7px 9px;
+      border: 0;
+      border-radius: 6px;
+      color: #a1a1aa;
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .tab:hover, .tab.active { color: white; background: rgba(255,255,255,.12); }
+
+    .copy {
+      margin-left: auto;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 6px;
+      padding: 6px 9px;
+      color: white;
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    pre.payload {
+      min-height: 365px;
+      margin: 0;
+      padding: 22px;
+      overflow: auto;
+      color: var(--code-text);
+      font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre;
+    }
+
+    .operations {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .operation {
+      min-height: 175px;
+      padding: 19px;
+      border-top: 3px solid var(--brand);
+      background: var(--surface);
+    }
+
+    .operation code {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--brand);
+      font-size: 12px;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .operation h3 { margin-bottom: 7px; font-size: 17px; }
+    .operation p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .observability-grid {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 26px;
+      align-items: start;
+    }
+
+    .slack {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .slack-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .slack-logo {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: white;
+      background: var(--brand);
+      font-weight: 850;
+    }
+
+    .slack p { margin: 14px 0 0; }
+    .slack ul { margin: 7px 0 0; padding-left: 20px; }
+    .slack code { color: var(--brand-dark); background: var(--surface-2); padding: 1px 3px; }
+
+    .signal-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .signal {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 14px;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .signal strong { color: var(--brand); font-size: 13px; }
+    .signal span { color: var(--muted); font-size: 14px; }
+
+    .boundary {
+      margin-top: 30px;
+      padding: 18px 20px;
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+    }
+
+    .boundary strong { display: block; margin-bottom: 5px; }
+    .boundary p { margin: 0; color: #7c2d12; }
+
+    .talk-track {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      counter-reset: talk;
+    }
+
+    .talk {
+      counter-increment: talk;
+      min-height: 175px;
+      padding: 18px;
+      border-left: 1px solid var(--line);
+    }
+
+    .talk:first-child { border-left: 0; }
+    .talk::before {
+      content: counter(talk, decimal-leading-zero);
+      display: block;
+      margin-bottom: 24px;
+      color: var(--accent);
+      font: 800 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .talk strong { display: block; margin-bottom: 6px; }
+    .talk p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    footer {
+      padding: 34px 0 50px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer .wrap {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    @media (max-width: 980px) {
+      .architecture { grid-template-columns: repeat(4, 1fr); }
+      .stage:nth-child(4)::after { display: none; }
+      .operations { grid-template-columns: repeat(2, 1fr); }
+      .talk-track { grid-template-columns: repeat(2, 1fr); }
+      .talk:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
+      .talk:nth-child(4) { border-top: 1px solid var(--line); }
+    }
+
+    @media (max-width: 760px) {
+      .topbar-inner { align-items: flex-start; padding-top: 12px; padding-bottom: 10px; }
+      .brand { padding-top: 5px; }
+      nav { max-width: 60%; }
+      .hero { padding-top: 48px; }
+      .hero-grid, .section-head, .two-col, .observability-grid { grid-template-columns: 1fr; }
+      .architecture { grid-template-columns: 1fr 1fr; }
+      .stage:nth-child(even)::after { display: none; }
+      .mode-shell { grid-template-columns: 1fr; }
+      .mode-list { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .mode-button { width: auto; white-space: nowrap; }
+      .decision-grid, .operations { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 480px) {
+      .wrap { width: min(var(--max), calc(100% - 26px)); }
+      .topbar-inner { padding-left: 13px; padding-right: 13px; }
+      .brand em { display: none; }
+      nav { max-width: calc(100% - 45px); }
+      h1 { font-size: 42px; }
+      section { padding: 52px 0; }
+      .architecture { grid-template-columns: 1fr; }
+      .stage::after { display: none !important; }
+      .talk-track { grid-template-columns: 1fr; }
+      .talk, .talk:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
+      .talk:first-child { border-top: 0; }
+      footer .wrap { flex-direction: column; }
+    }
+
+    @media print {
+      .topbar, .hero-actions, .tabs, .copy { display: none !important; }
+      body { background: white; color: black; }
+      section, .hero { break-inside: avoid; padding: 28px 0; }
+      .stage, .decision, .operation, .slack, .payload-shell { break-inside: avoid; }
+      .architecture { grid-template-columns: repeat(4, 1fr); }
+      .mode-list { display: none; }
+      .mode-shell { display: block; }
+      pre.payload { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">L</span>
+        <span>LEVANTE <em>Data Validator</em></span>
+      </div>
+      <nav aria-label="Page sections">
+        <a href="#workflow">Workflow</a>
+        <a href="#modes">Use cases</a>
+        <a href="#validation">Validation</a>
+        <a href="#reliability">Safety</a>
+        <a href="#payloads">Payloads</a>
+        <a href="#operations">Operations</a>
+        <a href="#observability">Visibility</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <header class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">LEVANTE data infrastructure</p>
+          <h1>From Firestore records to validated, released datasets.</h1>
+          <p class="hero-copy">
+            One scheduled pipeline extracts site data, applies schema and research
+            rules, publishes raw tables, runs the shared processing notebook, and
+            reports the result to the team.
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="#workflow">Walk through the pipeline</a>
+            <a class="button secondary" href="#payloads">Show a request</a>
+          </div>
+        </div>
+        <aside class="hero-panel" aria-label="Daily automation summary">
+          <span class="hero-panel-label">Standard daily site run</span>
+          <strong>Cloud Scheduler → Cloud Run Job</strong>
+          <div class="mini-flow">
+            <div><i>1</i> Scoped Firestore extraction</div>
+            <div><i>2</i> Pydantic + business validation</div>
+            <div><i>3</i> GCS JSON table synchronization</div>
+            <div><i>4</i> Raw Redivis release if changed</div>
+            <div><i>5</i> Processed dataset workflow</div>
+            <div><i>6</i> Slack, Firestore logs, Airtable stamp</div>
+          </div>
+          <p class="hero-note">Daily cron payloads require no manual processing flags; safe defaults apply.</p>
+        </aside>
+      </div>
+    </header>
+
+    <section id="workflow">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">End-to-end architecture</p>
+            <h2>One job, seven deliberate stages</h2>
+          </div>
+          <p>Click a stage to explain what happens there during the demo.</p>
+        </div>
+
+        <div class="architecture" id="architecture">
+          <article class="stage active" tabindex="0" data-title="1. Trigger and validate the request" data-detail="Cloud Scheduler calls the Cloud Run Job API directly. Postman, curl, and the CLI use the thin HTTP trigger or the same Run Job API. Pydantic rejects malformed data-validation payloads before the pipeline starts.">
+            <span class="stage-index">01 / START</span>
+            <strong>Trigger</strong>
+            <small>Scheduler, HTTP, or CLI</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="2. Read only the requested scope" data-detail="The payload selects one or more organizations and can combine district/group filters, date ranges, user filters, guest mode, sampling, and optional user-ID masking.">
+            <span class="stage-index">02 / SOURCE</span>
+            <strong>Firestore</strong>
+            <small>Users, activity, surveys, metadata</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="3. Validate and normalize" data-detail="Pydantic catches schema failures; project rules mark parseable records as valid or invalid. The pipeline also links entities, computes run/trial checks, merges multi-org requests, and removes duplicate IDs.">
+            <span class="stage-index">03 / CHECK</span>
+            <strong>Validator</strong>
+            <small>Schema + research rules</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="4. Synchronize durable JSON tables" data-detail="Validated tables are written under the dataset prefix in the validator GCS bucket. Uploads are retried and verified by stored byte size. Any failed GCS write blocks the Redivis release.">
+            <span class="stage-index">04 / STORE</span>
+            <strong>GCS</strong>
+            <small>Validated JSON tables</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="5. Publish a raw Redivis version" data-detail="When GCS row counts indicate a new version is needed (or force upload is enabled), Redivis creates next, imports each table from GCS, and releases the raw *-raw dataset only after uploads complete.">
+            <span class="stage-index">05 / RAW</span>
+            <strong>Redivis</strong>
+            <small>Released raw dataset</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="6. Build and release processed data" data-detail="After a new raw release, the validator re-points the shared process_dataset workflow, starts the notebook, requires a new currentJob.id, waits for that exact job, then releases the processed dataset unless explicitly disabled.">
+            <span class="stage-index">06 / PROCESS</span>
+            <strong>Notebook</strong>
+            <small>Raw → processed</small>
+          </article>
+          <article class="stage" tabindex="0" data-title="7. Record and communicate the outcome" data-detail="The full structured response is saved under the site's Firestore logs. Slack summarizes row changes, failures, notebook status, and processed release. Airtable receives the processed update date only after publication succeeds.">
+            <span class="stage-index">07 / REPORT</span>
+            <strong>Observe</strong>
+            <small>Slack, logs, Airtable</small>
+          </article>
+        </div>
+        <div class="stage-detail" aria-live="polite">
+          <strong id="stage-title">1. Trigger and validate the request</strong>
+          <p id="stage-copy">Cloud Scheduler calls the Cloud Run Job API directly. Postman, curl, and the CLI use the thin HTTP trigger or the same Run Job API. Pydantic rejects malformed data-validation payloads before the pipeline starts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="modes">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Ways the team can use it</p>
+            <h2>Choose the job behavior without changing code</h2>
+          </div>
+          <p>Each mode is driven by a small JSON payload and shares the same validation engine.</p>
+        </div>
+
+        <div class="mode-shell">
+          <div class="mode-list" role="tablist" aria-label="Validator use cases">
+            <button class="mode-button active" data-mode="daily" role="tab">Daily site automation</button>
+            <button class="mode-button" data-mode="validate" role="tab">Validation only</button>
+            <button class="mode-button" data-mode="raw" role="tab">Raw release only</button>
+            <button class="mode-button" data-mode="hold" role="tab">Process, hold release</button>
+            <button class="mode-button" data-mode="special" role="tab">Multi-site special dataset</button>
+            <button class="mode-button" data-mode="recovery" role="tab">Release recovery</button>
+          </div>
+          <div class="mode-view">
+            <span class="mode-tag" id="mode-tag">Default cron behavior</span>
+            <h3 id="mode-title">Daily site automation</h3>
+            <p id="mode-copy">Validate one site's current data, publish changes, create the processed release, and send the team a concise result.</p>
+            <div class="mode-steps" id="mode-steps"></div>
+            <div class="outcome" id="mode-outcome"><strong>Outcome:</strong> raw and processed versions stay current without a person running the Redivis notebook.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="validation">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">What “validated” means</p>
+            <h2>Keep useful data; make quality visible</h2>
+          </div>
+          <p>The app distinguishes records it cannot parse from records that parse but fail a research rule.</p>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <article class="open-block">
+              <h3><span class="token">01</span> Schema failure</h3>
+              <p>Missing required fields, incompatible types, or invalid object structure. The row is excluded from its main table and recorded in <code>invalid_data</code> with the error.</p>
+            </article>
+            <article class="open-block">
+              <h3><span class="token">02</span> Soft validation failure</h3>
+              <p>The row is structurally usable, so it remains in the main table with <code>valid_*=false</code> and a specific <code>validation_msg_*</code>.</p>
+            </article>
+            <article class="open-block">
+              <h3><span class="token">03</span> Warning</h3>
+              <p>Non-blocking concerns—such as some trial-index issues—are retained in warning fields without automatically invalidating the record.</p>
+            </article>
+          </div>
+          <div>
+            <article class="open-block">
+              <h3><span class="token">A</span> User rules</h3>
+              <ul>
+                <li>Required IDs and user type</li>
+                <li>Student birth month/year and age checks</li>
+                <li>Scope, activity window, and relationship inclusion</li>
+              </ul>
+            </article>
+            <article class="open-block">
+              <h3><span class="token">B</span> Run and trial rules</h3>
+              <ul>
+                <li>Required run/task/variant relationships</li>
+                <li>Completion, practice/test trial, timing, and response checks</li>
+                <li>Run validity informed by its associated trials</li>
+              </ul>
+            </article>
+            <article class="open-block">
+              <h3><span class="token">C</span> Survey rules</h3>
+              <ul>
+                <li>Survey schema and response parsing</li>
+                <li>Completion and relationship checks</li>
+                <li>Student, teacher, and caregiver counts</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+
+        <div class="data-tables">
+          <strong>Core exported tables</strong>
+          <div class="pill-grid" aria-label="Exported data tables">
+            <span class="pill">users</span><span class="pill">runs</span><span class="pill">trials</span>
+            <span class="pill">surveys</span><span class="pill">survey_responses</span>
+            <span class="pill">tasks</span><span class="pill">variants</span>
+            <span class="pill">sites</span><span class="pill">schools</span><span class="pill">classes</span>
+            <span class="pill">cohorts</span><span class="pill">administrations</span>
+            <span class="pill">user_*</span><span class="pill">invalid_data</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reliability">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Safety and recovery</p>
+            <h2>Do not turn partial success into a release</h2>
+          </div>
+          <p>Failure behavior is part of the product: downstream publication is gated, errors are visible, and recoverable work is retried.</p>
+        </div>
+
+        <div class="decision-grid">
+          <article class="decision">
+            <div class="decision-top"><h3>No data change</h3><span class="badge">quiet success</span></div>
+            <p>Skip raw upload and notebook work. If there is no pending processed <code>next</code>, finish without a release notification.</p>
+          </article>
+          <article class="decision">
+            <div class="decision-top"><h3>GCS upload failure</h3><span class="badge fail">blocked</span></div>
+            <p>Do not import or release Redivis. This prevents stale GCS tables from becoming a new raw version.</p>
+          </article>
+          <article class="decision">
+            <div class="decision-top"><h3>Notebook failure</h3><span class="badge fail">exit 1</span></div>
+            <p>Do not release processed. The per-site Slack summary names the failing processed step; Cloud Scheduler can retry.</p>
+          </article>
+          <article class="decision">
+            <div class="decision-top"><h3>Processed release failure</h3><span class="badge warn">recoverable</span></div>
+            <p>Return a failure instead of a false success. A later unchanged-GCS run can publish the pending <code>next</code> without rerunning the notebook.</p>
+          </article>
+          <article class="decision">
+            <div class="decision-top"><h3>Old notebook job visible</h3><span class="badge fail">rejected</span></div>
+            <p>Require a new <code>currentJob.id</code> after <code>run()</code>; never adopt the previous site's <code>lastRunJob</code> as this run.</p>
+          </article>
+          <article class="decision">
+            <div class="decision-top"><h3>Shared notebook busy</h3><span class="badge warn">wait / retry</span></div>
+            <p>Wait for the current shared workflow to become idle, then re-point its site datasource immediately before starting.</p>
+          </article>
+        </div>
+
+        <div class="reliability-flow" aria-label="Release decision flow">
+<pre>validated tables
+      │
+      ├── GCS write failed? ── <span class="no">YES → stop; no Redivis release</span>
+      │
+      └── <span class="yes">NO</span>
+           │
+           ├── raw changed / forced? ── <span class="yes">YES → release raw → run notebook</span>
+           │                                      │
+           │                                      ├── notebook failed → exit 1; no processed release
+           │                                      └── completed → release processed → stamp Airtable
+           │
+           └── <span class="no">NO</span> ── pending processed next?
+                           ├── <span class="yes">YES → release only (recovery path)</span>
+                           └── <span class="no">NO  → quiet success</span></pre>
+        </div>
+
+        <div class="boundary">
+          <strong>Current operating boundary</strong>
+          <p>The active <code>dev_ethan</code> code uses one shared <code>process_dataset:zr0v</code> workflow with busy retry and fresh-job-ID binding. Workflow-pool + Firestore-lease isolation exists on the separate <code>firebase_lock_notebook_idle_select</code> branch and is not represented here as a deployed capability.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="payloads">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Demo the API</p>
+            <h2>The payload is the control panel</h2>
+          </div>
+          <p>Use the tabs to show how a few fields switch between production, validation-only, and operational tasks.</p>
+        </div>
+
+        <div class="payload-shell">
+          <div class="tabs" role="tablist" aria-label="Example JSON payloads">
+            <button class="tab active" data-payload="daily">Daily site</button>
+            <button class="tab" data-payload="validate">Validate only</button>
+            <button class="tab" data-payload="raw">Raw only</button>
+            <button class="tab" data-payload="special">Special dataset</button>
+            <button class="tab" data-payload="weekly">Weekly report</button>
+            <button class="copy" type="button" id="copy-payload">Copy JSON</button>
+          </div>
+          <pre class="payload" id="payload-code" aria-live="polite"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="operations">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Beyond the daily pipeline</p>
+            <h2>Six operations, one Cloud Run worker</h2>
+          </div>
+          <p>The same job image handles recurring validation and supporting data operations.</p>
+        </div>
+
+        <div class="operations">
+          <article class="operation">
+            <code>data_validation</code>
+            <h3>Per-site or multi-org pipeline</h3>
+            <p>Extract, validate, publish raw, process, release, and report. This is the default when <code>operation</code> is omitted.</p>
+          </article>
+          <article class="operation">
+            <code>special_dataset_validation</code>
+            <h3>Airtable-defined combined dataset</h3>
+            <p>Build several organization scopes into one raw/processed pair, with a safe <code>TEST-*</code> redirection mode.</p>
+          </article>
+          <article class="operation">
+            <code>redivis_individual_release</code>
+            <h3>Provision individual sites</h3>
+            <p>Coordinate Airtable metadata, Redivis dataset shells/status, and daily Scheduler jobs; optionally target one site.</p>
+          </article>
+          <article class="operation">
+            <code>open_assignments_sync</code>
+            <h3>Sync open assignments</h3>
+            <p>Read current Airtable/Firestore state and synchronize assignment metadata, with a non-writing dry-run option.</p>
+          </article>
+          <article class="operation">
+            <code>weekly_report</code>
+            <h3>Summarize operational health</h3>
+            <p>Report site activity, Redivis state, validation health, schema drift, Scheduler health, and caught crashes.</p>
+          </article>
+          <article class="operation">
+            <code>migrate_scheduler_jobs</code>
+            <h3>Move legacy Scheduler targets</h3>
+            <p>One-time helper to identify or retarget older jobs to the Cloud Run Job API; supports dry-run.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="observability">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">What the team sees</p>
+            <h2>Concise in Slack, complete in Firestore</h2>
+          </div>
+          <p>Daily messages answer “what changed?”; structured logs preserve the complete response for investigation.</p>
+        </div>
+
+        <div class="observability-grid">
+          <div class="slack" aria-label="Illustrative Slack summary">
+            <div class="slack-head">
+              <div class="slack-logo">L</div>
+              <div><strong>Levante data validator</strong><br><small>new Redivis version released</small></div>
+            </div>
+            <p><strong>Dataset</strong> <code>example-site-raw</code><br>
+              API v1.9 · Runtime 14m 32s · New raw release yes
+            </p>
+            <p><strong>Validation totals</strong></p>
+            <ul>
+              <li>Users: valid / total</li>
+              <li>Runs and trials: valid / total</li>
+              <li>Survey counts and invalid rows</li>
+            </ul>
+            <p><strong>GCP export</strong></p>
+            <ul>
+              <li>Changed table row counts</li>
+              <li>Upload failures and deletions</li>
+            </ul>
+            <p><strong>Processed dataset workflow</strong></p>
+            <ul>
+              <li>Notebook status and attempts</li>
+              <li>Processed version before → after</li>
+              <li>Airtable processed date status</li>
+            </ul>
+          </div>
+
+          <div class="signal-list">
+            <div class="signal"><strong>Slack</strong><span>Human-readable daily outcome, row-count deltas, processing status, and actionable failure text.</span></div>
+            <div class="signal"><strong>Firestore logs</strong><span>Full structured response under <code>logs/{dataset}/{date}/{timestamp}</code> for reporting and debugging.</span></div>
+            <div class="signal"><strong>Airtable</strong><span>Dataset identities, scheduler/provisioning metadata, and processed update date after successful publication.</span></div>
+            <div class="signal"><strong>Exit status</strong><span>Cloud Run exits non-zero when the processed notebook or release fails, enabling Scheduler retries.</span></div>
+            <div class="signal"><strong>Weekly report</strong><span>Aggregated activity, validation health, schema drift, Scheduler health, and Redivis release state.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="present">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Suggested five-minute walkthrough</p>
+            <h2>A simple team-demo talk track</h2>
+          </div>
+          <p>Use this order if the audience is new to the validator.</p>
+        </div>
+        <div class="talk-track">
+          <article class="talk">
+            <strong>Start with the outcome</strong>
+            <p>“Every site gets a validated raw dataset, an automated processed release, and a clear daily status.”</p>
+          </article>
+          <article class="talk">
+            <strong>Click through the seven stages</strong>
+            <p>Show that Scheduler only starts work; the Cloud Run Job owns extraction through reporting.</p>
+          </article>
+          <article class="talk">
+            <strong>Explain quality and safety</strong>
+            <p>Contrast schema failures with soft validation, then show why partial uploads or notebook failures cannot become successful releases.</p>
+          </article>
+          <article class="talk">
+            <strong>Close with control and visibility</strong>
+            <p>Switch payload tabs, show special/test modes, and finish with the Slack + Firestore observability split.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>LEVANTE data-validator team demo</span>
+      <span>Based on the current <code>dev_ethan</code> application flow</span>
+    </div>
+  </footer>
+
+  <script>
+    const modes = {
+      daily: {
+        tag: "Default cron behavior",
+        title: "Daily site automation",
+        copy: "Validate one site's current data, publish changes, create the processed release, and send the team a concise result.",
+        steps: ["Firestore", "Validate", "GCS", "Raw release", "Notebook", "Processed release", "Report"],
+        outcome: "Raw and processed versions stay current without a person running the Redivis notebook."
+      },
+      validate: {
+        tag: "No writes",
+        title: "Validation only",
+        copy: "Run the complete extraction and validation logic, return statistics, and stop before GCS or Redivis.",
+        steps: ["Firestore", "Validate", "Return stats"],
+        outcome: "Useful for payload checks and quality inspection without publishing or writing pipeline logs."
+      },
+      raw: {
+        tag: "Processing opt-out",
+        title: "Raw release only",
+        copy: "Publish validated raw tables while explicitly skipping the process_dataset notebook.",
+        steps: ["Firestore", "Validate", "GCS", "Raw release", "Stop"],
+        outcome: "The raw dataset advances; the processed dataset remains unchanged."
+      },
+      hold: {
+        tag: "Release control",
+        title: "Run the notebook, hold processed next",
+        copy: "Execute process_dataset but leave its processed next version unreleased for inspection.",
+        steps: ["Raw release", "Notebook", "Leave next"],
+        outcome: "Review processed output before publishing; the Airtable processed date is not stamped."
+      },
+      special: {
+        tag: "Multi-site operation",
+        title: "Build a special combined dataset",
+        copy: "Read Airtable-defined site scopes, validate them together, and produce one raw/processed dataset pair.",
+        steps: ["Airtable scopes", "Multi-org validation", "Combined raw", "Processed release"],
+        outcome: "A repeatable combined release; test mode redirects output to an explicit TEST-* dataset."
+      },
+      recovery: {
+        tag: "No notebook rerun",
+        title: "Recover a failed processed release",
+        copy: "When the notebook already wrote next but release() failed, a later unchanged-GCS run retries publication only.",
+        steps: ["Find pending next", "Release only", "Stamp Airtable", "Report"],
+        outcome: "Transient release failures no longer strand processed next until raw data changes again."
+      }
+    };
+
+    const payloads = {
+      daily: {
+        "dataset_id": "rfp1-sheffield-gb-main-raw",
+        "is_save_to_storage": true,
+        "send_slack": true,
+        "orgs": [{
+          "org_id": "rfp1-sheffield-gb-main",
+          "is_guest": false,
+          "filters": {
+            "org_filter": {
+              "key": "districts",
+              "operator": "array_contains_any",
+              "value": ["DISTRICT_DOCUMENT_ID"]
+            }
+          }
+        }]
+      },
+      validate: {
+        "dataset_id": "rfp1-sheffield-gb-main-raw",
+        "is_save_to_storage": false,
+        "send_slack": false,
+        "orgs": [{
+          "org_id": "rfp1-sheffield-gb-main",
+          "is_guest": false,
+          "filters": {
+            "date_filter": {
+              "start_date": "2026-01-01",
+              "end_date": "2026-12-31"
+            }
+          }
+        }]
+      },
+      raw: {
+        "dataset_id": "rfp1-sheffield-gb-main-raw",
+        "is_save_to_storage": true,
+        "skip_process_dataset": true,
+        "send_slack": true,
+        "orgs": [{
+          "org_id": "rfp1-sheffield-gb-main",
+          "is_guest": false,
+          "filters": {
+            "org_filter": {
+              "key": "districts",
+              "operator": "array_contains_any",
+              "value": ["DISTRICT_DOCUMENT_ID"]
+            }
+          }
+        }]
+      },
+      special: {
+        "operation": "special_dataset_validation",
+        "dataset_name": "levante-data-pilots-raw",
+        "test_mode": true,
+        "test_dataset_name": "TEST-team-demo-raw"
+      },
+      weekly: {
+        "operation": "weekly_report",
+        "dry_run": true
+      }
+    };
+
+    const modeButtons = document.querySelectorAll(".mode-button");
+    const modeTag = document.getElementById("mode-tag");
+    const modeTitle = document.getElementById("mode-title");
+    const modeCopy = document.getElementById("mode-copy");
+    const modeSteps = document.getElementById("mode-steps");
+    const modeOutcome = document.getElementById("mode-outcome");
+
+    function renderMode(key) {
+      const mode = modes[key];
+      modeTag.textContent = mode.tag;
+      modeTitle.textContent = mode.title;
+      modeCopy.textContent = mode.copy;
+      modeSteps.innerHTML = mode.steps.map(step => `<span>${step}</span>`).join("");
+      modeOutcome.innerHTML = `<strong>Outcome:</strong> ${mode.outcome}`;
+      modeButtons.forEach(button => button.classList.toggle("active", button.dataset.mode === key));
+    }
+
+    modeButtons.forEach(button => {
+      button.addEventListener("click", () => renderMode(button.dataset.mode));
+    });
+    renderMode("daily");
+
+    const stages = document.querySelectorAll(".stage");
+    const stageTitle = document.getElementById("stage-title");
+    const stageCopy = document.getElementById("stage-copy");
+
+    function selectStage(stage) {
+      stages.forEach(item => item.classList.toggle("active", item === stage));
+      stageTitle.textContent = stage.dataset.title;
+      stageCopy.textContent = stage.dataset.detail;
+    }
+
+    stages.forEach(stage => {
+      stage.addEventListener("click", () => selectStage(stage));
+      stage.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectStage(stage);
+        }
+      });
+    });
+
+    const payloadCode = document.getElementById("payload-code");
+    const tabs = document.querySelectorAll(".tab");
+    let activePayload = "daily";
+
+    function renderPayload(key) {
+      activePayload = key;
+      payloadCode.textContent = JSON.stringify(payloads[key], null, 2);
+      tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.payload === key));
+    }
+
+    tabs.forEach(tab => tab.addEventListener("click", () => renderPayload(tab.dataset.payload)));
+    renderPayload(activePayload);
+
+    document.getElementById("copy-payload").addEventListener("click", async event => {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(payloads[activePayload], null, 2));
+        const original = event.currentTarget.textContent;
+        event.currentTarget.textContent = "Copied";
+        setTimeout(() => { event.currentTarget.textContent = original; }, 1200);
+      } catch {
+        event.currentTarget.textContent = "Select text to copy";
+      }
+    });
+  </script>
+</body>
+</html>
