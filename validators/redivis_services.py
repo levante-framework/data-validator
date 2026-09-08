@@ -343,6 +343,44 @@ class RedivisServices:
             )
             return False
 
+    def _snapshot_notebook_job_ids(self, nb) -> set[str]:
+        """Job ids currently visible on the notebook (current and last run)."""
+        current, last = self._notebook_jobs(nb)
+        ids = {
+            self._notebook_job_id(current),
+            self._notebook_job_id(last),
+        }
+        ids.discard("")
+        return ids
+
+    def _new_current_job_id_after_run(
+        self, nb, *, prior_ids: set[str], raw_dataset_id: str
+    ) -> str:
+        """
+        After ``nb.run(wait_for_finish=False)``, require a *new* ``currentJob.id``.
+
+        Do not fall back to ``lastRunJob`` — that is often the previous site.
+        Poll briefly in case ``run()`` returns before ``currentJob`` is visible.
+        """
+        deadline = time.monotonic() + 20
+        while True:
+            nb.get()
+            current, last = self._notebook_jobs(nb)
+            job_id = self._notebook_job_id(current)
+            if job_id and job_id not in prior_ids:
+                return job_id
+            if time.monotonic() >= deadline:
+                logging.error(
+                    "run_process_dataset_workflow: no new currentJob.id for %r "
+                    "(prior=%s current=%s last=%s)",
+                    raw_dataset_id,
+                    sorted(prior_ids) or "none",
+                    job_id or "none",
+                    self._notebook_job_id(last) or "none",
+                )
+                return ""
+            time.sleep(2)
+
     @staticmethod
     def _lease_doc_id(workflow_name: str) -> str:
         safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", workflow_name or "").strip("_")
@@ -880,6 +918,8 @@ class RedivisServices:
                         busy_retries,
                     )
                     try:
+                        nb.get()
+                        prior_ids = self._snapshot_notebook_job_ids(nb)
                         nb.run(wait_for_finish=False)
                     except Exception as e:
                         if not self._is_notebook_busy_error(e):
@@ -903,16 +943,16 @@ class RedivisServices:
                         )
                         continue
 
-                    current, last = self._notebook_jobs(nb)
-                    job_id = self._notebook_job_id(
-                        current
-                    ) or self._notebook_job_id(last)
+                    job_id = self._new_current_job_id_after_run(
+                        nb, prior_ids=prior_ids, raw_dataset_id=raw_dataset_id
+                    )
                     if not job_id:
                         return {
                             "ran": False,
                             "error": (
                                 f"notebook run started on {workflow_name} but "
-                                "Redivis returned no job id"
+                                "Redivis did not return a new currentJob.id "
+                                "(refusing lastRunJob fallback)"
                             ),
                             "busy_retries": busy_retries,
                             "attempts": attempt,
