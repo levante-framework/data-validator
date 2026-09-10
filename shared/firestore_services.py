@@ -435,6 +435,54 @@ class FirestoreServices:
         except Exception as e:
             logging.info(f'An error occurred: {e}')
 
+    def get_latest_notebook_outcome(self, dataset_id: str) -> str:
+        """
+        Scan ``logs/{dataset_id}/{date}/{run}`` newest-first for the last real
+        ``process_dataset`` notebook attempt.
+
+        Returns ``completed`` if that attempt set ``ran=true`` (release may
+        still have failed), ``failed`` if it recorded an error without
+        ``ran``, or ``unknown`` if there is no such log. Quiet-day
+        ``retry_release_only`` and ``skipped`` entries are ignored so a later
+        release retry still sees the notebook result underneath.
+        """
+        dataset_id = (dataset_id or "").strip()
+        if not dataset_id:
+            return "unknown"
+        try:
+            base = self.admin_db.collection("logs").document(dataset_id)
+            date_subs = sorted((c.id for c in base.collections()), reverse=True)
+        except Exception as e:
+            logging.warning(
+                "get_latest_notebook_outcome(%r): %s", dataset_id, e
+            )
+            return "unknown"
+        for date_str in date_subs:
+            try:
+                docs = list(base.collection(date_str).get())
+            except Exception as e:
+                logging.warning(
+                    "get_latest_notebook_outcome(%r) day %s: %s",
+                    dataset_id,
+                    date_str,
+                    e,
+                )
+                continue
+            for snap in sorted(docs, key=lambda d: d.id, reverse=True):
+                data = snap.to_dict() or {}
+                process = data.get("process_dataset") or (
+                    data.get("logs") or {}
+                ).get("process_dataset")
+                if not isinstance(process, dict) or not process:
+                    continue
+                if process.get("skipped") or process.get("retry_release_only"):
+                    continue
+                if process.get("ran"):
+                    return "completed"
+                if process.get("error"):
+                    return "failed"
+        return "unknown"
+
     def get_district_name(self, district_id: str) -> str | None:
         """Human-readable name from `districts/{district_id}` (site == district)."""
         try:

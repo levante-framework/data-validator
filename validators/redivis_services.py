@@ -223,32 +223,148 @@ class RedivisServices:
         st = self.get_current_dataset_status()
         return bool(st.get("exists") and st.get("is_released"))
 
+    @staticmethod
+    def _parse_redivis_datetime(value) -> datetime | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+        if isinstance(value, (int, float)):
+            ts = float(value)
+            if ts > 1e12:
+                ts = ts / 1000.0
+            try:
+                return datetime.fromtimestamp(ts, tz=timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                return None
+        if isinstance(value, str):
+            s = value.strip()
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            try:
+                dt = datetime.fromisoformat(s)
+            except ValueError:
+                return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        return None
+
     def get_current_dataset_status(self) -> dict:
         """After set_dataset(): whether the dataset exists on Redivis and release metadata."""
+        empty = {
+            "exists": False,
+            "is_released": False,
+            "version_tag": None,
+            "is_deleted": None,
+            "created_at": None,
+            "released_at": None,
+            "has_next_version": False,
+            "next_created_at": None,
+        }
         try:
             if self.dataset is None or not self.dataset.exists():
-                return {
-                    "exists": False,
-                    "is_released": False,
-                    "version_tag": None,
-                    "is_deleted": None,
-                }
+                return empty
             props = self.dataset.get().properties or {}
             ver = props.get("version") or {}
+            if not isinstance(ver, dict):
+                ver = {}
+            nxt = props.get("nextVersion") or {}
+            if not isinstance(nxt, dict):
+                nxt = {}
             return {
                 "exists": True,
                 "is_released": bool(ver.get("isReleased", False)),
                 "version_tag": ver.get("tag"),
                 "is_deleted": ver.get("isDeleted"),
+                "created_at": ver.get("createdAt"),
+                "released_at": ver.get("releasedAt"),
+                "has_next_version": bool(props.get("nextVersion")),
+                "next_created_at": nxt.get("createdAt") or nxt.get("releasedAt"),
             }
         except Exception as e:
             logging.info(f"get_current_dataset_status failed: {e}")
-            return {
-                "exists": False,
-                "is_released": False,
-                "version_tag": None,
-                "is_deleted": None,
-            }
+            return empty
+
+    def processed_lagging_current_raw(
+        self, *, raw_id: str, processed_id: str
+    ) -> dict:
+        """
+        True when current raw is released and unmarked processed is older or missing.
+
+        Used on quiet GCS days after a failed notebook: no pending ``next``, so
+        release-only retry is a no-op, but processed still has yesterday's tables.
+        """
+        info = {
+            "lagging": False,
+            "reason": None,
+            "raw_version": None,
+            "processed_version": None,
+            "raw_released_at": None,
+            "processed_released_at": None,
+            "has_next": False,
+            "next_created_at": None,
+            "next_stale": False,
+            "next_fresh_for_raw": False,
+        }
+        prev_id = self.dataset_id
+        try:
+            self.set_dataset(dataset_id=raw_id)
+            raw = self.get_current_dataset_status()
+            self.set_dataset(dataset_id=processed_id)
+            proc = self.get_current_dataset_status()
+        finally:
+            if prev_id:
+                self.set_dataset(dataset_id=prev_id)
+
+        info["raw_version"] = raw.get("version_tag")
+        info["processed_version"] = proc.get("version_tag")
+        info["raw_released_at"] = raw.get("released_at") or raw.get("created_at")
+        info["processed_released_at"] = proc.get("released_at") or proc.get(
+            "created_at"
+        )
+        info["has_next"] = bool(proc.get("has_next_version"))
+        info["next_created_at"] = proc.get("next_created_at")
+
+        raw_ts = self._parse_redivis_datetime(info["raw_released_at"])
+        next_ts = self._parse_redivis_datetime(info["next_created_at"])
+        if info["has_next"] and raw_ts is not None and next_ts is not None:
+            if next_ts < raw_ts:
+                info["next_stale"] = True
+            else:
+                info["next_fresh_for_raw"] = True
+
+        if not raw.get("exists") or not raw.get("is_released"):
+            info["reason"] = "raw missing or unreleased"
+            return info
+        if not proc.get("exists"):
+            info["lagging"] = True
+            info["reason"] = "processed dataset missing"
+            return info
+        if not proc.get("is_released"):
+            info["lagging"] = True
+            info["reason"] = "processed current version is unreleased"
+            return info
+
+        proc_ts = self._parse_redivis_datetime(info["processed_released_at"])
+        if raw_ts is None:
+            info["reason"] = "raw version has no timestamp — skip catch-up"
+            return info
+        if proc_ts is None:
+            info["lagging"] = True
+            info["reason"] = "processed version has no timestamp"
+            return info
+        if proc_ts < raw_ts:
+            info["lagging"] = True
+            info["reason"] = (
+                f"processed {proc.get('version_tag')} at {proc_ts.isoformat()} "
+                f"is older than raw {raw.get('version_tag')} at {raw_ts.isoformat()}"
+            )
+            return info
+        info["reason"] = "processed is current with raw"
+        return info
 
     def delete_table(self, table_name: str):
         try:

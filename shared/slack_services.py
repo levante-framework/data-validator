@@ -63,6 +63,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
         and process.get("retry_release_only")
         and (process.get("processed_release") or {}).get("released")
     )
+    catch_up = bool(process and process.get("catch_up_without_new_raw"))
 
     validation_only = dp.get("is_save_to_storage") is False
     if validation_only:
@@ -71,6 +72,8 @@ def format_data_validation_slack_summary(response: dict) -> str:
         title = "*Levante data validator* — processed dataset step failed"
     elif pending_next_released:
         title = "*Levante data validator* — processed `next` released (no new raw)"
+    elif catch_up:
+        title = "*Levante data validator* — processed catch-up (no new raw)"
     elif nvr:
         title = "*Levante data validator* — new Redivis version released"
     else:
@@ -170,6 +173,8 @@ def format_data_validation_slack_summary(response: dict) -> str:
             status = f"failed — {err}"
         elif process.get("retry_release_only"):
             status = "released pending next (no new raw)"
+        elif process.get("catch_up_without_new_raw"):
+            status = "catch-up (no new raw)"
         elif process.get("skipped"):
             status = "skipped (skip_process_dataset=true)"
         else:
@@ -225,6 +230,12 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 "• GCS/raw unchanged this run; published leftover unreleased "
                 "processed `next` from an earlier notebook (Scheduler retry / "
                 "next cron after a failed `release()`)."
+            )
+        elif process.get("catch_up_without_new_raw"):
+            reason = process.get("catch_up_reason") or "processed older than current raw"
+            lines.append(
+                f"• GCS/raw unchanged this run; re-ran `process_dataset` because "
+                f"{reason}."
             )
         elif ran and release.get("error"):
             lines.append(
