@@ -200,7 +200,7 @@ Runs processing after a new raw release and **releases the processed dataset**.
 
 Report content: totals split into children / teachers / caregivers, runs,
 trials, invalid; surveys split by the same three roles; and new
-administrations opened in the window (count plus up to 5 names). Activity
+administrations opened in the window (count and all names). Activity
 comes from validator Firestore logs, not Redivis row counts.
 
 ---

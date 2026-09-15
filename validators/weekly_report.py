@@ -1092,15 +1092,12 @@ def format_slack_message(
     admin = administrations or {}
     admin_items = admin.get("items") or []
     admin_count = admin.get("count", len(admin_items))
-    shown = [it.get("name") or "(no name)" for it in admin_items[:5]]
+    shown = [it.get("name") or "(no name)" for it in admin_items]
     if admin_count:
-        extra = (
-            f" · _…and {admin_count - 5} more_" if admin_count > 5 else ""
-        )
         names = ", ".join(f"`{n}`" for n in shown) if shown else "_unnamed_"
         lines.append(
             f"*New administrations*  {admin_count} added/opened this week: "
-            f"{names}{extra}"
+            f"{names}"
         )
     else:
         lines.append("*New administrations*  none added/opened this week")
