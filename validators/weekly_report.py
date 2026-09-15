@@ -483,6 +483,7 @@ def collect_redivis_state(sites: list[dict]) -> dict:
     """For each site, current Redivis dataset existence/release state."""
     rs = RedivisServices()
     awaiting: list[str] = []
+    schema_only: list[str] = []
     versions: dict[str, dict] = {}
     for s in sites:
         ds = s["dataset_name"]
@@ -493,10 +494,30 @@ def collect_redivis_state(sites: list[dict]) -> dict:
             logging.warning("weekly_report: redivis lookup failed for %s: %s",
                             ds, e)
             st = {"exists": None, "is_released": None, "version_tag": None}
+        raw_id = s.get("log_dataset_name")
+        template = False
+        if raw_id:
+            try:
+                rs.set_dataset(dataset_id=raw_id)
+                template = rs.current_dataset_is_schema_only()
+            except Exception as e:
+                logging.warning(
+                    "weekly_report: schema-only check failed for %s: %s",
+                    raw_id,
+                    e,
+                )
+        st["schema_only_raw"] = template
         versions[ds] = st
+        if template:
+            schema_only.append(ds)
+            continue
         if not (st.get("exists") and st.get("is_released")):
             awaiting.append(ds)
-    return {"versions": versions, "awaiting": awaiting}
+    return {
+        "versions": versions,
+        "awaiting": awaiting,
+        "schema_only": schema_only,
+    }
 
 
 # ----------------------------------------------------------------------------
@@ -1114,6 +1135,8 @@ def format_slack_message(
             + p.get("surveys", 0)
         )
     ranked = sorted(per_site.items(), key=lambda kv: -site_activity(kv[1]))
+    template_sites = set((redivis or {}).get("schema_only") or [])
+    ranked = [(k, v) for k, v in ranked if k not in template_sites]
 
     zero_sites = [
         k for k, v in ranked

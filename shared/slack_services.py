@@ -176,7 +176,11 @@ def format_data_validation_slack_summary(response: dict) -> str:
         elif process.get("catch_up_without_new_raw"):
             status = "catch-up (no new raw)"
         elif process.get("skipped"):
-            status = "skipped (skip_process_dataset=true)"
+            reason = process.get("skip_reason") or "skip_process_dataset=true"
+            if reason == "schema_only_raw":
+                status = "skipped (schema-only raw; no process_dataset or processed release)"
+            else:
+                status = f"skipped ({reason})"
         else:
             status = "skipped"
         airtable = process.get("airtable") or {}

@@ -63,20 +63,56 @@ def _stamp_airtable_processed_date(process_log: dict) -> dict:
     return process_log
 
 
+def _skipped_process_log(raw_id: str, skip_reason: str) -> dict:
+    processed_id = RedivisServices.processed_name_from_raw(raw_id)
+    return {
+        "ran": False,
+        "skipped": True,
+        "skip_reason": skip_reason,
+        "raw_dataset_id": raw_id,
+        "processed_dataset_id": processed_id,
+        "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+        "workflow_pool": RedivisServices._process_workflow_pool(),
+        "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+        "error": None,
+        "airtable": None,
+    }
+
+
+def _process_skip_reason(
+    dataset_parameters: utils.DatasetParameters,
+    validated_data: dict | None = None,
+) -> str | None:
+    if dataset_parameters.skip_process_dataset:
+        return "skip_process_dataset=true"
+    if utils.is_schema_only_export(validated_data or {}):
+        return "schema_only_raw"
+    return None
+
+
 def _catch_up_processed_without_new_raw(
     dataset_parameters: utils.DatasetParameters,
+    *,
+    validated_data: dict | None = None,
 ) -> dict | None:
     """
     Quiet GCS day / Scheduler retry.
 
-    Publish leftover processed ``next`` only when it is at least as new as
-    current raw **and** the last Firestore log shows the notebook actually
-    finished (``ran=true``). A timestamp-fresh ``next`` after a failed
-    notebook can be a partial write — do not release it; re-run instead.
-    An older leftover ``next`` is stale. If there is no ``next`` but
-    released processed is older than raw, also re-run the notebook.
+    Publish leftover processed ``next`` when the last Firestore log shows
+    the notebook finished (``ran=true``) and either ``next`` is timestamp-
+    fresh vs current raw, or Redivis omits those timestamps so freshness
+    cannot be computed. A known-stale ``next`` (older than current raw) is
+    still re-run. A leftover ``next`` after a failed/missing notebook log is
+    treated as incomplete and re-run. If there is no ``next`` but released
+    processed is older than raw, also re-run the notebook.
     """
-    if dataset_parameters.skip_process_dataset:
+    skip_reason = _process_skip_reason(dataset_parameters, validated_data)
+    if skip_reason:
+        logging.info(
+            "no new raw for %r — skip process_dataset catch-up (%s)",
+            dataset_parameters.dataset_id,
+            skip_reason,
+        )
         return None
     raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
     raw_id = dataset_parameters.dataset_id or ""
@@ -89,11 +125,19 @@ def _catch_up_processed_without_new_raw(
     )
     notebook_outcome = firestore_services.get_latest_notebook_outcome(raw_id)
     notebook_completed = notebook_outcome == "completed"
+    leftover_next_ok_to_release = bool(
+        lag.get("has_next")
+        and not lag.get("next_stale")
+        and notebook_completed
+        and (
+            lag.get("next_fresh_for_raw")
+            or lag.get("next_timestamps_missing")
+        )
+    )
 
     if (
         dataset_parameters.release_processed_dataset
-        and lag.get("next_fresh_for_raw")
-        and notebook_completed
+        and leftover_next_ok_to_release
     ):
         release_log = rs.release_processed_dataset(
             processed_id=processed_id,
@@ -113,13 +157,18 @@ def _catch_up_processed_without_new_raw(
                 "airtable": None,
             }
             if release_log.get("released"):
+                why = (
+                    "Redivis omitted next/raw version timestamps; "
+                    "last log ran=true"
+                    if lag.get("next_timestamps_missing")
+                    else "next newer than or equal to current raw; last log ran=true"
+                )
                 logging.info(
-                    "no new raw for %r — released pending processed %s → %s "
-                    "(next newer than or equal to current raw; "
-                    "last log ran=true)",
+                    "no new raw for %r — released pending processed %s → %s (%s)",
                     raw_id,
                     release_log.get("before_version"),
                     release_log.get("after_version"),
+                    why,
                 )
                 process_log = _stamp_airtable_processed_date(process_log)
             else:
@@ -137,12 +186,13 @@ def _catch_up_processed_without_new_raw(
     if not catch_up:
         logging.info(
             "no new raw for %r — skip process_dataset catch-up (%s; "
-            "has_next=%s next_stale=%s next_fresh=%s notebook=%s)",
+            "has_next=%s next_stale=%s next_fresh=%s ts_missing=%s notebook=%s)",
             raw_id,
             lag.get("reason"),
             lag.get("has_next"),
             lag.get("next_stale"),
             lag.get("next_fresh_for_raw"),
+            lag.get("next_timestamps_missing"),
             notebook_outcome,
         )
         return None
@@ -337,7 +387,12 @@ def run_data_validation(
         logging.info(json.dumps(output, cls=utils.CustomJSONEncoder))
 
         # Validation-only / no-upload runs stay quiet unless explicitly forced.
-        if dataset_parameters.send_slack and slack_summary_always:
+        # Schema-only / template exports are not Slack-worthy.
+        if (
+            dataset_parameters.send_slack
+            and slack_summary_always
+            and not utils.is_schema_only_export(validated_data)
+        ):
             slack_response = {
                 "dataset_parameters": dataset_parameters.to_dict(),
                 "logs": {"total_validation_stats": total_validation_stats},
@@ -349,7 +404,11 @@ def run_data_validation(
 
         return json.dumps(output, cls=utils.CustomJSONEncoder), 200
 
-    if slack_org_progress and dataset_parameters.send_slack:
+    if (
+        slack_org_progress
+        and dataset_parameters.send_slack
+        and not utils.is_schema_only_export(validated_data)
+    ):
         _notify_slack_safe(
             f":package: *All {org_count} site(s) validated* for `{dataset_parameters.dataset_id}` "
             f"— merging, deduplicating, and uploading…"
@@ -410,21 +469,14 @@ def run_data_validation(
             raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
             raw_id = dataset_parameters.dataset_id or ""
             if release_ok and raw_id.endswith(raw_suffix):
-                if dataset_parameters.skip_process_dataset:
-                    processed_id = RedivisServices.processed_name_from_raw(raw_id)
-                    process_log = {
-                        "ran": False,
-                        "skipped": True,
-                        "raw_dataset_id": raw_id,
-                        "processed_dataset_id": processed_id,
-                        "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
-                        "workflow_pool": RedivisServices._process_workflow_pool(),
-                        "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
-                        "error": None,
-                        "airtable": None,
-                    }
+                skip_reason = _process_skip_reason(
+                    dataset_parameters, validated_data
+                )
+                if skip_reason:
+                    process_log = _skipped_process_log(raw_id, skip_reason)
                     logging.info(
-                        "skip_process_dataset=true — skipped process_dataset for %r",
+                        "%s — skipped process_dataset and processed release for %r",
+                        skip_reason,
                         raw_id,
                     )
                 else:
@@ -443,7 +495,9 @@ def run_data_validation(
         if process_log is not None:
             output["process_dataset"] = process_log
     elif not storage.has_upload_failures:
-        process_log = _catch_up_processed_without_new_raw(dataset_parameters)
+        process_log = _catch_up_processed_without_new_raw(
+            dataset_parameters, validated_data=validated_data
+        )
         output = {
             "total_validation_stats": total_validation_stats,
             "gcp_logs": storage.upload_to_GCP_log,
@@ -473,11 +527,20 @@ def run_data_validation(
     # Live per-site runs: Slack only when a new Redivis version was released
     # (summary includes process_dataset when that workflow ran), or when GCS writes
     # failed — those runs never reach a release and would otherwise be silent.
-    if dataset_parameters.send_slack and (
+    # Schema-only / template raw (every table is the schema_row) stays off Slack
+    # even on a new raw release; real failures still post.
+    schema_only = (
+        utils.is_schema_only_export(validated_data)
+        or (process_log or {}).get("skip_reason") == "schema_only_raw"
+    )
+    real_failure = bool(
+        storage.has_upload_failures
+        or (process_log and process_log.get("error"))
+    )
+    if dataset_parameters.send_slack and (not schema_only or real_failure) and (
         slack_summary_always
         or new_version_release
-        or storage.has_upload_failures
-        or (process_log and process_log.get("error"))
+        or real_failure
         or (
             process_log
             and process_log.get("retry_release_only")

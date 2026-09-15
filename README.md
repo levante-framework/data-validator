@@ -129,11 +129,12 @@ Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list).
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
 - `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
+- Raw exports whose tables are only the appended `schema_row` (every table has one row) also skip `process_dataset` and do not release a processed companion. That covers empty sites such as `rfp1-donders-intl-ys-raw` / `rfp1-calgary-intl-ys-raw`. Sites with real rows (for example `rfp1-utdt-intl-ys-raw`) still process. Cron payloads need no change. Those template/schema-only sites do **not** post a Slack summary (or appear as weekly-report awaiting/quiet sites). GCS or notebook failures still Slack.
 - `release_processed_dataset`: if `true` (default), after a successful notebook run the validator **releases** the unmarked processed dataset. Omit/`null`/`true` keep that default (no cron changes). Set `false` to leave processed `next` unreleased and skip the Airtable processed-date stamp.
 - After a new raw release, the job idle-claims a `process_dataset` notebook from `REDIVIS_PROCESS_WORKFLOW_POOL` (`process_dataset:zr0v` and `process_dataset_copy1:y0tn`). A Firestore lease on the admin DB (`locks/process_dataset_*`) is taken before re-pointing that copy, held until our notebook job finishes, and heartbeated so a crash expires. If every copy is busy or leased, the job waits up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour). On `Notebook is already running` or a held lease, it tries the other copy immediately. Cron payloads are unchanged.
 - After `process_dataset` starts, completion is bound to a **new** `currentJob.id` (not `lastRunJob`, which can be the previous site) — not to the live workflow datasource pointer, since another site may re-point the shared source after our job finishes.
 - When the notebook finishes successfully, the validator **releases** the unmarked processed dataset (the notebook writes an unreleased `next` version; release is not done inside the workflow). Airtable **Redivis processed dataset last update** is written only when that `release()` actually publishes a new processed version. If the notebook or that release fails, the Cloud Run Job **exits 1** so Scheduler retries.
-- Quiet GCS day / retry (no new raw): see the decision tree below. Leftover processed `next` is `release()`d only if it is timestamp-fresh vs current raw **and** the last Firestore log has `process_dataset.ran=true`. A fresh-looking `next` after a failed notebook is treated as incomplete and the notebook is re-run.
+- Quiet GCS day / retry (no new raw): see the decision tree below. Leftover processed `next` is `release()`d if the last Firestore log has `process_dataset.ran=true` and `next` is timestamp-fresh vs current raw **or** Redivis omits those version timestamps (so freshness cannot be computed). A fresh-looking `next` after a failed notebook is treated as incomplete and the notebook is re-run. A `next` known to be older than current raw is also re-run, not published.
 
 ```mermaid
 flowchart TD
@@ -151,12 +152,13 @@ flowchart TD
   rel --> relok{Released?}
   relok -->|yes| air[Stamp Airtable]
   relok -->|no| exit1
-  quiet --> skipp{skip_process_dataset?}
+  quiet --> skipp{skip_process_dataset or schema-only raw?}
   skipp -->|yes| skip[Do nothing]
   skipp -->|no| nextq{Processed has next?}
-  nextq -->|yes| stale{next.createdAt >= raw.releasedAt?}
-  stale -->|no| rerun[Re-run process_dataset]
-  stale -->|yes| logq{Last log notebook ran=true?}
+  nextq -->|yes| stale{Can compare next vs raw timestamps?}
+  stale -->|no timestamps| logq{Last log notebook ran=true?}
+  stale -->|next older than raw| rerun[Re-run process_dataset]
+  stale -->|next as new as raw| logq
   logq -->|yes and release flag| rel
   logq -->|no / unknown| rerun
   nextq -->|no| lag{Released processed older than current raw?}

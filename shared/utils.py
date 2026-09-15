@@ -604,6 +604,22 @@ def append_schema_rows_to_validated_data(validated_data: Dict[str, Any]) -> Dict
     return out
 
 
+def is_schema_only_export(validated_data: Dict[str, Any]) -> bool:
+    """
+    True when every export table is only the appended schema_row (one row).
+    Empty-site raw datasets like ``rfp1-donders-intl-ys-raw`` look like this
+    and should not run ``process_dataset`` or release a processed companion.
+    """
+    saw_table = False
+    for name, rows in (validated_data or {}).items():
+        if name == "invalid_data" or not isinstance(rows, list):
+            continue
+        saw_table = True
+        if len(rows) > 1:
+            return False
+    return saw_table
+
+
 def schema_signature(doc: dict, max_depth: Optional[int] = 1) -> str:
     """
     Generate a hash representing the schema of a Firestore-style document.

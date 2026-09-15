@@ -209,6 +209,31 @@ class RedivisServices:
     def count_tables(self):
         return len(self.dataset.list_tables())
 
+    def current_dataset_is_schema_only(self) -> bool:
+        """
+        True when every table on the current dataset has at most one row
+        (the validator ``schema_row``). Empty/missing datasets are not
+        treated as schema-only.
+        """
+        if self.dataset is None or not self.dataset.exists():
+            return False
+        tables = list(self.dataset.list_tables())
+        if not tables:
+            return False
+        for table in tables:
+            table.get()
+            props = table.properties or {}
+            n = props.get("numRows")
+            if n is None:
+                n = props.get("rowCount")
+            try:
+                n = int(n)
+            except (TypeError, ValueError):
+                return False
+            if n > 1:
+                return False
+        return True
+
     def get_tables(self, table_name: str):
         table = self.dataset.table(table_name)
         df = table.to_pandas_dataframe()
@@ -308,6 +333,7 @@ class RedivisServices:
             "next_created_at": None,
             "next_stale": False,
             "next_fresh_for_raw": False,
+            "next_timestamps_missing": False,
         }
         prev_id = self.dataset_id
         try:
@@ -330,7 +356,9 @@ class RedivisServices:
 
         raw_ts = self._parse_redivis_datetime(info["raw_released_at"])
         next_ts = self._parse_redivis_datetime(info["next_created_at"])
-        if info["has_next"] and raw_ts is not None and next_ts is not None:
+        if info["has_next"] and (raw_ts is None or next_ts is None):
+            info["next_timestamps_missing"] = True
+        elif info["has_next"] and raw_ts is not None and next_ts is not None:
             if next_ts < raw_ts:
                 info["next_stale"] = True
             else:
