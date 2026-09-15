@@ -118,8 +118,9 @@ def _run_weekly_report(data: dict) -> int:
     from validators.weekly_report import run_weekly_report
 
     dry_run = bool(data.get("dry_run", False))
+    weeks = int(data.get("weeks") or 1)
     try:
-        result = run_weekly_report(dry_run=dry_run)
+        result = run_weekly_report(dry_run=dry_run, weeks=weeks)
     except Exception:
         logging.exception("weekly_report crashed")
         return 1

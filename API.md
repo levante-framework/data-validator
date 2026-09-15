@@ -187,7 +187,8 @@ Runs processing after a new raw release and **releases the processed dataset**.
 ```json
 {
   "operation": "weekly_report",
-  "dry_run": false
+  "dry_run": false,
+  "weeks": 1
 }
 ```
 
@@ -195,6 +196,12 @@ Runs processing after a new raw release and **releases the processed dataset**.
 |-------|----------|---------|---------|
 | `operation` | **yes** | — | Must be `weekly_report`. |
 | `dry_run` | no | `false` | `true`: assemble the report without posting Slack. |
+| `weeks` | no | `1` | Number of complete calendar weeks (Mon–Sun PST) ending last Sunday. `2` covers the last two weeks in one report. Only `weeks=1` stores the schema-drift snapshot, so ad-hoc multi-week runs cannot overwrite the weekly baseline. **Cron jobs need no change.** |
+
+Report content: totals split into children / teachers / caregivers, runs,
+trials, invalid; surveys split by the same three roles; and new
+administrations opened in the window (count plus up to 5 names). Activity
+comes from validator Firestore logs, not Redivis row counts.
 
 ---
 

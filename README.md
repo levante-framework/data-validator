@@ -170,8 +170,13 @@ flowchart TD
 ### Auxiliary operations
 
 ```json
-{"operation": "weekly_report", "dry_run": false}
+{"operation": "weekly_report", "dry_run": false, "weeks": 1}
 ```
+
+`weeks` widens the window to the last N complete Mon–Sun PST weeks (default 1).
+Only `weeks=1` stores the schema-drift snapshot. Totals and surveys are split
+into children / teachers / caregivers, and the report lists new administrations
+opened in the window (count plus up to 5 names).
 
 ```json
 {"operation": "redivis_individual_release", "dry_run": false, "dataset_name": "optional-single-site"}

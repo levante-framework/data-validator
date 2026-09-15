@@ -91,23 +91,27 @@ USER_SUBCOLLECTION_SCHEMA_SPECS: list[tuple[str, str, list[str]]] = [
 # Time windowing
 # ----------------------------------------------------------------------------
 
-def calendar_week_window_pst(now_pst: datetime | None = None) -> tuple[datetime, datetime, str]:
+def calendar_week_window_pst(
+    now_pst: datetime | None = None, weeks: int = 1
+) -> tuple[datetime, datetime, str]:
     """
-    Return (start_utc, end_utc, iso_week_label) for the *previous* calendar
-    week in PST. `start_utc` is Monday 00:00 PST converted to UTC; `end_utc`
-    is the last microsecond of Sunday 23:59 PST converted to UTC. The label
-    is the ISO week of the start date, e.g. "2026-W20".
+    Return (start_utc, end_utc, iso_week_label) for the last ``weeks``
+    complete calendar weeks in PST (default: just the previous week).
+    `start_utc` is Monday 00:00 PST converted to UTC; `end_utc` is the last
+    microsecond of Sunday 23:59 PST converted to UTC. The label is the ISO
+    week of the start date, e.g. "2026-W20".
     """
     if now_pst is None:
         now_pst = datetime.now(PST)
+    weeks = max(int(weeks or 1), 1)
     # Monday of the current week, 00:00 PST.
     this_mon_pst = (now_pst - timedelta(days=now_pst.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    prev_mon_pst = this_mon_pst - timedelta(days=7)
+    start_mon_pst = this_mon_pst - timedelta(days=7 * weeks)
     end_pst = this_mon_pst - timedelta(microseconds=1)
-    iso = prev_mon_pst.strftime("%G-W%V")
-    return prev_mon_pst.astimezone(timezone.utc), end_pst.astimezone(timezone.utc), iso
+    iso = start_mon_pst.strftime("%G-W%V")
+    return start_mon_pst.astimezone(timezone.utc), end_pst.astimezone(timezone.utc), iso
 
 
 # ----------------------------------------------------------------------------
@@ -1063,10 +1067,19 @@ def format_slack_message(
         f"{window_end_pst.strftime('%a %b %d %Y')} (PST)"
     )
     totals = activity.get("totals") or {}
+    # Role counts only exist in logs written by validators that record them;
+    # until both window ends have them, report the plain user total instead of
+    # three misleading zeros.
+    if any(totals.get(k) for k in ("children", "teachers", "caregivers")):
+        users_s = (
+            f"children {_fmt_int(totals.get('children', 0))} · "
+            f"teachers {_fmt_int(totals.get('teachers', 0))} · "
+            f"caregivers {_fmt_int(totals.get('caregivers', 0))}"
+        )
+    else:
+        users_s = f"users {_fmt_int(totals.get('users', 0))} _(role split pending)_"
     lines.append(
-        f"*Totals*  children {_fmt_int(totals.get('children', 0))} · "
-        f"teachers {_fmt_int(totals.get('teachers', 0))} · "
-        f"caregivers {_fmt_int(totals.get('caregivers', 0))} · "
+        f"*Totals*  {users_s} · "
         f"runs {_fmt_int(totals.get('runs', 0))} · "
         f"trials {_fmt_int(totals.get('trials', 0))} · "
         f"invalid {_fmt_int(totals.get('invalid', 0))}"
@@ -1286,18 +1299,22 @@ def format_slack_message(
 # Orchestrator
 # ----------------------------------------------------------------------------
 
-def run_weekly_report(dry_run: bool = False) -> dict:
+def run_weekly_report(dry_run: bool = False, weeks: int = 1) -> dict:
     """Main entry point. If ``dry_run`` is true, no Slack post and no snapshot
-    is stored (still computes drift against existing prior snapshot)."""
+    is stored (still computes drift against existing prior snapshot).
+    ``weeks`` widens the window to the last N complete weeks; only the
+    default single-week run stores this week's schema snapshot, so an ad-hoc
+    multi-week report cannot overwrite the weekly drift baseline."""
     t0 = time.time()
-    start_utc, end_utc, week_iso = calendar_week_window_pst()
+    weeks = max(int(weeks or 1), 1)
+    start_utc, end_utc, week_iso = calendar_week_window_pst(weeks=weeks)
     start_pst = start_utc.astimezone(PST)
     end_pst = end_utc.astimezone(PST)
     prev_week_iso = (datetime.fromisoformat(start_pst.isoformat()) - timedelta(days=7)).strftime("%G-W%V")
 
     logging.info(
-        "weekly_report: window %s → %s PST (week=%s, prev=%s, dry_run=%s)",
-        start_pst.isoformat(), end_pst.isoformat(), week_iso, prev_week_iso, dry_run,
+        "weekly_report: window %s → %s PST (weeks=%s, week=%s, prev=%s, dry_run=%s)",
+        start_pst.isoformat(), end_pst.isoformat(), weeks, week_iso, prev_week_iso, dry_run,
     )
 
     sites = list_active_sites()
@@ -1313,7 +1330,7 @@ def run_weekly_report(dry_run: bool = False) -> dict:
     current_snapshot = capture_schema_snapshot()
     previous_snapshot = load_previous_snapshot(prev_week_iso)
     drift = detect_schema_drift(current_snapshot, previous_snapshot)
-    if not dry_run:
+    if not dry_run and weeks == 1:
         store_snapshot(week_iso, current_snapshot)
 
     message = format_slack_message(
@@ -1351,6 +1368,7 @@ def run_weekly_report(dry_run: bool = False) -> dict:
         "window_end_pst": end_pst.isoformat(),
         "week_iso": week_iso,
         "previous_week_iso": prev_week_iso,
+        "weeks": weeks,
         "dry_run": dry_run,
         "slack_posted": slack_posted,
         "slack_webhook_secret_id": webhook_secret,
