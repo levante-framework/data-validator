@@ -207,7 +207,13 @@ def run_data_validation(
     total_validation_stats = {
         "cohorts": 0,
         "administrations": 0,
-        "users": {"total": 0, "valid_users": 0},
+        "users": {
+            "total": 0,
+            "valid_users": 0,
+            "student": 0,
+            "teacher": 0,
+            "caregiver": 0,
+        },
         "runs": {"total": 0, "valid_runs": 0},
         "trials": {"total": 0, "valid_trials": 0},
         "survey_responses": {"student": 0, "teacher": 0, "caregiver": 0},
@@ -239,12 +245,24 @@ def run_data_validation(
             )
             logging.info("user_ids have been masked.")
 
+        users_by_role = {"student": 0, "teacher": 0, "caregiver": 0}
+        for user in ec.valid_users:
+            if not getattr(user, "valid_user", True):
+                continue
+            role = getattr(user, "user_type", None)
+            if role == "student":
+                users_by_role["student"] += 1
+            elif role == "teacher":
+                users_by_role["teacher"] += 1
+            elif role in ("parent", "caregiver"):
+                users_by_role["caregiver"] += 1
         org_validation_stats = {
             "cohorts": len(ec.valid_cohorts) + len(ec.invalid_cohorts),
             "administrations": len(ec.valid_administrations) + len(ec.invalid_administrations),
             "users": {
                 "total": len(ec.valid_users) + len(ec.invalid_users),
                 "valid_users": sum(1 for user in ec.valid_users if user.valid_user),
+                **users_by_role,
             },
             "runs": {
                 "total": len(ec.valid_runs) + len(ec.invalid_runs),
@@ -263,6 +281,9 @@ def run_data_validation(
         total_validation_stats["administrations"] += org_validation_stats["administrations"]
         total_validation_stats["users"]["total"] += org_validation_stats["users"]["total"]
         total_validation_stats["users"]["valid_users"] += org_validation_stats["users"]["valid_users"]
+        total_validation_stats["users"]["student"] += org_validation_stats["users"]["student"]
+        total_validation_stats["users"]["teacher"] += org_validation_stats["users"]["teacher"]
+        total_validation_stats["users"]["caregiver"] += org_validation_stats["users"]["caregiver"]
         total_validation_stats["runs"]["total"] += org_validation_stats["runs"]["total"]
         total_validation_stats["runs"]["valid_runs"] += org_validation_stats["runs"]["valid_runs"]
         total_validation_stats["trials"]["total"] += org_validation_stats["trials"]["total"]
