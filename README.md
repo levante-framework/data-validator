@@ -85,6 +85,8 @@ pip install -r requirements.txt
 
 Set environment variable `DATA_VALIDATOR_PAYLOAD` to a JSON object.
 
+Full payload catalog (every operation and field): **[API.md](API.md)**.
+
 Optional top-level `operation` (default `data_validation`):
 
 | `operation` | Purpose |
@@ -127,7 +129,41 @@ Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list).
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
 - `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
-- After a new raw release, the job runs the shared Redivis notebook `process_dataset` on workflow `process_dataset:zr0v`. If another site already holds that notebook (`Notebook is already running`), the job waits and retries (re-pointing the datasource each attempt) for up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour).
+- `release_processed_dataset`: if `true` (default), after a successful notebook run the validator **releases** the unmarked processed dataset. Omit/`null`/`true` keep that default (no cron changes). Set `false` to leave processed `next` unreleased and skip the Airtable processed-date stamp.
+- After a new raw release, the job idle-claims a `process_dataset` notebook from `REDIVIS_PROCESS_WORKFLOW_POOL` (`process_dataset:zr0v` and `process_dataset_copy1:y0tn`). A Firestore lease on the admin DB (`locks/process_dataset_*`) is taken before re-pointing that copy, held until our notebook job finishes, and heartbeated so a crash expires. If every copy is busy or leased, the job waits up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour). On `Notebook is already running` or a held lease, it tries the other copy immediately. Cron payloads are unchanged.
+- After `process_dataset` starts, completion is bound to a **new** `currentJob.id` (not `lastRunJob`, which can be the previous site) — not to the live workflow datasource pointer, since another site may re-point the shared source after our job finishes.
+- When the notebook finishes successfully, the validator **releases** the unmarked processed dataset (the notebook writes an unreleased `next` version; release is not done inside the workflow). Airtable **Redivis processed dataset last update** is written only when that `release()` actually publishes a new processed version. If the notebook or that release fails, the Cloud Run Job **exits 1** so Scheduler retries.
+- Quiet GCS day / retry (no new raw): see the decision tree below. Leftover processed `next` is `release()`d only if it is timestamp-fresh vs current raw **and** the last Firestore log has `process_dataset.ran=true`. A fresh-looking `next` after a failed notebook is treated as incomplete and the notebook is re-run.
+
+```mermaid
+flowchart TD
+  start[Job starts] --> flags{save to storage?}
+  flags -->|no| stats[Validate only]
+  flags -->|yes| gcs[Validate, write GCS]
+  gcs --> newraw{New raw Redivis version?}
+  newraw -->|yes| nb[Idle-claim notebook, run process_dataset]
+  newraw -->|no| quiet[Quiet day / Scheduler retry]
+  nb --> nbrok{Notebook ran=true?}
+  nbrok -->|no| exit1[Exit 1]
+  nbrok -->|yes| relflag{release_processed_dataset?}
+  relflag -->|false| doneSkip[Leave next unreleased]
+  relflag -->|true| rel[release processed next]
+  rel --> relok{Released?}
+  relok -->|yes| air[Stamp Airtable]
+  relok -->|no| exit1
+  quiet --> skipp{skip_process_dataset?}
+  skipp -->|yes| skip[Do nothing]
+  skipp -->|no| nextq{Processed has next?}
+  nextq -->|yes| stale{next.createdAt >= raw.releasedAt?}
+  stale -->|no| rerun[Re-run process_dataset]
+  stale -->|yes| logq{Last log notebook ran=true?}
+  logq -->|yes and release flag| rel
+  logq -->|no / unknown| rerun
+  nextq -->|no| lag{Released processed older than current raw?}
+  lag -->|yes| rerun
+  lag -->|no| skip
+  rerun --> nbrok
+```
 - Task timeout: **24 hours** (`86400s`).
 - If `is_save_to_storage` is `false`, the job validates and returns stats only.
 

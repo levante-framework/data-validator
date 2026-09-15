@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.31',
+    'VERSION': '1.9.32',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -49,8 +49,15 @@ config = {
     'AIRTABLE_FIELD_VALIDATOR_PIPELINE_DATE': 'validator pipeline setup date',
     # Date column updated after a successful process_dataset run for the unmarked processed dataset.
     'AIRTABLE_FIELD_PROCESSED_DATASET_LAST_UPDATE': 'Redivis processed dataset last update',
-    # Levante Redivis workflow that fills the unmarked processed dataset from raw.
+    # Levante Redivis workflows that fill the unmarked processed dataset from raw.
+    # Idle-claim: the validator picks a free notebook in this pool (zr0v, then
+    # copy1). If all are busy it waits until any is free; on "already running"
+    # it tries the next copy immediately. NAME is the fallback if the pool is empty.
     'REDIVIS_PROCESS_WORKFLOW_USER': 'levante',
+    'REDIVIS_PROCESS_WORKFLOW_POOL': [
+        'process_dataset:zr0v',
+        'process_dataset_copy1:y0tn',
+    ],
     'REDIVIS_PROCESS_WORKFLOW_NAME': 'process_dataset:zr0v',
     'REDIVIS_PROCESS_NOTEBOOK_NAME': 'process_dataset',
     # Shared notebook: per-site jobs may hit "Notebook is already running". Wait/retry
@@ -59,6 +66,11 @@ config = {
     'REDIVIS_PROCESS_BUSY_RETRY_INITIAL_SECONDS': 30,
     'REDIVIS_PROCESS_BUSY_RETRY_MAX_SLEEP_SECONDS': 120,
     'REDIVIS_PROCESS_BUSY_POLL_SECONDS': 30,
+    # Per-copy Firestore lease (admin DB `locks/process_dataset_*`) around
+    # point → start → wait-on-our-job-id so two jobs cannot re-point the same
+    # notebook. TTL is refreshed while we wait; a crashed job expires.
+    'REDIVIS_PROCESS_LEASE_TTL_SECONDS': 1800,
+    'REDIVIS_PROCESS_LEASE_HEARTBEAT_SECONDS': 120,
     # Placeholder written into Firestore siteId when no Firestore district matches.
     'MISSING_SITE_ID_PLACEHOLDER': 'missing_site_id',
     # Cloud Scheduler config used to provision daily data-validator jobs per site.

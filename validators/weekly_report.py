@@ -73,6 +73,8 @@ SCHEMA_USERS_PER_TYPE = 4
 # Collection-group samples under `users/*`. Multiple order fields on
 # surveyResponses cover legacy (createdAt) and run-like (timeStarted) shapes.
 SCHEMA_SUBCOLLECTION_SAMPLE = 10
+# Example Firestore ids attached to each drifted field (from the existing sample).
+SCHEMA_EXAMPLE_IDS = 3
 USER_SUBCOLLECTION_SCHEMA_SPECS: list[tuple[str, str, list[str]]] = [
     ("users/runs", "runs", ["timeStarted"]),
     ("users/trials", "trials", ["serverTimestamp"]),
@@ -111,11 +113,15 @@ def list_active_sites() -> list[dict]:
     """
     Pull every Airtable row with `Redivis individual` checked and return the
     subset with a real Firestore siteId (i.e. not `missing_site_id` or empty).
+    The validator writes logs under the raw Redivis dataset id, while the
+    unmarked Name is retained as the human-facing report label.
     """
     individual_field = settings.config["AIRTABLE_FIELD_REDIVIS_INDIVIDUAL"]
     name_field = settings.config["AIRTABLE_FIELD_REDIVIS_DATASET_NAME"]
+    raw_name_field = settings.config["AIRTABLE_FIELD_REDIVIS_NAME"]
     site_field = settings.config["AIRTABLE_FIELD_FIRESTORE_SITE_ID"]
     placeholder = settings.config.get("MISSING_SITE_ID_PLACEHOLDER", "missing_site_id")
+    raw_suffix = settings.config.get("RAW_DATASET_SUFFIX", "-raw")
 
     at = AirtableServices()
     try:
@@ -132,7 +138,12 @@ def list_active_sites() -> list[dict]:
         site_id = (fields.get(site_field) or "").strip()
         if not name or not site_id or site_id == placeholder:
             continue
-        out.append({"dataset_name": name, "site_id": site_id})
+        raw_name = (fields.get(raw_name_field) or "").strip() or f"{name}{raw_suffix}"
+        out.append({
+            "dataset_name": name,
+            "log_dataset_name": raw_name,
+            "site_id": site_id,
+        })
     return out
 
 
@@ -234,11 +245,22 @@ def collect_firestore_activity(
 
     for s in sites:
         ds = s["dataset_name"]
-        baseline, current = _find_logs_for_dataset(ds, start_utc, end_utc)
+        log_ds = s.get("log_dataset_name") or ds
+        baseline, current = _find_logs_for_dataset(log_ds, start_utc, end_utc)
+        if log_ds != ds and (not baseline or not current):
+            # Preserve continuity across the processed-name → raw-name log-key
+            # migration. Prefer raw logs, but fill either side of the weekly
+            # comparison from the former unmarked key when necessary.
+            legacy_baseline, legacy_current = _find_logs_for_dataset(
+                ds, start_utc, end_utc
+            )
+            baseline = baseline or legacy_baseline
+            current = current or legacy_current
         if not current and not baseline:
             no_logs_at_all.append(ds)
             per_site[ds] = {"users": 0, "runs": 0, "trials": 0, "surveys": 0,
-                            "invalid": 0, "note": "no_logs_in_or_before_window"}
+                            "invalid": 0, "note": "no_logs_in_or_before_window",
+                            "log_dataset_name": log_ds}
             continue
         if not baseline:
             # First-time run inside this window — treat all current totals as
@@ -251,6 +273,7 @@ def collect_firestore_activity(
                 "surveys": cur.get("survey_responses_total", 0),
                 "invalid": cur.get("invalid_data_count", 0),
                 "note":    "first_run_no_baseline",
+                "log_dataset_name": log_ds,
             }
             missing_baseline.append(ds)
             for k, v in per_site[ds].items():
@@ -260,7 +283,8 @@ def collect_firestore_activity(
         if not current:
             # No log in window — site likely had no cron-detected change.
             per_site[ds] = {"users": 0, "runs": 0, "trials": 0, "surveys": 0,
-                            "invalid": 0, "note": "no_logs_in_window"}
+                            "invalid": 0, "note": "no_logs_in_window",
+                            "log_dataset_name": log_ds}
             continue
         b = _stats_from_log(baseline)
         c = _stats_from_log(current)
@@ -271,6 +295,7 @@ def collect_firestore_activity(
             "surveys": max(c["survey_responses_total"] - b["survey_responses_total"], 0),
             "invalid": c["invalid_data_count"],
             "note":    None,
+            "log_dataset_name": log_ds,
         }
         for k in ("users", "runs", "trials", "surveys", "invalid"):
             totals[k] += per_site[ds][k]
@@ -406,11 +431,13 @@ def collect_validation_health(
     """
     invalid_by_site: dict[str, int] = {}
     new_schemas_by_kind: defaultdict[str, Counter] = defaultdict(Counter)
+    api_versions: Counter[str] = Counter()
     runs_count = 0
     for s in sites:
         ds = s["dataset_name"]
+        log_ds = s.get("log_dataset_name") or ds
         base = (firestore_services.admin_db
-                .collection("logs").document(ds))
+                .collection("logs").document(log_ds))
         try:
             date_subs = sorted(c.id for c in base.collections())
         except Exception:
@@ -425,6 +452,9 @@ def collect_validation_health(
             for doc in base.collection(date_str).get():
                 runs_count += 1
                 d = doc.to_dict() or {}
+                api_version = d.get("api_version")
+                if api_version:
+                    api_versions[str(api_version)] += 1
                 stats = (d.get("logs") or {}).get("total_validation_stats") or {}
                 latest_invalid = stats.get("invalid_data_count", 0) or 0
                 latest_seen = True
@@ -439,6 +469,7 @@ def collect_validation_health(
     return {
         "invalid_by_site": invalid_by_site,
         "new_schemas": {k: dict(v) for k, v in new_schemas_by_kind.items()},
+        "api_versions": dict(api_versions),
         "log_docs_scanned": runs_count,
     }
 
@@ -447,19 +478,56 @@ def collect_validation_health(
 # Schema drift detection (Firebase)
 # ----------------------------------------------------------------------------
 
-def _fingerprint_docs(docs: list) -> tuple[set[str], set[str]]:
-    """Union top-level field names and subcollection ids across document snapshots."""
+def _schema_locator(doc) -> str:
+    """Id an admin can look up: userId for users/* subdocs, otherwise the doc id."""
+    parts = (getattr(getattr(doc, "reference", None), "path", None) or "").split("/")
+    if len(parts) >= 4 and parts[0] == "users":
+        return parts[1]
+    return getattr(doc, "id", "") or ""
+
+
+def _record_example(bucket: dict[str, list[str]], key: str, locator: str) -> None:
+    if not key or not locator:
+        return
+    ids = bucket.setdefault(key, [])
+    if locator not in ids and len(ids) < SCHEMA_EXAMPLE_IDS:
+        ids.append(locator)
+
+
+def _merge_example_maps(
+    dst: dict[str, list[str]], src: dict[str, list[str]] | None
+) -> dict[str, list[str]]:
+    for key, ids in (src or {}).items():
+        for locator in ids:
+            _record_example(dst, key, locator)
+    return dst
+
+
+def _fingerprint_docs(
+    docs: list,
+) -> tuple[set[str], set[str], Counter[str], Counter[str], dict[str, list[str]], dict[str, list[str]]]:
+    """Field/subcollection unions, counts, and up to 3 example locators per name."""
     fields: set[str] = set()
     subcolls: set[str] = set()
+    field_counts: Counter[str] = Counter()
+    subcoll_counts: Counter[str] = Counter()
+    field_examples: dict[str, list[str]] = {}
+    subcoll_examples: dict[str, list[str]] = {}
     for d in docs:
+        locator = _schema_locator(d)
         body = d.to_dict() or {}
         fields.update(body.keys())
+        field_counts.update(body.keys())
+        for key in body:
+            _record_example(field_examples, key, locator)
         try:
             for sub in d.reference.collections():
                 subcolls.add(sub.id)
+                subcoll_counts[sub.id] += 1
+                _record_example(subcoll_examples, sub.id, locator)
         except Exception:
             pass
-    return fields, subcolls
+    return fields, subcolls, field_counts, subcoll_counts, field_examples, subcoll_examples
 
 
 def _query_recent_docs(
@@ -489,11 +557,25 @@ def _query_recent_docs(
         return []
 
 
-def _schema_entry(fields: set[str], subcolls: set[str], sample_size: int, **extra) -> dict:
+def _schema_entry(
+    fields: set[str],
+    subcolls: set[str],
+    sample_size: int,
+    *,
+    field_counts: Counter[str] | None = None,
+    subcollection_counts: Counter[str] | None = None,
+    field_examples: dict[str, list[str]] | None = None,
+    subcollection_examples: dict[str, list[str]] | None = None,
+    **extra,
+) -> dict:
     out: dict[str, Any] = {
         "fields": sorted(fields),
         "subcollections": sorted(subcolls),
         "sample_size": sample_size,
+        "field_counts": dict(field_counts or {}),
+        "subcollection_counts": dict(subcollection_counts or {}),
+        "field_examples": field_examples or {},
+        "subcollection_examples": subcollection_examples or {},
     }
     out.update(extra)
     return out
@@ -512,8 +594,18 @@ def _sample_collection_for_schema(
     docs = _query_recent_docs(
         coll, coll_label=coll_name, order_field=updated_field, sample=sample,
     )
-    fields, subcolls = _fingerprint_docs(docs)
-    return _schema_entry(fields, subcolls, len(docs))
+    fields, subcolls, field_counts, subcoll_counts, field_examples, subcoll_examples = (
+        _fingerprint_docs(docs)
+    )
+    return _schema_entry(
+        fields,
+        subcolls,
+        len(docs),
+        field_counts=field_counts,
+        subcollection_counts=subcoll_counts,
+        field_examples=field_examples,
+        subcollection_examples=subcoll_examples,
+    )
 
 
 def _sample_users_schema_stratified(updated_field: str) -> dict[str, dict]:
@@ -525,6 +617,10 @@ def _sample_users_schema_stratified(updated_field: str) -> dict[str, dict]:
     coll = firestore_services.admin_db.collection("users")
     all_fields: set[str] = set()
     all_subcolls: set[str] = set()
+    all_field_counts: Counter[str] = Counter()
+    all_subcoll_counts: Counter[str] = Counter()
+    all_field_examples: dict[str, list[str]] = {}
+    all_subcoll_examples: dict[str, list[str]] = {}
     fields_by_type: dict[str, list[str]] = {}
     dist: Counter[str] = Counter()
     total = 0
@@ -539,16 +635,34 @@ def _sample_users_schema_stratified(updated_field: str) -> dict[str, dict]:
         )
         if not docs:
             continue
-        fields, subcolls = _fingerprint_docs(docs)
+        fields, subcolls, field_counts, subcoll_counts, field_examples, subcoll_examples = (
+            _fingerprint_docs(docs)
+        )
         all_fields |= fields
         all_subcolls |= subcolls
+        all_field_counts.update(field_counts)
+        all_subcoll_counts.update(subcoll_counts)
+        _merge_example_maps(all_field_examples, field_examples)
+        _merge_example_maps(all_subcoll_examples, subcoll_examples)
         fields_by_type[user_type] = sorted(fields)
         dist[user_type] = len(docs)
         total += len(docs)
-        snap[f"users/{user_type}"] = _schema_entry(fields, subcolls, len(docs))
+        snap[f"users/{user_type}"] = _schema_entry(
+            fields,
+            subcolls,
+            len(docs),
+            field_counts=field_counts,
+            subcollection_counts=subcoll_counts,
+            field_examples=field_examples,
+            subcollection_examples=subcoll_examples,
+        )
 
     snap["users"] = _schema_entry(
         all_fields, all_subcolls, total,
+        field_counts=all_field_counts,
+        subcollection_counts=all_subcoll_counts,
+        field_examples=all_field_examples,
+        subcollection_examples=all_subcoll_examples,
         fields_by_user_type=fields_by_type,
         user_type_distribution=dict(dist),
     )
@@ -563,9 +677,7 @@ def _sample_collection_group_for_schema(
 ) -> dict:
     """Sample recent docs from a collection group (e.g. all users/*/runs)."""
     db = firestore_services.admin_db
-    all_fields: set[str] = set()
-    all_subcolls: set[str] = set()
-    total = 0
+    docs_by_path: dict[str, Any] = {}
     for order_field in order_fields:
         docs = _query_recent_docs(
             db.collection_group(group_name),
@@ -573,11 +685,21 @@ def _sample_collection_group_for_schema(
             order_field=order_field,
             sample=sample,
         )
-        fields, subcolls = _fingerprint_docs(docs)
-        all_fields |= fields
-        all_subcolls |= subcolls
-        total += len(docs)
-    return _schema_entry(all_fields, all_subcolls, total)
+        for doc in docs:
+            docs_by_path[doc.reference.path] = doc
+    unique_docs = list(docs_by_path.values())
+    fields, subcolls, field_counts, subcoll_counts, field_examples, subcoll_examples = (
+        _fingerprint_docs(unique_docs)
+    )
+    return _schema_entry(
+        fields,
+        subcolls,
+        len(unique_docs),
+        field_counts=field_counts,
+        subcollection_counts=subcoll_counts,
+        field_examples=field_examples,
+        subcollection_examples=subcoll_examples,
+    )
 
 
 def capture_schema_snapshot() -> dict:
@@ -629,18 +751,49 @@ def _removal_min_sample(coll_key: str) -> int:
     return 3 if "/" in coll_key else 10
 
 
+def _examples_for_names(
+    examples_map: dict | None, names: list[str]
+) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    src = examples_map or {}
+    for name in names:
+        ids = [i for i in (src.get(name) or []) if i][:SCHEMA_EXAMPLE_IDS]
+        if ids:
+            out[name] = ids
+    return out
+
+
 def detect_schema_drift(current: dict, previous: dict | None) -> dict:
     """Diff current snapshot vs previous. Returns additions/removals.
-    Removals require the prior week to have met the minimum sample for that key
-    (10 for top-level collections, 3 for users/{type} and users/* subcollections).
+    A removal is reported only for a field/subcollection present in every
+    previous sampled document and absent from an adequately sized current
+    sample. Sampling can prove that a field exists, but a sparse sample cannot
+    reliably prove that an optional field such as surveyResponses.specific was
+    removed. Example locators (doc id, or userId for users/* subdocs) come from
+    the same sample — no extra Firestore reads.
     """
+    empty_examples: dict = {}
     if previous is None:
-        return {"first_run": True, "added": {}, "removed": {}, "subcollections_added": {}, "subcollections_removed": {}}
+        return {
+            "first_run": True,
+            "added": {},
+            "removed": {},
+            "subcollections_added": {},
+            "subcollections_removed": {},
+            "added_examples": empty_examples,
+            "removed_examples": empty_examples,
+            "subcollections_added_examples": empty_examples,
+            "subcollections_removed_examples": empty_examples,
+        }
 
     added_fields: dict[str, list[str]] = {}
     removed_fields: dict[str, list[str]] = {}
     subs_added: dict[str, list[str]] = {}
     subs_removed: dict[str, list[str]] = {}
+    added_examples: dict[str, dict[str, list[str]]] = {}
+    removed_examples: dict[str, dict[str, list[str]]] = {}
+    subs_added_examples: dict[str, dict[str, list[str]]] = {}
+    subs_removed_examples: dict[str, dict[str, list[str]]] = {}
 
     all_colls = set(current.keys()) | set(previous.keys())
     for coll in sorted(all_colls):
@@ -654,17 +807,41 @@ def detect_schema_drift(current: dict, previous: dict | None) -> dict:
         af = sorted(cur_f - prev_f)
         if af:
             added_fields[coll] = af
-        if (prev.get("sample_size") or 0) >= _removal_min_sample(coll):
-            rf = sorted(prev_f - cur_f)
+            ex = _examples_for_names(cur.get("field_examples"), af)
+            if ex:
+                added_examples[coll] = ex
+        min_sample = _removal_min_sample(coll)
+        prev_n = prev.get("sample_size") or 0
+        cur_n = cur.get("sample_size") or 0
+        if prev_n >= min_sample and cur_n >= min_sample:
+            prev_field_counts = prev.get("field_counts") or {}
+            rf = sorted(
+                field for field in prev_f - cur_f
+                if prev_field_counts.get(field) == prev_n
+            )
             if rf:
                 removed_fields[coll] = rf
+                ex = _examples_for_names(prev.get("field_examples"), rf)
+                if ex:
+                    removed_examples[coll] = ex
 
         sa = sorted(cur_s - prev_s)
         if sa:
             subs_added[coll] = sa
-        sr = sorted(prev_s - cur_s)
-        if sr:
-            subs_removed[coll] = sr
+            ex = _examples_for_names(cur.get("subcollection_examples"), sa)
+            if ex:
+                subs_added_examples[coll] = ex
+        if prev_n >= min_sample and cur_n >= min_sample:
+            prev_sub_counts = prev.get("subcollection_counts") or {}
+            sr = sorted(
+                sub for sub in prev_s - cur_s
+                if prev_sub_counts.get(sub) == prev_n
+            )
+            if sr:
+                subs_removed[coll] = sr
+                ex = _examples_for_names(prev.get("subcollection_examples"), sr)
+                if ex:
+                    subs_removed_examples[coll] = ex
 
     return {
         "first_run": False,
@@ -672,6 +849,10 @@ def detect_schema_drift(current: dict, previous: dict | None) -> dict:
         "removed": removed_fields,
         "subcollections_added": subs_added,
         "subcollections_removed": subs_removed,
+        "added_examples": added_examples,
+        "removed_examples": removed_examples,
+        "subcollections_added_examples": subs_added_examples,
+        "subcollections_removed_examples": subs_removed_examples,
     }
 
 
@@ -684,6 +865,20 @@ def _fmt_int(n) -> str:
         return f"{int(n):,}"
     except Exception:
         return str(n)
+
+
+def _fmt_drift_names(names: list[str], examples: dict[str, list[str]] | None) -> str:
+    """`field` (`id1`, `id2`) — ids are district/user locators from the sample."""
+    ex = examples or {}
+    parts = []
+    for name in names:
+        ids = ex.get(name) or []
+        if ids:
+            id_text = ", ".join(f"`{i}`" for i in ids)
+            parts.append(f"`{name}` ({id_text})")
+        else:
+            parts.append(f"`{name}`")
+    return ", ".join(parts)
 
 
 def format_slack_message(
@@ -720,11 +915,22 @@ def format_slack_message(
         return p.get("users", 0) + p.get("runs", 0) + p.get("trials", 0) + p.get("surveys", 0)
     ranked = sorted(per_site.items(), key=lambda kv: -site_activity(kv[1]))
 
-    zero_sites = [k for k, v in ranked if site_activity(v) == 0]
+    zero_sites = [
+        k for k, v in ranked
+        if site_activity(v) == 0 and not v.get("note")
+    ]
+    missing_log_sites = [
+        k for k, v in ranked
+        if site_activity(v) == 0
+        and v.get("note") in {"no_logs_in_window", "no_logs_in_or_before_window"}
+    ]
     active = [(k, v) for k, v in ranked if site_activity(v) > 0]
 
     lines.append("")
-    lines.append(f"*Per-site activity* ({len(active)} active · {len(zero_sites)} zero-activity)")
+    lines.append(
+        f"*Per-site activity* ({len(active)} active · {len(zero_sites)} quiet · "
+        f"{len(missing_log_sites)} missing logs)"
+    )
     if not active:
         lines.append("    _no site had measurable activity this week_")
     else:
@@ -739,13 +945,19 @@ def format_slack_message(
         if len(active) > 30:
             lines.append(f"    _…and {len(active) - 30} more active sites_")
 
-    # -- Zero-activity --
+    # -- Quiet sites are distinct from missing validator runs. --
     if zero_sites:
         lines.append("")
-        lines.append(f"*Zero-activity sites this week* ({len(zero_sites)})")
+        lines.append(f"*Quiet sites (validator ran, no new records)* ({len(zero_sites)})")
         for ds in zero_sites:
-            note = per_site[ds].get("note") or ""
-            lines.append(f"    • {ds}" + (f"  _{note}_" if note else ""))
+            lines.append(f"    • {ds}")
+    if missing_log_sites:
+        lines.append("")
+        lines.append(f"*Sites missing validator logs this week* ({len(missing_log_sites)})")
+        for ds in missing_log_sites:
+            p = per_site[ds]
+            raw_name = p.get("log_dataset_name") or ds
+            lines.append(f"    • {ds}  _checked logs/{raw_name}: {p.get('note')}_")
 
     # -- Redivis --
     rd = redivis or {}
@@ -770,6 +982,15 @@ def format_slack_message(
     lines.append("")
     lines.append("*Validation health*  "
                  f"log docs scanned this week: {validation.get('log_docs_scanned', 0)}")
+    api_versions = validation.get("api_versions") or {}
+    if api_versions:
+        versions_text = ", ".join(
+            f"`{version}`×{count}"
+            for version, count in sorted(
+                api_versions.items(), key=lambda item: (-item[1], item[0])
+            )
+        )
+        lines.append(f"    validator versions: {versions_text}")
     if any(v for _, v in top_invalid):
         for ds, n in top_invalid:
             if n:
@@ -833,14 +1054,30 @@ def format_slack_message(
             lines.append("*Firebase schema drift*  no detectable changes since last week")
         else:
             lines.append("*Firebase schema drift*")
+            added_ex = d.get("added_examples") or {}
+            removed_ex = d.get("removed_examples") or {}
+            subs_added_ex = d.get("subcollections_added_examples") or {}
+            subs_removed_ex = d.get("subcollections_removed_examples") or {}
             for coll, fields in added.items():
-                lines.append(f"    + `{coll}` new fields: " + ", ".join(f"`{f}`" for f in fields))
+                lines.append(
+                    f"    + `{coll}` newly observed fields: "
+                    + _fmt_drift_names(fields, added_ex.get(coll))
+                )
             for coll, fields in removed.items():
-                lines.append(f"    - `{coll}` removed fields: " + ", ".join(f"`{f}`" for f in fields))
+                lines.append(
+                    f"    - `{coll}` confirmed removed fields: "
+                    + _fmt_drift_names(fields, removed_ex.get(coll))
+                )
             for coll, subs in subs_added.items():
-                lines.append(f"    + `{coll}` new subcollections: " + ", ".join(f"`{s}`" for s in subs))
+                lines.append(
+                    f"    + `{coll}` newly observed subcollections: "
+                    + _fmt_drift_names(subs, subs_added_ex.get(coll))
+                )
             for coll, subs in subs_removed.items():
-                lines.append(f"    - `{coll}` removed subcollections: " + ", ".join(f"`{s}`" for s in subs))
+                lines.append(
+                    f"    - `{coll}` confirmed removed subcollections: "
+                    + _fmt_drift_names(subs, subs_removed_ex.get(coll))
+                )
 
     return "\n".join(lines)
 

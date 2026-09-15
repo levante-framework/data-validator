@@ -37,6 +37,144 @@ def _notify_slack_safe(message: str) -> None:
         logging.error("Slack notification failed: %s", e)
 
 
+def _stamp_airtable_processed_date(process_log: dict) -> dict:
+    """Write Airtable processed-date only when this run published processed data."""
+    rel = process_log.get("processed_release") or {}
+    if process_log.get("error") or not rel.get("released"):
+        process_log.setdefault("airtable", None)
+        return process_log
+    try:
+        airtable = AirtableServices()
+        process_log["airtable"] = airtable.update_processed_dataset_last_update(
+            processed_name=process_log["processed_dataset_id"],
+            date_yyyy_mm_dd=_today_in_pdt(),
+        )
+    except Exception as e:
+        logging.error(
+            "Airtable processed-date update failed for %r: %s",
+            process_log.get("processed_dataset_id"),
+            e,
+        )
+        process_log["airtable"] = {
+            "updated": False,
+            "record_id": None,
+            "error": str(e),
+        }
+    return process_log
+
+
+def _catch_up_processed_without_new_raw(
+    dataset_parameters: utils.DatasetParameters,
+) -> dict | None:
+    """
+    Quiet GCS day / Scheduler retry.
+
+    Publish leftover processed ``next`` only when it is at least as new as
+    current raw **and** the last Firestore log shows the notebook actually
+    finished (``ran=true``). A timestamp-fresh ``next`` after a failed
+    notebook can be a partial write — do not release it; re-run instead.
+    An older leftover ``next`` is stale. If there is no ``next`` but
+    released processed is older than raw, also re-run the notebook.
+    """
+    if dataset_parameters.skip_process_dataset:
+        return None
+    raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
+    raw_id = dataset_parameters.dataset_id or ""
+    if not raw_id.endswith(raw_suffix):
+        return None
+    processed_id = RedivisServices.processed_name_from_raw(raw_id)
+    rs = RedivisServices()
+    lag = rs.processed_lagging_current_raw(
+        raw_id=raw_id, processed_id=processed_id
+    )
+    notebook_outcome = firestore_services.get_latest_notebook_outcome(raw_id)
+    notebook_completed = notebook_outcome == "completed"
+
+    if (
+        dataset_parameters.release_processed_dataset
+        and lag.get("next_fresh_for_raw")
+        and notebook_completed
+    ):
+        release_log = rs.release_processed_dataset(
+            processed_id=processed_id,
+            raw_dataset_id=raw_id,
+        )
+        if release_log.get("released") or release_log.get("error"):
+            process_log = {
+                "ran": False,
+                "skipped": bool(release_log.get("skipped")),
+                "retry_release_only": True,
+                "raw_dataset_id": raw_id,
+                "processed_dataset_id": processed_id,
+                "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+                "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
+                "processed_release": release_log,
+                "error": release_log.get("error"),
+                "airtable": None,
+            }
+            if release_log.get("released"):
+                logging.info(
+                    "no new raw for %r — released pending processed %s → %s "
+                    "(next newer than or equal to current raw; "
+                    "last log ran=true)",
+                    raw_id,
+                    release_log.get("before_version"),
+                    release_log.get("after_version"),
+                )
+                process_log = _stamp_airtable_processed_date(process_log)
+            else:
+                logging.error(
+                    "no new raw for %r — processed release retry failed: %s",
+                    raw_id,
+                    process_log["error"],
+                )
+            return process_log
+
+    untrusted_next = bool(lag.get("has_next") and not notebook_completed)
+    catch_up = bool(
+        lag.get("lagging") or lag.get("next_stale") or untrusted_next
+    )
+    if not catch_up:
+        logging.info(
+            "no new raw for %r — skip process_dataset catch-up (%s; "
+            "has_next=%s next_stale=%s next_fresh=%s notebook=%s)",
+            raw_id,
+            lag.get("reason"),
+            lag.get("has_next"),
+            lag.get("next_stale"),
+            lag.get("next_fresh_for_raw"),
+            notebook_outcome,
+        )
+        return None
+
+    reason = lag.get("reason")
+    if untrusted_next and not lag.get("next_stale"):
+        reason = (
+            f"processed next looks timestamp-fresh vs current raw "
+            f"({lag.get('next_created_at')} vs {lag.get('raw_released_at')}) "
+            f"but last notebook log is {notebook_outcome}, not ran=true; "
+            f"treat as incomplete and re-run"
+        )
+    elif lag.get("next_stale"):
+        reason = (
+            f"stale processed next ({lag.get('next_created_at')}) is older "
+            f"than current raw ({lag.get('raw_released_at')}); "
+            f"{lag.get('reason')}"
+        )
+    logging.info(
+        "no new raw for %r — catch-up process_dataset (%s)",
+        raw_id,
+        reason,
+    )
+    process_log = rs.run_process_dataset_workflow(
+        raw_dataset_id=raw_id,
+        release_processed=dataset_parameters.release_processed_dataset,
+    )
+    process_log["catch_up_without_new_raw"] = True
+    process_log["catch_up_reason"] = reason
+    return _stamp_airtable_processed_date(process_log)
+
+
 def run_data_validation(
     dataset_parameters: utils.DatasetParameters,
     *,
@@ -259,6 +397,7 @@ def run_data_validation(
                         "raw_dataset_id": raw_id,
                         "processed_dataset_id": processed_id,
                         "workflow": settings.config["REDIVIS_PROCESS_WORKFLOW_NAME"],
+                        "workflow_pool": RedivisServices._process_workflow_pool(),
                         "notebook": settings.config["REDIVIS_PROCESS_NOTEBOOK_NAME"],
                         "error": None,
                         "airtable": None,
@@ -268,34 +407,25 @@ def run_data_validation(
                         raw_id,
                     )
                 else:
-                    process_log = rs.run_process_dataset_workflow(raw_dataset_id=raw_id)
-                    if process_log.get("ran") and not process_log.get("error"):
-                        try:
-                            airtable = AirtableServices()
-                            airtable_log = airtable.update_processed_dataset_last_update(
-                                processed_name=process_log["processed_dataset_id"],
-                                date_yyyy_mm_dd=_today_in_pdt(),
-                            )
-                            process_log["airtable"] = airtable_log
-                        except Exception as e:
-                            logging.error(
-                                "Airtable processed-date update failed for %r: %s",
-                                process_log.get("processed_dataset_id"),
-                                e,
-                            )
-                            process_log["airtable"] = {
-                                "updated": False,
-                                "record_id": None,
-                                "error": str(e),
-                            }
-                    else:
-                        process_log.setdefault("airtable", None)
+                    process_log = rs.run_process_dataset_workflow(
+                        raw_dataset_id=raw_id,
+                        release_processed=dataset_parameters.release_processed_dataset,
+                    )
+                    process_log = _stamp_airtable_processed_date(process_log)
 
         rs.upload_to_redivis_log["table_counts"] = rs.count_tables()
         output = {
             "total_validation_stats": total_validation_stats,
             "gcp_logs": storage.upload_to_GCP_log,
             "redivis_logs": rs.upload_to_redivis_log,
+        }
+        if process_log is not None:
+            output["process_dataset"] = process_log
+    elif not storage.has_upload_failures:
+        process_log = _catch_up_processed_without_new_raw(dataset_parameters)
+        output = {
+            "total_validation_stats": total_validation_stats,
+            "gcp_logs": storage.upload_to_GCP_log,
         }
         if process_log is not None:
             output["process_dataset"] = process_log
@@ -323,8 +453,18 @@ def run_data_validation(
     # (summary includes process_dataset when that workflow ran), or when GCS writes
     # failed — those runs never reach a release and would otherwise be silent.
     if dataset_parameters.send_slack and (
-        slack_summary_always or new_version_release or storage.has_upload_failures
+        slack_summary_always
+        or new_version_release
+        or storage.has_upload_failures
+        or (process_log and process_log.get("error"))
+        or (
+            process_log
+            and process_log.get("retry_release_only")
+            and (process_log.get("processed_release") or {}).get("released")
+        )
+        or (process_log and process_log.get("catch_up_without_new_raw"))
     ):
         _notify_slack_safe(message=format_data_validation_slack_summary(response))
 
-    return json.dumps(response), 200
+    status = 500 if process_log and process_log.get("error") else 200
+    return json.dumps(response, cls=utils.CustomJSONEncoder), status

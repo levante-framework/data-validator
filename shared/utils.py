@@ -162,6 +162,15 @@ class DatasetParameters(BaseModel):
             "Existing cron payloads need no change."
         ),
     )
+    release_processed_dataset: bool = Field(
+        default=True,
+        description=(
+            "After a successful process_dataset notebook run, release the "
+            "unmarked processed Redivis dataset (unreleased next). Omit/null/"
+            "true keep the default. Set false to leave next unreleased. "
+            "Existing cron payloads need no change."
+        ),
+    )
     send_slack: bool = Field(
         default=False,
         description=(
@@ -188,6 +197,23 @@ class DatasetParameters(BaseModel):
     @classmethod
     def coerce_skip_process_dataset(cls, v):
         return cls._coerce_bool(v)
+
+    @field_validator("release_processed_dataset", mode="before")
+    @classmethod
+    def coerce_release_processed_dataset(cls, v):
+        if v is None:
+            return True
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes"):
+                return True
+            if s in ("false", "0", "no"):
+                return False
+            raise ValueError(
+                "release_processed_dataset must be true or false "
+                f"(got {v!r})"
+            )
+        return bool(v)
 
     def to_dict(self):
         # Build a shorter description from params (also used for Redivis version text).
@@ -228,6 +254,7 @@ class DatasetParameters(BaseModel):
             "is_save_to_storage": self.is_save_to_storage,
             "is_force_uploading_to_redivis": self.is_force_uploading_to_redivis,
             "skip_process_dataset": self.skip_process_dataset,
+            "release_processed_dataset": self.release_processed_dataset,
             "send_slack": self.send_slack,
             "org_count": len(self.orgs),
             "orgs": full_description_org,
