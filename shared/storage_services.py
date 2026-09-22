@@ -4,6 +4,7 @@ import json
 import os
 import logging
 import time
+from datetime import datetime
 
 import settings
 from shared import utils
@@ -32,6 +33,7 @@ class StorageServices:
             'blob_file_counts': 0,
             'file_updated': [],
             'file_updated_details': [],
+            'schema_changes': [],
             'file_uploads_fail': [],
             'file_deletion': [],
         }
@@ -100,6 +102,9 @@ class StorageServices:
         gcs_count = len(gcs_json_data)
 
         is_same_length = gcs_count == local_count
+        local_schema = self._schema_shape(local_data_list)
+        gcs_schema = self._schema_shape(gcs_json_data)
+        is_same_schema = local_schema == gcs_schema
         if not is_same_length:
             self.upload_to_GCP_log['file_updated'].append(
                 f"{table_name}(gcs/local): {gcs_count}/{local_count}")
@@ -110,7 +115,70 @@ class StorageServices:
                 'delta': local_count - gcs_count,
                 'is_new': False,
             })
-        return is_same_length
+        elif not is_same_schema:
+            added = sorted(set(local_schema) - set(gcs_schema))
+            removed = sorted(set(gcs_schema) - set(local_schema))
+            modified = sorted(
+                key
+                for key in set(local_schema) & set(gcs_schema)
+                if local_schema[key] != gcs_schema[key]
+            )
+            self.upload_to_GCP_log['file_updated'].append(
+                f"{table_name}(schema): changed"
+            )
+            self.upload_to_GCP_log['file_updated_details'].append({
+                'table': table_name,
+                'before': gcs_count,
+                'after': local_count,
+                'delta': 0,
+                'is_new': False,
+                'schema_changed': True,
+            })
+            self.upload_to_GCP_log['schema_changes'].append({
+                'table': table_name,
+                'added': added,
+                'removed': removed,
+                'modified': modified,
+            })
+            logging.info(
+                "%s schema changed: added=%s removed=%s modified=%s",
+                table_name, added, removed, modified,
+            )
+        return is_same_length and is_same_schema
+
+    @staticmethod
+    def _schema_shape(rows) -> dict[str, str]:
+        """Return field→sentinel type from the appended schema row."""
+        if not isinstance(rows, list) or not rows or not isinstance(rows[-1], dict):
+            return {}
+
+        def value_type(value) -> str:
+            if isinstance(value, bool):
+                return "boolean"
+            if isinstance(value, int):
+                return "integer"
+            if isinstance(value, float):
+                return "float"
+            if isinstance(value, datetime):
+                return "datetime"
+            if isinstance(value, str):
+                try:
+                    datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    return "datetime"
+                except ValueError:
+                    return "string"
+            if isinstance(value, list):
+                return "array"
+            if isinstance(value, dict):
+                return "object"
+            if value is None:
+                return "null"
+            return type(value).__name__
+
+        return {
+            str(field): value_type(value)
+            for field, value in rows[-1].items()
+        }
 
     def save_to_storage(self, table_name: str, data) -> bool:
         """Write one table to GCS. True only when the stored blob matches what we sent."""
@@ -196,6 +264,7 @@ class StorageServices:
                     # Delete the file
                     try:
                         blob.delete()
+                        self.is_new_version_needed = True
                         logging.info(f'{file_name}_deleted_from_{self.dataset_id}')
                         self.upload_to_GCP_log['file_deletion'].append(f'{file_name}')
                     except Exception as e:

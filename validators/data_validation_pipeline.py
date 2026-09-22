@@ -263,9 +263,17 @@ def run_data_validation(
             "student": 0,
             "teacher": 0,
             "caregiver": 0,
+            "disabled": 0,
+            "archived": 0,
         },
         "runs": {"total": 0, "valid_runs": 0},
         "trials": {"total": 0, "valid_trials": 0},
+        "surveys": {"total": 0, "valid_surveys": 0},
+        "survey_response_rows": {
+            "total": 0,
+            "valid_survey_responses": 0,
+        },
+        # Users with ≥1 survey instance, by user_type (not survey/table rows).
         "survey_responses": {"student": 0, "teacher": 0, "caregiver": 0},
         "invalid_data_count": 0,
         "new_schemas": {"runs": [], "trials": [], "surveys": []},
@@ -312,6 +320,8 @@ def run_data_validation(
             "users": {
                 "total": len(ec.valid_users) + len(ec.invalid_users),
                 "valid_users": sum(1 for user in ec.valid_users if user.valid_user),
+                "disabled": ec.disabled_users_skipped,
+                "archived": ec.archived_users_count,
                 **users_by_role,
             },
             "runs": {
@@ -321,6 +331,23 @@ def run_data_validation(
             "trials": {
                 "total": len(ec.valid_trials) + len(ec.invalid_trials),
                 "valid_trials": sum(1 for trial in ec.valid_trials if trial.valid_trial),
+            },
+            "surveys": {
+                "total": len(ec.valid_surveys) + len(ec.invalid_surveys),
+                "valid_surveys": sum(
+                    1 for survey in ec.valid_surveys if survey.valid_survey
+                ),
+            },
+            "survey_response_rows": {
+                "total": (
+                    len(ec.valid_survey_responses)
+                    + len(ec.invalid_survey_responses)
+                ),
+                "valid_survey_responses": sum(
+                    1
+                    for row in ec.valid_survey_responses
+                    if row.valid_survey_response
+                ),
             },
             "survey_responses": ec.survey_responses_stats,
             "invalid_data_count": len(org_validated_data.get("invalid_data", [])),
@@ -334,10 +361,22 @@ def run_data_validation(
         total_validation_stats["users"]["student"] += org_validation_stats["users"]["student"]
         total_validation_stats["users"]["teacher"] += org_validation_stats["users"]["teacher"]
         total_validation_stats["users"]["caregiver"] += org_validation_stats["users"]["caregiver"]
+        total_validation_stats["users"]["disabled"] += org_validation_stats["users"]["disabled"]
+        total_validation_stats["users"]["archived"] += org_validation_stats["users"]["archived"]
         total_validation_stats["runs"]["total"] += org_validation_stats["runs"]["total"]
         total_validation_stats["runs"]["valid_runs"] += org_validation_stats["runs"]["valid_runs"]
         total_validation_stats["trials"]["total"] += org_validation_stats["trials"]["total"]
         total_validation_stats["trials"]["valid_trials"] += org_validation_stats["trials"]["valid_trials"]
+        total_validation_stats["surveys"]["total"] += org_validation_stats["surveys"]["total"]
+        total_validation_stats["surveys"]["valid_surveys"] += org_validation_stats["surveys"][
+            "valid_surveys"
+        ]
+        total_validation_stats["survey_response_rows"]["total"] += org_validation_stats[
+            "survey_response_rows"
+        ]["total"]
+        total_validation_stats["survey_response_rows"]["valid_survey_responses"] += (
+            org_validation_stats["survey_response_rows"]["valid_survey_responses"]
+        )
         total_validation_stats["survey_responses"]["student"] += org_validation_stats["survey_responses"]["student"]
         total_validation_stats["survey_responses"]["teacher"] += org_validation_stats["survey_responses"]["teacher"]
         total_validation_stats["survey_responses"]["caregiver"] += org_validation_stats["survey_responses"]["caregiver"]

@@ -19,6 +19,7 @@ from shared.secret_services import secret_service
 from shared.utils import (
     flatten_document,
     handle_nan,
+    is_true_flag,
     process_doc_dict,
     promote_last_updated_to_updated_at,
 )
@@ -687,6 +688,8 @@ class FirestoreServices:
         else:
             collection_name = 'users'
 
+        disabled_user_ids: set[str] = set()
+
         base_query = self.admin_db.collection(collection_name)
         # Apply the date range filters
         # base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
@@ -807,10 +810,14 @@ class FirestoreServices:
                     snap = users_col.document(parent_id).get()
                     if not snap.exists:
                         continue
+                    parent_doc = snap.to_dict() or {}
+                    if is_true_flag(parent_doc.get("disabled")):
+                        disabled_user_ids.add(parent_id)
+                        continue
                     if not _has_survey_in_range(snap.reference, start_dt, end_dt):
                         continue
                     parent_candidates[parent_id] = _normalize_user_doc(
-                        user_id=snap.id, doc_dict=snap.to_dict() or {}
+                        user_id=snap.id, doc_dict=parent_doc
                     )
 
             parent_pool = list(parent_candidates.values())
@@ -910,7 +917,7 @@ class FirestoreServices:
                     logging.info(
                         f"Setting users... processing chunk {current_chunk} of {total_chunks} {collection_name} chunks.")
                     for doc in docs:
-                        doc_dict = doc.to_dict()
+                        doc_dict = doc.to_dict() or {}
                         # Discard users without any assignment.
                         if is_guest:
                             runs = doc.reference.collection('runs').limit(1).get()
@@ -936,6 +943,10 @@ class FirestoreServices:
                                 continue
                             if use_stratified_sample and user_type == 'parent':
                                 continue
+
+                        if is_true_flag(doc_dict.get("disabled")):
+                            disabled_user_ids.add(doc.id)
+                            continue
 
                         # Check if user filter is being used
                         # if user_filter.key:
@@ -990,13 +1001,15 @@ class FirestoreServices:
                         if user_number_limit and user_number_limit > 0 and len(selected_by_id) >= user_number_limit:
                             break
                         rel_doc = snap.to_dict() or {}
+                        if is_true_flag(rel_doc.get("disabled")):
+                            disabled_user_ids.add(snap.id)
+                            continue
                         normalized = _normalize_user_doc(user_id=snap.id, doc_dict=rel_doc)
                         selected_by_id[normalized["user_id"]] = normalized
 
-            for user in selected_by_id.values():
-                yield user
+            return list(selected_by_id.values()), len(disabled_user_ids)
 
-        yield from process_docs(query=base_query)
+        return process_docs(query=base_query)
 
     def get_runs(self, user_id: str, run_key_usage: dict, date_filter: utils.DateFilter, is_guest: bool = False,
                  chunk_size=100):

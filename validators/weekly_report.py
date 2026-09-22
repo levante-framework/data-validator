@@ -10,7 +10,7 @@ Data sources:
 - Per-site activity: existing `logs/{dataset_id}/{YYYY-MM-DD}/{run-ts}` docs
   written by `firestore_services.set_logs_to_firebase`. Baseline-vs-current
   diff of `total_validation_stats` gives weekly growth (users by role,
-  runs, trials, surveys by role, invalid). Not Redivis row counts.
+  runs, trials, users with surveys by role, invalid). Not Redivis row counts.
 - New administrations: live Firestore `administrations` docs whose
   `dateOpened` or `createdAt` falls in the week (not the validator log
   administration count, which is a cumulative export snapshot).
@@ -199,6 +199,8 @@ def _empty_site_activity(**extra) -> dict:
         "surveys_teachers": 0,
         "surveys_caregivers": 0,
         "invalid": 0,
+        "disabled": 0,
+        "archived": 0,
         "has_user_roles": False,
         "note": None,
     }
@@ -235,6 +237,8 @@ def _stats_from_log(log_doc) -> dict:
             surveys_student + surveys_teacher + surveys_caregiver
         ),
         "invalid_data_count": stats.get("invalid_data_count", 0) or 0,
+        "users_disabled": users.get("disabled") or 0,
+        "users_archived": users.get("archived") or 0,
         "_doc_path": log_doc.reference.path,
     }
 
@@ -309,6 +313,8 @@ def _activity_from_stats(cur: dict, base: dict | None) -> dict:
         "surveys_teachers": surveys_teachers,
         "surveys_caregivers": surveys_caregivers,
         "invalid": cur.get("invalid_data_count", 0) or 0,
+        "disabled": cur.get("users_disabled", 0) or 0,
+        "archived": cur.get("users_archived", 0) or 0,
         "has_user_roles": has_roles,
     }
 
@@ -469,9 +475,16 @@ def collect_new_administrations(
         key=lambda x: x["when"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
     )
+    by_site: dict[str, int] = {}
+    for it in items:
+        site = it.get("site")
+        if not site:
+            continue
+        by_site[site] = by_site.get(site, 0) + 1
     return {
         "count": len(items),
         "items": items,
+        "by_site": by_site,
     }
 
 
@@ -1106,7 +1119,7 @@ def format_slack_message(
         f"invalid {_fmt_int(totals.get('invalid', 0))}"
     )
     lines.append(
-        f"*Surveys*  children {_fmt_int(totals.get('surveys_children', 0))} · "
+        f"*Users with surveys*  children {_fmt_int(totals.get('surveys_children', 0))} · "
         f"teachers {_fmt_int(totals.get('surveys_teachers', 0))} · "
         f"caregivers {_fmt_int(totals.get('surveys_caregivers', 0))}"
     )
@@ -1157,23 +1170,26 @@ def format_slack_message(
     if not active:
         lines.append("    _no site had measurable activity this week_")
     else:
+        admin_by_site = (administrations or {}).get("by_site") or {}
         for ds, p in active[:30]:
             note = f"  _{p['note']}_" if p.get("note") else ""
-            if p.get("has_user_roles"):
-                user_s = (
-                    f"ch {_fmt_int(p.get('children', 0))} · "
-                    f"te {_fmt_int(p.get('teachers', 0))} · "
-                    f"cg {_fmt_int(p.get('caregivers', 0))}"
-                )
-            else:
+            user_s = (
+                f"ch {_fmt_int(p.get('children', 0))}/"
+                f"te {_fmt_int(p.get('teachers', 0))}/"
+                f"cg {_fmt_int(p.get('caregivers', 0))}"
+            )
+            if not p.get("has_user_roles"):
                 user_s = f"users {_fmt_int(p.get('users', 0))}"
             lines.append(
                 f"    `{ds:42s}`  {user_s} · "
                 f"runs {_fmt_int(p.get('runs', 0))} · "
                 f"trials {_fmt_int(p.get('trials', 0))} · "
-                f"sv ch {_fmt_int(p.get('surveys_children', 0))}/"
+                f"w/sv ch {_fmt_int(p.get('surveys_children', 0))}/"
                 f"te {_fmt_int(p.get('surveys_teachers', 0))}/"
-                f"cg {_fmt_int(p.get('surveys_caregivers', 0))}{note}"
+                f"cg {_fmt_int(p.get('surveys_caregivers', 0))} · "
+                f"admins {_fmt_int(admin_by_site.get(ds, 0))} · "
+                f"archived {_fmt_int(p.get('archived', 0))} · "
+                f"disabled {_fmt_int(p.get('disabled', 0))}{note}"
             )
         if len(active) > 30:
             lines.append(f"    _…and {len(active) - 30} more active sites_")
