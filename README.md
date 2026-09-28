@@ -130,7 +130,7 @@ Notes:
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
 - GCS change detection compares both table row counts and the appended schema-row field/type shape. Adding, removing, or changing a field therefore publishes a new raw Redivis version even when no records were added or removed. Removing an entire exported table also publishes a new raw version.
 - `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
-- Raw exports whose tables are only the appended `schema_row` (every table has one row) also skip `process_dataset` and do not release a processed companion. That covers empty sites such as `rfp1-donders-intl-ys-raw` / `rfp1-calgary-intl-ys-raw`. Sites with real rows (for example `rfp1-utdt-intl-ys-raw`) still process. Cron payloads need no change. Those template/schema-only sites do **not** post a Slack summary (or appear as weekly-report awaiting/quiet sites). GCS or notebook failures still Slack.
+- Raw exports whose tables are only the appended `schema_row` (every table has one row) also skip `process_dataset` and do not release a processed companion. That covers empty sites such as `rfp1-donders-intl-ys-raw` / `rfp1-calgary-intl-ys-raw`. Sites with real rows (for example `rfp1-utdt-intl-ys-raw`) still process. Cron payloads need no change. Those template/schema-only sites do **not** post a daily Slack summary (GCS or notebook failures still Slack). The weekly report lists them in a separate schema-only section instead of active/quiet/missing.
 - `release_processed_dataset`: if `true` (default), after a successful notebook run the validator **releases** the unmarked processed dataset. Omit/`null`/`true` keep that default (no cron changes). Set `false` to leave processed `next` unreleased and skip the Airtable processed-date stamp.
 - After a new raw release, the job idle-claims a `process_dataset` notebook from `REDIVIS_PROCESS_WORKFLOW_POOL` (`process_dataset:zr0v` and `process_dataset_copy1:y0tn`). A Firestore lease on the admin DB (`locks/process_dataset_*`) is taken before re-pointing that copy, held until our notebook job finishes, and heartbeated so a crash expires. If every copy is busy or leased, the job waits up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour). On `Notebook is already running` or a held lease, it tries the other copy immediately. Cron payloads are unchanged.
 - After `process_dataset` starts, completion is bound to a **new** `currentJob.id` (not `lastRunJob`, which can be the previous site) — not to the live workflow datasource pointer, since another site may re-point the shared source after our job finishes.
@@ -177,9 +177,11 @@ flowchart TD
 ```
 
 `weeks` widens the window to the last N complete Mon–Sun PST weeks (default 1).
-Only `weeks=1` stores the schema-drift snapshot. Totals and surveys are split
-into children / teachers / caregivers, and the report lists new administrations
-opened in the window (count and all names).
+Only `weeks=1` stores the schema-drift snapshot. Totals are split into
+children / teachers / caregivers. The survey line is *New surveys(from all users)*
+(per-site label `sv`), also split by those roles. The report lists new administrations
+opened in the window (count and all names); per-site `new admins` is that
+same count for the site. Empty/schema-only raws get their own section.
 
 ```json
 {"operation": "redivis_individual_release", "dry_run": false, "dataset_name": "optional-single-site"}

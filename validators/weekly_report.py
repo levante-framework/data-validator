@@ -1119,7 +1119,7 @@ def format_slack_message(
         f"invalid {_fmt_int(totals.get('invalid', 0))}"
     )
     lines.append(
-        f"*Users with surveys*  children {_fmt_int(totals.get('surveys_children', 0))} · "
+        f"*New surveys(from all users)*  children {_fmt_int(totals.get('surveys_children', 0))} · "
         f"teachers {_fmt_int(totals.get('surveys_teachers', 0))} · "
         f"caregivers {_fmt_int(totals.get('surveys_caregivers', 0))}"
     )
@@ -1165,7 +1165,7 @@ def format_slack_message(
     lines.append("")
     lines.append(
         f"*Per-site activity* ({len(active)} active · {len(zero_sites)} quiet · "
-        f"{len(missing_log_sites)} missing logs)"
+        f"{len(missing_log_sites)} missing logs · {len(template_sites)} schema-only)"
     )
     if not active:
         lines.append("    _no site had measurable activity this week_")
@@ -1184,10 +1184,10 @@ def format_slack_message(
                 f"    `{ds:42s}`  {user_s} · "
                 f"runs {_fmt_int(p.get('runs', 0))} · "
                 f"trials {_fmt_int(p.get('trials', 0))} · "
-                f"w/sv ch {_fmt_int(p.get('surveys_children', 0))}/"
+                f"sv ch {_fmt_int(p.get('surveys_children', 0))}/"
                 f"te {_fmt_int(p.get('surveys_teachers', 0))}/"
                 f"cg {_fmt_int(p.get('surveys_caregivers', 0))} · "
-                f"admins {_fmt_int(admin_by_site.get(ds, 0))} · "
+                f"new admins {_fmt_int(admin_by_site.get(ds, 0))} · "
                 f"archived {_fmt_int(p.get('archived', 0))} · "
                 f"disabled {_fmt_int(p.get('disabled', 0))}{note}"
             )
@@ -1207,6 +1207,15 @@ def format_slack_message(
             p = per_site[ds]
             raw_name = p.get("log_dataset_name") or ds
             lines.append(f"    • {ds}  _checked logs/{raw_name}: {p.get('note')}_")
+    if template_sites:
+        lines.append("")
+        lines.append(
+            f"*Schema-only / empty raws* ({len(template_sites)})  "
+            "_every table is the single schema_row; daily cron still runs, "
+            "not counted as weekly activity_"
+        )
+        for ds in sorted(template_sites):
+            lines.append(f"    • {ds}")
 
     # -- Redivis --
     rd = redivis or {}

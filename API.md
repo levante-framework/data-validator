@@ -199,12 +199,16 @@ Runs processing after a new raw release and **releases the processed dataset**.
 | `weeks` | no | `1` | Number of complete calendar weeks (Mon–Sun PST) ending last Sunday. `2` covers the last two weeks in one report. Only `weeks=1` stores the schema-drift snapshot, so ad-hoc multi-week runs cannot overwrite the weekly baseline. **Cron jobs need no change.** |
 
 Report content: totals split into children / teachers / caregivers, runs,
-trials, invalid; users with ≥1 survey, split by the same three roles; and new
+trials, invalid; *New surveys(from all users)* (people with ≥1 survey, split by the same three roles); and new
 administrations opened in the window (count and all names). Activity
 comes from validator Firestore logs, not Redivis row counts. The survey
 role counts are people, not `surveys` / `survey_responses` table rows.
-Per-site lines also show current `archived` (warning, still exported) and
-`disabled` (filtered out) user counts from the latest validator log.
+Per-site lines also show `new admins` (administrations whose `dateOpened`
+or `createdAt` falls in the window — not “still open”), plus current
+`archived` (still exported) and `disabled` (filtered out) user counts from
+the latest validator log. Empty/schema-only raws (every table is the single
+`schema_row`) are listed in a separate section and omitted from
+active/quiet/missing.
 
 ---
 
