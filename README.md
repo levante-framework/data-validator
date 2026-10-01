@@ -179,9 +179,12 @@ flowchart TD
 `weeks` widens the window to the last N complete Mon–Sun PST weeks (default 1).
 Only `weeks=1` stores the schema-drift snapshot. Totals use `old → new (+Δ)`
 for users (by role), runs, trials, assignments, users with surveys, archived,
-and disabled, plus current-export `valid/total (pct%)` for users / runs /
-trials. Assignments follow trials. Invalid counts are omitted. Per-site
-activity is two lines: users/runs/trials, then surveys (`sv`), assignments
+and disabled. Users, runs, and trials show `new valid / new total (pct%)`
+for rows added in the window. The increase-in-users-with-surveys line is role
+compares only. Per-site runs
+and trials show that fraction without the `new valid` label. Assignments follow
+trials. Invalid counts are omitted. Per-site activity is two lines: users,
+roles, runs, and trials, then survey people (`sv`), assignments
 (`before → now (+opened)`), archived, disabled.
 Empty/schema-only raws get their own section.
 

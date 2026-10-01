@@ -11,8 +11,10 @@ Data sources:
   written by `firestore_services.set_logs_to_firebase`. Baseline-vs-current
   diff of `total_validation_stats` gives weekly growth (users by role,
   runs, trials, increase in users with one or more surveys). Slack shows
-  each as ``old → new (+Δ)``. Valid/total percentages use the current
-  export (same shape as the daily Slack summary). Archived and disabled
+  each as ``old → new (+Δ)``. The valid fraction on users, runs, and trials
+  is new valid rows over new total rows in the totals. Per-site activity shows
+  that fraction only on runs and trials, without the “new valid” label.
+  The increase-in-users-with-surveys line is role compares only. Archived and disabled
   are also shown as ``old → new (+Δ)`` from the baseline and current logs.
 - Assignments: live Firestore `administrations` for each site. Slack shows
   ``before → now (+opened this week)``, where “opened this week” is a doc
@@ -220,14 +222,13 @@ def _empty_site_activity(**extra) -> dict:
         "surveys_caregivers": 0,
         "surveys_caregivers_base": 0,
         "surveys_caregivers_cur": 0,
+        "users_valid_base": 0,
         "users_valid_cur": 0,
         "users_total_cur": 0,
+        "runs_valid_base": 0,
         "runs_valid_cur": 0,
+        "trials_valid_base": 0,
         "trials_valid_cur": 0,
-        "surveys_valid_cur": 0,
-        "surveys_total_cur": 0,
-        "survey_response_valid_cur": 0,
-        "survey_response_total_cur": 0,
         "disabled": 0,
         "disabled_base": 0,
         "disabled_cur": 0,
@@ -352,18 +353,13 @@ def _activity_from_stats(cur: dict, base: dict | None) -> dict:
         "surveys_caregivers": surveys_caregivers,
         "surveys_caregivers_base": sv_cg_b,
         "surveys_caregivers_cur": sv_cg_c,
+        "users_valid_base": 0 if first else int(base.get("users_valid", 0) or 0),
         "users_valid_cur": int(cur.get("users_valid", 0) or 0),
         "users_total_cur": int(cur.get("users_total", 0) or 0),
+        "runs_valid_base": 0 if first else int(base.get("runs_valid", 0) or 0),
         "runs_valid_cur": int(cur.get("runs_valid", 0) or 0),
+        "trials_valid_base": 0 if first else int(base.get("trials_valid", 0) or 0),
         "trials_valid_cur": int(cur.get("trials_valid", 0) or 0),
-        "surveys_valid_cur": int(cur.get("surveys_table_valid", 0) or 0),
-        "surveys_total_cur": int(cur.get("surveys_table_total", 0) or 0),
-        "survey_response_valid_cur": int(
-            cur.get("survey_response_rows_valid", 0) or 0
-        ),
-        "survey_response_total_cur": int(
-            cur.get("survey_response_rows_total", 0) or 0
-        ),
         "disabled": disabled,
         "disabled_base": dis_b,
         "disabled_cur": dis_c,
@@ -1156,7 +1152,7 @@ def _fmt_compare(old, new) -> str:
 
 
 def _fmt_valid_pct(valid, total) -> str:
-    """Daily-style ``1,010/1,012 (99.8%)`` for the current export."""
+    """``91/93 (97.8%)``. No percent when the denominator is not positive."""
     try:
         v = int(valid or 0)
         t = int(total or 0)
@@ -1165,6 +1161,25 @@ def _fmt_valid_pct(valid, total) -> str:
     if t <= 0:
         return f"{_fmt_int(v)}/{_fmt_int(t)}"
     return f"{_fmt_int(v)}/{_fmt_int(t)} ({100.0 * v / t:.1f}%)"
+
+
+def _fmt_new_valid(valid_base, valid_cur, total_base, total_cur) -> str:
+    """New valid rows / new total rows in the window."""
+    try:
+        new_valid = int(valid_cur or 0) - int(valid_base or 0)
+        new_total = int(total_cur or 0) - int(total_base or 0)
+    except (TypeError, ValueError):
+        return "—"
+    return _fmt_valid_pct(new_valid, new_total)
+
+
+def _fmt_metric(label: str, base, cur, valid_base=None, valid_cur=None) -> str:
+    """``runs 1 → 4 (+3) · new valid 3/3 (100.0%)``. Percent uses the same totals."""
+    text = f"{label} {_fmt_compare(base, cur)}"
+    if valid_base is None and valid_cur is None:
+        return text
+    text += f" · new valid {_fmt_new_valid(valid_base, valid_cur, base, cur)}"
+    return text
 
 
 def _fmt_drift_names(names: list[str], examples: dict[str, list[str]] | None) -> str:
@@ -1205,8 +1220,13 @@ def format_slack_message(
     # three misleading zeros.
     lines.append("*Totals*")
     lines.append(
-        f"• Users: {_fmt_compare(totals.get('users_total_base'), totals.get('users_total_cur'))} · "
-        f"valid {_fmt_valid_pct(totals.get('users_valid_cur'), totals.get('users_total_cur'))}"
+        "• " + _fmt_metric(
+            "Users:",
+            totals.get("users_total_base"),
+            totals.get("users_total_cur"),
+            totals.get("users_valid_base"),
+            totals.get("users_valid_cur"),
+        )
     )
     if any(totals.get(k) for k in ("children_cur", "teachers_cur", "caregivers_cur")):
         lines.append(
@@ -1217,12 +1237,22 @@ def format_slack_message(
     elif totals.get("users"):
         lines.append("    _role split pending_")
     lines.append(
-        f"• Runs: {_fmt_compare(totals.get('runs_base'), totals.get('runs_cur'))} · "
-        f"valid {_fmt_valid_pct(totals.get('runs_valid_cur'), totals.get('runs_cur'))}"
+        "• " + _fmt_metric(
+            "Runs:",
+            totals.get("runs_base"),
+            totals.get("runs_cur"),
+            totals.get("runs_valid_base"),
+            totals.get("runs_valid_cur"),
+        )
     )
     lines.append(
-        f"• Trials: {_fmt_compare(totals.get('trials_base'), totals.get('trials_cur'))} · "
-        f"valid {_fmt_valid_pct(totals.get('trials_valid_cur'), totals.get('trials_cur'))}"
+        "• " + _fmt_metric(
+            "Trials:",
+            totals.get("trials_base"),
+            totals.get("trials_cur"),
+            totals.get("trials_valid_base"),
+            totals.get("trials_valid_cur"),
+        )
     )
     admin = administrations or {}
     admin_items = admin.get("items") or []
@@ -1283,22 +1313,23 @@ def format_slack_message(
         admin_by_site = (administrations or {}).get("by_site") or {}
         for ds, p in active[:30]:
             note = f"  _{p['note']}_" if p.get("note") else ""
+            users_metric = f"users {_fmt_compare(p.get('users_total_base'), p.get('users_total_cur'))}"
             if p.get("has_user_roles"):
                 user_s = (
+                    f"{users_metric} · "
                     f"ch {_fmt_compare(p.get('children_base'), p.get('children_cur'))} · "
                     f"te {_fmt_compare(p.get('teachers_base'), p.get('teachers_cur'))} · "
                     f"cg {_fmt_compare(p.get('caregivers_base'), p.get('caregivers_cur'))}"
                 )
             else:
-                user_s = (
-                    f"users {_fmt_compare(p.get('users_base'), p.get('users_cur'))} "
-                    "_(role split pending)_"
-                )
+                user_s = f"{users_metric} _(role split pending)_"
             lines.append(
                 f"    `{ds}`{note}\n"
                 f"        {user_s} · "
                 f"runs {_fmt_compare(p.get('runs_base'), p.get('runs_cur'))} · "
-                f"trials {_fmt_compare(p.get('trials_base'), p.get('trials_cur'))}"
+                f"{_fmt_new_valid(p.get('runs_valid_base'), p.get('runs_valid_cur'), p.get('runs_base'), p.get('runs_cur'))} · "
+                f"trials {_fmt_compare(p.get('trials_base'), p.get('trials_cur'))} · "
+                f"{_fmt_new_valid(p.get('trials_valid_base'), p.get('trials_valid_cur'), p.get('trials_base'), p.get('trials_cur'))}"
             )
             site_assign = admin_by_site.get(ds) or {}
             lines.append(
