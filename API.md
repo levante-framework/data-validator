@@ -198,15 +198,19 @@ Runs processing after a new raw release and **releases the processed dataset**.
 | `dry_run` | no | `false` | `true`: assemble the report without posting Slack. |
 | `weeks` | no | `1` | Number of complete calendar weeks (Mon–Sun PST) ending last Sunday. `2` covers the last two weeks in one report. Only `weeks=1` stores the schema-drift snapshot, so ad-hoc multi-week runs cannot overwrite the weekly baseline. **Cron jobs need no change.** |
 
-Report content: totals split into children / teachers / caregivers, runs,
-trials, invalid; *New surveys(from all users)* (people with ≥1 survey, split by the same three roles); and new
-administrations opened in the window (count and all names). Activity
-comes from validator Firestore logs, not Redivis row counts. The survey
+Report content: week-over-week totals as `old → new (+Δ)` for users (split into
+children / teachers / caregivers), runs, trials, users with one or more surveys,
+archived, and disabled. Users / runs / trials also
+show current-export `valid/total (pct%)` like the daily Slack summary. Invalid
+row counts are omitted. Assignments sit on the totals line after trials as
+`before → now (+opened this week)` from live Firestore `administrations`
+(`dateOpened` or `createdAt` in the window); names of ones opened this week are
+listed on that line.
+Activity comes from validator Firestore logs, not Redivis row counts. The survey
 role counts are people, not `surveys` / `survey_responses` table rows.
-Per-site lines also show `new admins` (administrations whose `dateOpened`
-or `createdAt` falls in the window — not “still open”), plus current
-`archived` (still exported) and `disabled` (filtered out) user counts from
-the latest validator log. Empty/schema-only raws (every table is the single
+Per-site entries are two lines: (1) users by role, runs, trials; (2) `sv` survey
+people by role, `assignments` (`before → now (+opened)`), archived, and
+disabled — all as `old → new (+Δ)`. Empty/schema-only raws (every table is the single
 `schema_row`) are listed in a separate section and omitted from
 active/quiet/missing.
 

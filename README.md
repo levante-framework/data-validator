@@ -177,11 +177,13 @@ flowchart TD
 ```
 
 `weeks` widens the window to the last N complete Mon–Sun PST weeks (default 1).
-Only `weeks=1` stores the schema-drift snapshot. Totals are split into
-children / teachers / caregivers. The survey line is *New surveys(from all users)*
-(per-site label `sv`), also split by those roles. The report lists new administrations
-opened in the window (count and all names); per-site `new admins` is that
-same count for the site. Empty/schema-only raws get their own section.
+Only `weeks=1` stores the schema-drift snapshot. Totals use `old → new (+Δ)`
+for users (by role), runs, trials, assignments, users with surveys, archived,
+and disabled, plus current-export `valid/total (pct%)` for users / runs /
+trials. Assignments follow trials. Invalid counts are omitted. Per-site
+activity is two lines: users/runs/trials, then surveys (`sv`), assignments
+(`before → now (+opened)`), archived, disabled.
+Empty/schema-only raws get their own section.
 
 ```json
 {"operation": "redivis_individual_release", "dry_run": false, "dataset_name": "optional-single-site"}
