@@ -213,7 +213,10 @@ role counts are people, not `surveys` / `survey_responses` table rows.
 Per-site entries are two lines: (1) users, then children / teachers / caregivers,
 then runs and trials with `new valid / new total` and no `new valid` label;
 (2) `sv` survey people by role, `assignments` (`before → now (+opened)`), archived, and
-disabled — all as `old → new (+Δ)`. Empty/schema-only raws (every table is the single
+disabled — all as `old → new (+Δ)`. A site stays in that list when any of those
+counts moves up or down (including a user drop from the disabled filter, and
+archived/disabled themselves). Quiet means the validator ran and every compared
+count is unchanged. Empty/schema-only raws (every table is the single
 `schema_row`) are listed in a separate section and omitted from
 active/quiet/missing.
 

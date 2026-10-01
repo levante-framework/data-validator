@@ -102,9 +102,14 @@ class StorageServices:
         gcs_count = len(gcs_json_data)
 
         is_same_length = gcs_count == local_count
-        local_schema = self._schema_shape(local_data_list)
-        gcs_schema = self._schema_shape(gcs_json_data)
-        is_same_schema = local_schema == gcs_schema
+        # invalid_data never gets an appended schema row; its last item is a
+        # real error. Comparing that shape would republish raw on a stable count.
+        if table_name == "invalid_data":
+            is_same_schema = True
+        else:
+            local_schema = self._schema_shape(local_data_list)
+            gcs_schema = self._schema_shape(gcs_json_data)
+            is_same_schema = local_schema == gcs_schema
         if not is_same_length:
             self.upload_to_GCP_log['file_updated'].append(
                 f"{table_name}(gcs/local): {gcs_count}/{local_count}")

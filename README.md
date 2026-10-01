@@ -128,7 +128,7 @@ Optional top-level `operation` (default `data_validation`):
 Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list).
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
-- GCS change detection compares both table row counts and the appended schema-row field/type shape. Adding, removing, or changing a field therefore publishes a new raw Redivis version even when no records were added or removed. Removing an entire exported table also publishes a new raw version.
+- GCS change detection compares both table row counts and the appended schema-row field/type shape. Adding, removing, or changing a field therefore publishes a new raw Redivis version even when no records were added or removed. `invalid_data` has no schema row and is compared by row count only. Removing an entire exported table also publishes a new raw version.
 - `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
 - Raw exports whose tables are only the appended `schema_row` (every table has one row) also skip `process_dataset` and do not release a processed companion. That covers empty sites such as `rfp1-donders-intl-ys-raw` / `rfp1-calgary-intl-ys-raw`. Sites with real rows (for example `rfp1-utdt-intl-ys-raw`) still process. Cron payloads need no change. Those template/schema-only sites do **not** post a daily Slack summary (GCS or notebook failures still Slack). The weekly report lists them in a separate schema-only section instead of active/quiet/missing.
 - `release_processed_dataset`: if `true` (default), after a successful notebook run the validator **releases** the unmarked processed dataset. Omit/`null`/`true` keep that default (no cron changes). Set `false` to leave processed `next` unreleased and skip the Airtable processed-date stamp.
@@ -185,7 +185,8 @@ compares only. Per-site runs
 and trials show that fraction without the `new valid` label. Assignments follow
 trials. Invalid counts are omitted. Per-site activity is two lines: users,
 roles, runs, and trials, then survey people (`sv`), assignments
-(`before → now (+opened)`), archived, disabled.
+(`before → now (+opened)`), archived, disabled. A decrease counts as activity,
+so a disabled-user drop is listed per site.
 Empty/schema-only raws get their own section.
 
 ```json

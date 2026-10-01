@@ -12,7 +12,12 @@ Data sources:
   diff of `total_validation_stats` gives weekly growth (users by role,
   runs, trials, increase in users with one or more surveys). Slack shows
   each as ``old → new (+Δ)``. The valid fraction on users, runs, and trials
-  is new valid rows over new total rows in the totals. Per-site activity shows
+  is new valid rows over new total rows in the totals. A shrinking snapshot
+  (for example disabled users dropped from the export) counts as zero new
+  rows, not a negative count. That clamp is only for the valid fraction.
+  Per-site active vs quiet uses absolute movement of the compared counts
+  (users, runs, trials, survey people, archived, disabled), so a drop is
+  listed with its ``old → new`` line. Per-site activity shows
   that fraction only on runs and trials, without the “new valid” label.
   The increase-in-users-with-surveys line is role compares only. Archived and disabled
   are also shown as ``old → new (+Δ)`` from the baseline and current logs.
@@ -1139,6 +1144,45 @@ def _fmt_int(n) -> str:
         return str(n)
 
 
+def _count_move(row: dict, base_key: str, cur_key: str) -> int:
+    """Absolute change between two stored counts."""
+    try:
+        return abs(int(row.get(cur_key) or 0) - int(row.get(base_key) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _site_change(p) -> int:
+    """Snapshot movement in either direction, for per-site rank and quiet.
+
+    ``users`` / ``runs`` / ``trials`` / ``surveys`` are non-negative ``_bc``
+    deltas, so a site that only loses users (disabled accounts dropped from
+    the export) would otherwise score 0 and be listed as quiet. Compare the
+    stored baseline and current counts instead, and include archived and
+    disabled so those lines are not omitted.
+    """
+    if not isinstance(p, dict):
+        return 0
+    user_move = _count_move(p, "users_total_base", "users_total_cur")
+    if p.get("has_user_roles"):
+        role_move = (
+            _count_move(p, "children_base", "children_cur")
+            + _count_move(p, "teachers_base", "teachers_cur")
+            + _count_move(p, "caregivers_base", "caregivers_cur")
+        )
+        user_move = max(user_move, role_move)
+    return (
+        user_move
+        + _count_move(p, "runs_base", "runs_cur")
+        + _count_move(p, "trials_base", "trials_cur")
+        + _count_move(p, "surveys_children_base", "surveys_children_cur")
+        + _count_move(p, "surveys_teachers_base", "surveys_teachers_cur")
+        + _count_move(p, "surveys_caregivers_base", "surveys_caregivers_cur")
+        + _count_move(p, "archived_base", "archived_cur")
+        + _count_move(p, "disabled_base", "disabled_cur")
+    )
+
+
 def _fmt_compare(old, new) -> str:
     """``131,747 → 132,656 (+909)`` from baseline → current."""
     try:
@@ -1164,12 +1208,20 @@ def _fmt_valid_pct(valid, total) -> str:
 
 
 def _fmt_new_valid(valid_base, valid_cur, total_base, total_cur) -> str:
-    """New valid rows / new total rows in the window."""
+    """New valid rows / new total rows added in the window.
+
+    Snapshot diffs are clamped at zero, same as ``_delta_nonneg``. A shrinking
+    export is not new rows — the first report after disabled users are dropped
+    must not render ``new valid -N/-M``.
+    """
     try:
         new_valid = int(valid_cur or 0) - int(valid_base or 0)
         new_total = int(total_cur or 0) - int(total_base or 0)
     except (TypeError, ValueError):
         return "—"
+    new_total = max(new_total, 0)
+    # No added rows, so a rise in the valid count is not "new valid" either.
+    new_valid = 0 if new_total == 0 else max(new_valid, 0)
     return _fmt_valid_pct(new_valid, new_total)
 
 
@@ -1276,31 +1328,22 @@ def format_slack_message(
         f"Disabled: {_fmt_compare(totals.get('disabled_base'), totals.get('disabled_cur'))}"
     )
 
-    # -- Per-site table (sorted by total activity desc) --
+    # -- Per-site table (sorted by absolute snapshot movement desc) --
     per_site = activity.get("per_site") or {}
-    def site_activity(p):
-        if not isinstance(p, dict):
-            return 0
-        return (
-            p.get("users", 0)
-            + p.get("runs", 0)
-            + p.get("trials", 0)
-            + p.get("surveys", 0)
-        )
-    ranked = sorted(per_site.items(), key=lambda kv: -site_activity(kv[1]))
+    ranked = sorted(per_site.items(), key=lambda kv: -_site_change(kv[1]))
     template_sites = set((redivis or {}).get("schema_only") or [])
     ranked = [(k, v) for k, v in ranked if k not in template_sites]
 
     zero_sites = [
         k for k, v in ranked
-        if site_activity(v) == 0 and not v.get("note")
+        if _site_change(v) == 0 and not v.get("note")
     ]
     missing_log_sites = [
         k for k, v in ranked
-        if site_activity(v) == 0
+        if _site_change(v) == 0
         and v.get("note") in {"no_logs_in_window", "no_logs_in_or_before_window"}
     ]
-    active = [(k, v) for k, v in ranked if site_activity(v) > 0]
+    active = [(k, v) for k, v in ranked if _site_change(v) > 0]
 
     lines.append("")
     lines.append(
