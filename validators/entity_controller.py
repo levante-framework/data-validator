@@ -47,6 +47,8 @@ class EntityController:
         self.valid_users = []
         self._valid_user_ids = set()
         self.invalid_users = []
+        self.disabled_users_skipped = 0
+        self.archived_users_count = 0
         self.valid_runs = []
         self.invalid_runs = []
         self.valid_trials = []
@@ -56,6 +58,7 @@ class EntityController:
         self.invalid_surveys = []
         self.valid_survey_responses = []
         self.invalid_survey_responses = []
+        # Users with ≥1 survey, by user_type — not survey or survey_response rows.
         self.survey_responses_stats = {"student": 0, "teacher": 0, "caregiver": 0}
 
         self.valid_user_sites = []
@@ -253,7 +256,7 @@ class EntityController:
     def process_users(self):
         logging.info("Now Validating Users...")
 
-        users = fs.get_users(
+        users, self.disabled_users_skipped = fs.get_users(
             is_guest=self.org.is_guest,
             date_filter=self._resolved_date_filter(),
             org_filter=self.org.filters.org_filter,
@@ -381,9 +384,17 @@ class EntityController:
             uid = user_dict.get('user_id') or user_dict.get('uid')
             if not uid or uid in self._valid_user_ids:
                 continue
+            if utils.is_true_flag(user_dict.get("disabled")):
+                self.disabled_users_skipped += 1
+                continue
             try:
                 if settings.config.get('INSTANCE') == 'LEVANTE':
+                    user_dict["archived"] = utils.is_true_flag(
+                        user_dict.get("archived")
+                    )
                     user_model = core_models.LevanteUser(**user_dict)
+                    if user_model.archived:
+                        self.archived_users_count += 1
                 else:
                     user_model = core_models.UserBase(**user_dict)
                 self.valid_users.append(user_model)

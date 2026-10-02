@@ -10,13 +10,23 @@ Data sources:
 - Per-site activity: existing `logs/{dataset_id}/{YYYY-MM-DD}/{run-ts}` docs
   written by `firestore_services.set_logs_to_firebase`. Baseline-vs-current
   diff of `total_validation_stats` gives weekly growth (users by role,
-  runs, trials, surveys by role, invalid). Not Redivis row counts.
-- New administrations: live Firestore `administrations` docs whose
-  `dateOpened` or `createdAt` falls in the week (not the validator log
-  administration count, which is a cumulative export snapshot).
+  runs, trials, increase in users with one or more surveys). Slack shows
+  each as ``old → new (+Δ)``. The valid fraction on users, runs, and trials
+  is new valid rows over new total rows in the totals. A shrinking snapshot
+  (for example disabled users dropped from the export) counts as zero new
+  rows, not a negative count. That clamp is only for the valid fraction.
+  Per-site active vs quiet uses absolute movement of the compared counts
+  (users, runs, trials, survey people, archived, disabled), so a drop is
+  listed with its ``old → new`` line. Per-site activity shows
+  that fraction only on runs and trials, without the “new valid” label.
+  The increase-in-users-with-surveys line is role compares only. Archived and disabled
+  are also shown as ``old → new (+Δ)`` from the baseline and current logs.
+- Assignments: live Firestore `administrations` for each site. Slack shows
+  ``before → now (+opened this week)``, where “opened this week” is a doc
+  whose ``dateOpened`` or ``createdAt`` falls in the window. This is not the
+  validator log administration count.
 - Redivis state: `RedivisServices.get_current_dataset_status()` per site
   (released vs awaiting). Do not treat this as weekly activity.
-- Redivis state: `RedivisServices.get_current_dataset_status()` per site.
 - Schema drift: sample recent docs per top-level collection; for `users`,
   stratify by `userType` so every role is represented. Also sample
   `runs`, `trials`, and `surveyResponses` via collection-group queries.
@@ -189,16 +199,47 @@ def _delta_nonneg(cur: dict, base: dict, key: str) -> int:
 def _empty_site_activity(**extra) -> dict:
     row = {
         "users": 0,
+        "users_base": 0,
+        "users_cur": 0,
+        "users_total_base": 0,
         "children": 0,
+        "children_base": 0,
+        "children_cur": 0,
         "teachers": 0,
+        "teachers_base": 0,
+        "teachers_cur": 0,
         "caregivers": 0,
+        "caregivers_base": 0,
+        "caregivers_cur": 0,
         "runs": 0,
+        "runs_base": 0,
+        "runs_cur": 0,
         "trials": 0,
+        "trials_base": 0,
+        "trials_cur": 0,
         "surveys": 0,
         "surveys_children": 0,
+        "surveys_children_base": 0,
+        "surveys_children_cur": 0,
         "surveys_teachers": 0,
+        "surveys_teachers_base": 0,
+        "surveys_teachers_cur": 0,
         "surveys_caregivers": 0,
-        "invalid": 0,
+        "surveys_caregivers_base": 0,
+        "surveys_caregivers_cur": 0,
+        "users_valid_base": 0,
+        "users_valid_cur": 0,
+        "users_total_cur": 0,
+        "runs_valid_base": 0,
+        "runs_valid_cur": 0,
+        "trials_valid_base": 0,
+        "trials_valid_cur": 0,
+        "disabled": 0,
+        "disabled_base": 0,
+        "disabled_cur": 0,
+        "archived": 0,
+        "archived_base": 0,
+        "archived_cur": 0,
         "has_user_roles": False,
         "note": None,
     }
@@ -212,6 +253,8 @@ def _stats_from_log(log_doc) -> dict:
     users = stats.get("users") or {}
     runs = stats.get("runs") or {}
     trials = stats.get("trials") or {}
+    survey_tbl = stats.get("surveys") or {}
+    survey_response_tbl = stats.get("survey_response_rows") or {}
     surveys = stats.get("survey_responses") or {}
     surveys_student = surveys.get("student") or 0
     surveys_teacher = surveys.get("teacher") or 0
@@ -227,16 +270,32 @@ def _stats_from_log(log_doc) -> dict:
         "users_caregiver": users.get("caregiver") or 0,
         "has_user_roles": has_user_roles,
         "runs_total": runs.get("total", 0) or 0,
+        "runs_valid": runs.get("valid_runs", 0) or 0,
         "trials_total": trials.get("total", 0) or 0,
+        "trials_valid": trials.get("valid_trials", 0) or 0,
+        "surveys_table_total": survey_tbl.get("total", 0) or 0,
+        "surveys_table_valid": survey_tbl.get("valid_surveys", 0) or 0,
+        "survey_response_rows_total": survey_response_tbl.get("total", 0) or 0,
+        "survey_response_rows_valid": (
+            survey_response_tbl.get("valid_survey_responses", 0) or 0
+        ),
         "surveys_student": surveys_student,
         "surveys_teacher": surveys_teacher,
         "surveys_caregiver": surveys_caregiver,
         "survey_responses_total": (
             surveys_student + surveys_teacher + surveys_caregiver
         ),
-        "invalid_data_count": stats.get("invalid_data_count", 0) or 0,
+        "users_disabled": users.get("disabled") or 0,
+        "users_archived": users.get("archived") or 0,
         "_doc_path": log_doc.reference.path,
     }
+
+
+def _bc(cur: dict, base: dict, key: str, first: bool) -> tuple[int, int, int]:
+    """Return (base, current, non-negative delta) for a stats key."""
+    c = int(cur.get(key, 0) or 0)
+    b = 0 if first else int(base.get(key, 0) or 0)
+    return b, c, max(c - b, 0)
 
 
 def _activity_from_stats(cur: dict, base: dict | None) -> dict:
@@ -245,70 +304,73 @@ def _activity_from_stats(cur: dict, base: dict | None) -> dict:
         first = True
     else:
         first = False
-    surveys_children = (
-        cur.get("surveys_student", 0)
-        if first
-        else _delta_nonneg(cur, base, "surveys_student")
-    )
-    surveys_teachers = (
-        cur.get("surveys_teacher", 0)
-        if first
-        else _delta_nonneg(cur, base, "surveys_teacher")
-    )
-    surveys_caregivers = (
-        cur.get("surveys_caregiver", 0)
-        if first
-        else _delta_nonneg(cur, base, "surveys_caregiver")
+    sv_ch_b, sv_ch_c, surveys_children = _bc(cur, base, "surveys_student", first)
+    sv_te_b, sv_te_c, surveys_teachers = _bc(cur, base, "surveys_teacher", first)
+    sv_cg_b, sv_cg_c, surveys_caregivers = _bc(
+        cur, base, "surveys_caregiver", first
     )
     has_roles = bool(cur.get("has_user_roles")) and (
         first or bool(base.get("has_user_roles"))
     )
+    total_b, total_c, total_delta = _bc(cur, base, "users_total", first)
     if has_roles:
-        children = (
-            cur.get("users_student", 0)
-            if first
-            else _delta_nonneg(cur, base, "users_student")
-        )
-        teachers = (
-            cur.get("users_teacher", 0)
-            if first
-            else _delta_nonneg(cur, base, "users_teacher")
-        )
-        caregivers = (
-            cur.get("users_caregiver", 0)
-            if first
-            else _delta_nonneg(cur, base, "users_caregiver")
-        )
+        ch_b, ch_c, children = _bc(cur, base, "users_student", first)
+        te_b, te_c, teachers = _bc(cur, base, "users_teacher", first)
+        cg_b, cg_c, caregivers = _bc(cur, base, "users_caregiver", first)
+        users_base = ch_b + te_b + cg_b
+        users_cur = ch_c + te_c + cg_c
         users = children + teachers + caregivers
     else:
         children = teachers = caregivers = 0
-        users = (
-            cur.get("users_total", 0)
-            if first
-            else _delta_nonneg(cur, base, "users_total")
-        )
-    runs = (
-        cur.get("runs_total", 0)
-        if first
-        else _delta_nonneg(cur, base, "runs_total")
-    )
-    trials = (
-        cur.get("trials_total", 0)
-        if first
-        else _delta_nonneg(cur, base, "trials_total")
-    )
+        ch_b = ch_c = te_b = te_c = cg_b = cg_c = 0
+        users_base, users_cur, users = total_b, total_c, total_delta
+    runs_base, runs_cur, runs = _bc(cur, base, "runs_total", first)
+    trials_base, trials_cur, trials = _bc(cur, base, "trials_total", first)
+    arch_b, arch_c, archived = _bc(cur, base, "users_archived", first)
+    dis_b, dis_c, disabled = _bc(cur, base, "users_disabled", first)
     return {
         "users": users,
+        "users_base": users_base,
+        "users_cur": users_cur,
+        "users_total_base": total_b,
         "children": children,
+        "children_base": ch_b,
+        "children_cur": ch_c,
         "teachers": teachers,
+        "teachers_base": te_b,
+        "teachers_cur": te_c,
         "caregivers": caregivers,
+        "caregivers_base": cg_b,
+        "caregivers_cur": cg_c,
         "runs": runs,
+        "runs_base": runs_base,
+        "runs_cur": runs_cur,
         "trials": trials,
+        "trials_base": trials_base,
+        "trials_cur": trials_cur,
         "surveys": surveys_children + surveys_teachers + surveys_caregivers,
         "surveys_children": surveys_children,
+        "surveys_children_base": sv_ch_b,
+        "surveys_children_cur": sv_ch_c,
         "surveys_teachers": surveys_teachers,
+        "surveys_teachers_base": sv_te_b,
+        "surveys_teachers_cur": sv_te_c,
         "surveys_caregivers": surveys_caregivers,
-        "invalid": cur.get("invalid_data_count", 0) or 0,
+        "surveys_caregivers_base": sv_cg_b,
+        "surveys_caregivers_cur": sv_cg_c,
+        "users_valid_base": 0 if first else int(base.get("users_valid", 0) or 0),
+        "users_valid_cur": int(cur.get("users_valid", 0) or 0),
+        "users_total_cur": int(cur.get("users_total", 0) or 0),
+        "runs_valid_base": 0 if first else int(base.get("runs_valid", 0) or 0),
+        "runs_valid_cur": int(cur.get("runs_valid", 0) or 0),
+        "trials_valid_base": 0 if first else int(base.get("trials_valid", 0) or 0),
+        "trials_valid_cur": int(cur.get("trials_valid", 0) or 0),
+        "disabled": disabled,
+        "disabled_base": dis_b,
+        "disabled_cur": dis_c,
+        "archived": archived,
+        "archived_base": arch_b,
+        "archived_cur": arch_c,
         "has_user_roles": has_roles,
     }
 
@@ -438,40 +500,67 @@ def collect_new_administrations(
     sites: list[dict], start_utc: datetime, end_utc: datetime
 ) -> dict:
     """
-    Firestore administrations whose ``dateOpened`` or ``createdAt`` falls in
-    the week. Count is unique by administration_id across sites.
+    Live Firestore administrations per site.
+
+    ``base`` is assignments already open before the window. ``current`` is
+    that stock plus ones whose ``dateOpened`` or ``createdAt`` falls in the
+    window. Counts are unique by administration_id.
     """
-    seen: dict[str, dict] = {}
+    opened_in_window: dict[str, dict] = {}
+    by_site: dict[str, dict] = {}
+
+    def _site_row(dataset_name: str) -> dict:
+        row = by_site.get(dataset_name)
+        if row is None:
+            row = {"base": 0, "cur": 0}
+            by_site[dataset_name] = row
+        return row
+
     for s in sites:
         site_id = s.get("site_id")
-        if not site_id:
+        dataset_name = s.get("dataset_name")
+        if not site_id or not dataset_name:
             continue
         for admin in firestore_services.iter_administrations_for_site(site_id):
-            opened = admin.get("dateOpened")
-            created = admin.get("createdAt")
-            if not (
+            aid = admin.get("administration_id")
+            if not aid:
+                continue
+            opened = _to_utc_datetime(admin.get("dateOpened"))
+            created = _to_utc_datetime(admin.get("createdAt"))
+            in_window = (
                 _in_window(opened, start_utc, end_utc)
                 or _in_window(created, start_utc, end_utc)
-            ):
-                continue
-            aid = admin.get("administration_id")
-            if not aid or aid in seen:
-                continue
-            when = _to_utc_datetime(opened) or _to_utc_datetime(created)
-            seen[aid] = {
-                "administration_id": aid,
-                "name": (admin.get("name") or "").strip() or "(no name)",
-                "site": s.get("dataset_name"),
-                "when": when,
-            }
+            )
+            times = [t for t in (opened, created) if t]
+            before_window = bool(times) and min(times) < start_utc and not in_window
+            row = _site_row(dataset_name)
+            if in_window:
+                if aid in opened_in_window:
+                    continue
+                when = opened or created
+                opened_in_window[aid] = {
+                    "administration_id": aid,
+                    "name": (admin.get("name") or "").strip() or "(no name)",
+                    "site": dataset_name,
+                    "when": when,
+                }
+                row["cur"] += 1
+            elif before_window:
+                row["base"] += 1
+                row["cur"] += 1
     items = sorted(
-        seen.values(),
+        opened_in_window.values(),
         key=lambda x: x["when"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
     )
+    base = sum(row["base"] for row in by_site.values())
+    current = sum(row["cur"] for row in by_site.values())
     return {
         "count": len(items),
+        "base": base,
+        "current": current,
         "items": items,
+        "by_site": by_site,
     }
 
 
@@ -1055,6 +1144,96 @@ def _fmt_int(n) -> str:
         return str(n)
 
 
+def _count_move(row: dict, base_key: str, cur_key: str) -> int:
+    """Absolute change between two stored counts."""
+    try:
+        return abs(int(row.get(cur_key) or 0) - int(row.get(base_key) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _site_change(p) -> int:
+    """Snapshot movement in either direction, for per-site rank and quiet.
+
+    ``users`` / ``runs`` / ``trials`` / ``surveys`` are non-negative ``_bc``
+    deltas, so a site that only loses users (disabled accounts dropped from
+    the export) would otherwise score 0 and be listed as quiet. Compare the
+    stored baseline and current counts instead, and include archived and
+    disabled so those lines are not omitted.
+    """
+    if not isinstance(p, dict):
+        return 0
+    user_move = _count_move(p, "users_total_base", "users_total_cur")
+    if p.get("has_user_roles"):
+        role_move = (
+            _count_move(p, "children_base", "children_cur")
+            + _count_move(p, "teachers_base", "teachers_cur")
+            + _count_move(p, "caregivers_base", "caregivers_cur")
+        )
+        user_move = max(user_move, role_move)
+    return (
+        user_move
+        + _count_move(p, "runs_base", "runs_cur")
+        + _count_move(p, "trials_base", "trials_cur")
+        + _count_move(p, "surveys_children_base", "surveys_children_cur")
+        + _count_move(p, "surveys_teachers_base", "surveys_teachers_cur")
+        + _count_move(p, "surveys_caregivers_base", "surveys_caregivers_cur")
+        + _count_move(p, "archived_base", "archived_cur")
+        + _count_move(p, "disabled_base", "disabled_cur")
+    )
+
+
+def _fmt_compare(old, new) -> str:
+    """``131,747 → 132,656 (+909)`` from baseline → current."""
+    try:
+        old_i = int(old or 0)
+        new_i = int(new or 0)
+    except (TypeError, ValueError):
+        return f"{old} → {new}"
+    delta = new_i - old_i
+    sign = "+" if delta >= 0 else ""
+    return f"{_fmt_int(old_i)} → {_fmt_int(new_i)} ({sign}{_fmt_int(delta)})"
+
+
+def _fmt_valid_pct(valid, total) -> str:
+    """``91/93 (97.8%)``. No percent when the denominator is not positive."""
+    try:
+        v = int(valid or 0)
+        t = int(total or 0)
+    except (TypeError, ValueError):
+        return f"{valid}/{total}"
+    if t <= 0:
+        return f"{_fmt_int(v)}/{_fmt_int(t)}"
+    return f"{_fmt_int(v)}/{_fmt_int(t)} ({100.0 * v / t:.1f}%)"
+
+
+def _fmt_new_valid(valid_base, valid_cur, total_base, total_cur) -> str:
+    """New valid rows / new total rows added in the window.
+
+    Snapshot diffs are clamped at zero, same as ``_delta_nonneg``. A shrinking
+    export is not new rows — the first report after disabled users are dropped
+    must not render ``new valid -N/-M``.
+    """
+    try:
+        new_valid = int(valid_cur or 0) - int(valid_base or 0)
+        new_total = int(total_cur or 0) - int(total_base or 0)
+    except (TypeError, ValueError):
+        return "—"
+    new_total = max(new_total, 0)
+    # No added rows, so a rise in the valid count is not "new valid" either.
+    new_valid = 0 if new_total == 0 else max(new_valid, 0)
+    return _fmt_valid_pct(new_valid, new_total)
+
+
+def _fmt_metric(label: str, base, cur, valid_base=None, valid_cur=None) -> str:
+    """``runs 1 → 4 (+3) · new valid 3/3 (100.0%)``. Percent uses the same totals."""
+    text = f"{label} {_fmt_compare(base, cur)}"
+    if valid_base is None and valid_cur is None:
+        return text
+    text += f" · new valid {_fmt_new_valid(valid_base, valid_cur, base, cur)}"
+    return text
+
+
 def _fmt_drift_names(names: list[str], examples: dict[str, list[str]] | None) -> str:
     """`field` (`id1`, `id2`) — ids are district/user locators from the sample."""
     ex = examples or {}
@@ -1091,89 +1270,118 @@ def format_slack_message(
     # Role counts only exist in logs written by validators that record them;
     # until both window ends have them, report the plain user total instead of
     # three misleading zeros.
-    if any(totals.get(k) for k in ("children", "teachers", "caregivers")):
-        users_s = (
-            f"children {_fmt_int(totals.get('children', 0))} · "
-            f"teachers {_fmt_int(totals.get('teachers', 0))} · "
-            f"caregivers {_fmt_int(totals.get('caregivers', 0))}"
-        )
-    else:
-        users_s = f"users {_fmt_int(totals.get('users', 0))} _(role split pending)_"
+    lines.append("*Totals*")
     lines.append(
-        f"*Totals*  {users_s} · "
-        f"runs {_fmt_int(totals.get('runs', 0))} · "
-        f"trials {_fmt_int(totals.get('trials', 0))} · "
-        f"invalid {_fmt_int(totals.get('invalid', 0))}"
+        "• " + _fmt_metric(
+            "Users:",
+            totals.get("users_total_base"),
+            totals.get("users_total_cur"),
+            totals.get("users_valid_base"),
+            totals.get("users_valid_cur"),
+        )
+    )
+    if any(totals.get(k) for k in ("children_cur", "teachers_cur", "caregivers_cur")):
+        lines.append(
+            f"    children {_fmt_compare(totals.get('children_base'), totals.get('children_cur'))} · "
+            f"teachers {_fmt_compare(totals.get('teachers_base'), totals.get('teachers_cur'))} · "
+            f"caregivers {_fmt_compare(totals.get('caregivers_base'), totals.get('caregivers_cur'))}"
+        )
+    elif totals.get("users"):
+        lines.append("    _role split pending_")
+    lines.append(
+        "• " + _fmt_metric(
+            "Runs:",
+            totals.get("runs_base"),
+            totals.get("runs_cur"),
+            totals.get("runs_valid_base"),
+            totals.get("runs_valid_cur"),
+        )
     )
     lines.append(
-        f"*Surveys*  children {_fmt_int(totals.get('surveys_children', 0))} · "
-        f"teachers {_fmt_int(totals.get('surveys_teachers', 0))} · "
-        f"caregivers {_fmt_int(totals.get('surveys_caregivers', 0))}"
+        "• " + _fmt_metric(
+            "Trials:",
+            totals.get("trials_base"),
+            totals.get("trials_cur"),
+            totals.get("trials_valid_base"),
+            totals.get("trials_valid_cur"),
+        )
     )
     admin = administrations or {}
     admin_items = admin.get("items") or []
-    admin_count = admin.get("count", len(admin_items))
     shown = [it.get("name") or "(no name)" for it in admin_items]
-    if admin_count:
-        names = ", ".join(f"`{n}`" for n in shown) if shown else "_unnamed_"
-        lines.append(
-            f"*New administrations*  {admin_count} added/opened this week: "
-            f"{names}"
-        )
-    else:
-        lines.append("*New administrations*  none added/opened this week")
+    assign_line = (
+        f"• Assignments: "
+        f"{_fmt_compare(admin.get('base', 0), admin.get('current', 0))}"
+    )
+    if shown:
+        names = ", ".join(f"`{n}`" for n in shown)
+        assign_line += f"  opened this week: {names}"
+    lines.append(assign_line)
+    lines.append(
+        f"• Increase in users with one or more surveys: "
+        f"children {_fmt_compare(totals.get('surveys_children_base'), totals.get('surveys_children_cur'))} · "
+        f"teachers {_fmt_compare(totals.get('surveys_teachers_base'), totals.get('surveys_teachers_cur'))} · "
+        f"caregivers {_fmt_compare(totals.get('surveys_caregivers_base'), totals.get('surveys_caregivers_cur'))}"
+    )
+    lines.append(
+        f"• Archived: {_fmt_compare(totals.get('archived_base'), totals.get('archived_cur'))} · "
+        f"Disabled: {_fmt_compare(totals.get('disabled_base'), totals.get('disabled_cur'))}"
+    )
 
-    # -- Per-site table (sorted by total activity desc) --
+    # -- Per-site table (sorted by absolute snapshot movement desc) --
     per_site = activity.get("per_site") or {}
-    def site_activity(p):
-        if not isinstance(p, dict):
-            return 0
-        return (
-            p.get("users", 0)
-            + p.get("runs", 0)
-            + p.get("trials", 0)
-            + p.get("surveys", 0)
-        )
-    ranked = sorted(per_site.items(), key=lambda kv: -site_activity(kv[1]))
+    ranked = sorted(per_site.items(), key=lambda kv: -_site_change(kv[1]))
     template_sites = set((redivis or {}).get("schema_only") or [])
     ranked = [(k, v) for k, v in ranked if k not in template_sites]
 
     zero_sites = [
         k for k, v in ranked
-        if site_activity(v) == 0 and not v.get("note")
+        if _site_change(v) == 0 and not v.get("note")
     ]
     missing_log_sites = [
         k for k, v in ranked
-        if site_activity(v) == 0
+        if _site_change(v) == 0
         and v.get("note") in {"no_logs_in_window", "no_logs_in_or_before_window"}
     ]
-    active = [(k, v) for k, v in ranked if site_activity(v) > 0]
+    active = [(k, v) for k, v in ranked if _site_change(v) > 0]
 
     lines.append("")
     lines.append(
         f"*Per-site activity* ({len(active)} active · {len(zero_sites)} quiet · "
-        f"{len(missing_log_sites)} missing logs)"
+        f"{len(missing_log_sites)} missing logs · {len(template_sites)} schema-only)"
     )
     if not active:
         lines.append("    _no site had measurable activity this week_")
     else:
+        admin_by_site = (administrations or {}).get("by_site") or {}
         for ds, p in active[:30]:
             note = f"  _{p['note']}_" if p.get("note") else ""
+            users_metric = f"users {_fmt_compare(p.get('users_total_base'), p.get('users_total_cur'))}"
             if p.get("has_user_roles"):
                 user_s = (
-                    f"ch {_fmt_int(p.get('children', 0))} · "
-                    f"te {_fmt_int(p.get('teachers', 0))} · "
-                    f"cg {_fmt_int(p.get('caregivers', 0))}"
+                    f"{users_metric} · "
+                    f"ch {_fmt_compare(p.get('children_base'), p.get('children_cur'))} · "
+                    f"te {_fmt_compare(p.get('teachers_base'), p.get('teachers_cur'))} · "
+                    f"cg {_fmt_compare(p.get('caregivers_base'), p.get('caregivers_cur'))}"
                 )
             else:
-                user_s = f"users {_fmt_int(p.get('users', 0))}"
+                user_s = f"{users_metric} _(role split pending)_"
             lines.append(
-                f"    `{ds:42s}`  {user_s} · "
-                f"runs {_fmt_int(p.get('runs', 0))} · "
-                f"trials {_fmt_int(p.get('trials', 0))} · "
-                f"sv ch {_fmt_int(p.get('surveys_children', 0))}/"
-                f"te {_fmt_int(p.get('surveys_teachers', 0))}/"
-                f"cg {_fmt_int(p.get('surveys_caregivers', 0))}{note}"
+                f"    `{ds}`{note}\n"
+                f"        {user_s} · "
+                f"runs {_fmt_compare(p.get('runs_base'), p.get('runs_cur'))} · "
+                f"{_fmt_new_valid(p.get('runs_valid_base'), p.get('runs_valid_cur'), p.get('runs_base'), p.get('runs_cur'))} · "
+                f"trials {_fmt_compare(p.get('trials_base'), p.get('trials_cur'))} · "
+                f"{_fmt_new_valid(p.get('trials_valid_base'), p.get('trials_valid_cur'), p.get('trials_base'), p.get('trials_cur'))}"
+            )
+            site_assign = admin_by_site.get(ds) or {}
+            lines.append(
+                f"        sv ch {_fmt_compare(p.get('surveys_children_base'), p.get('surveys_children_cur'))} · "
+                f"te {_fmt_compare(p.get('surveys_teachers_base'), p.get('surveys_teachers_cur'))} · "
+                f"cg {_fmt_compare(p.get('surveys_caregivers_base'), p.get('surveys_caregivers_cur'))} · "
+                f"assignments {_fmt_compare(site_assign.get('base', 0), site_assign.get('cur', 0))} · "
+                f"archived {_fmt_compare(p.get('archived_base'), p.get('archived_cur'))} · "
+                f"disabled {_fmt_compare(p.get('disabled_base'), p.get('disabled_cur'))}"
             )
         if len(active) > 30:
             lines.append(f"    _…and {len(active) - 30} more active sites_")
@@ -1191,6 +1399,15 @@ def format_slack_message(
             p = per_site[ds]
             raw_name = p.get("log_dataset_name") or ds
             lines.append(f"    • {ds}  _checked logs/{raw_name}: {p.get('note')}_")
+    if template_sites:
+        lines.append("")
+        lines.append(
+            f"*Schema-only / empty raws* ({len(template_sites)})  "
+            "_every table is the single schema_row; daily cron still runs, "
+            "not counted as weekly activity_"
+        )
+        for ds in sorted(template_sites):
+            lines.append(f"    • {ds}")
 
     # -- Redivis --
     rd = redivis or {}
@@ -1209,9 +1426,7 @@ def format_slack_message(
     if awaiting:
         lines.append("    awaiting:  " + ", ".join(f"`{a}`" for a in sorted(awaiting)))
 
-    # -- Validation health --
-    inv = validation.get("invalid_by_site") or {}
-    top_invalid = sorted(inv.items(), key=lambda kv: -kv[1])[:5]
+    # -- Validation health (invalid row counts are omitted from the weekly Slack) --
     lines.append("")
     lines.append("*Validation health*  "
                  f"log docs scanned this week: {validation.get('log_docs_scanned', 0)}")
@@ -1224,12 +1439,6 @@ def format_slack_message(
             )
         )
         lines.append(f"    validator versions: {versions_text}")
-    if any(v for _, v in top_invalid):
-        for ds, n in top_invalid:
-            if n:
-                lines.append(f"    `{ds:42s}`  invalid_data_count = {n}")
-    else:
-        lines.append("    _no invalid_data_count > 0 in any site_")
     new_schemas = validation.get("new_schemas") or {}
     if any(new_schemas.get(k) for k in ("runs", "trials", "surveys")):
         lines.append("    *new_schemas observed:*")
@@ -1319,22 +1528,53 @@ def format_slack_message(
 # Orchestrator
 # ----------------------------------------------------------------------------
 
-def run_weekly_report(dry_run: bool = False, weeks: int = 1) -> dict:
+def run_weekly_report(
+    dry_run: bool = False,
+    weeks: int = 1,
+    window_start_date: str | None = None,
+    window_end_date: str | None = None,
+) -> dict:
     """Main entry point. If ``dry_run`` is true, no Slack post and no snapshot
     is stored (still computes drift against existing prior snapshot).
     ``weeks`` widens the window to the last N complete weeks; only the
     default single-week run stores this week's schema snapshot, so an ad-hoc
-    multi-week report cannot overwrite the weekly drift baseline."""
+    multi-week report cannot overwrite the weekly drift baseline.
+
+    Optional ``window_start_date`` / ``window_end_date`` (``YYYY-MM-DD`` PST)
+    override the calendar-week window for ad-hoc runs. When either is set the
+    schema snapshot is not stored. Omit ``window_end_date`` to use now.
+    """
     t0 = time.time()
     weeks = max(int(weeks or 1), 1)
-    start_utc, end_utc, week_iso = calendar_week_window_pst(weeks=weeks)
-    start_pst = start_utc.astimezone(PST)
-    end_pst = end_utc.astimezone(PST)
+    custom_window = bool(window_start_date or window_end_date)
+    if custom_window:
+        if not window_start_date:
+            raise ValueError("window_start_date is required when overriding the window")
+        start_pst = datetime.strptime(window_start_date, "%Y-%m-%d").replace(
+            tzinfo=PST
+        )
+        if window_end_date:
+            end_day = datetime.strptime(window_end_date, "%Y-%m-%d").replace(
+                tzinfo=PST
+            )
+            end_pst = end_day.replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+        else:
+            end_pst = datetime.now(PST)
+        start_utc = start_pst.astimezone(timezone.utc)
+        end_utc = end_pst.astimezone(timezone.utc)
+        week_iso = start_pst.strftime("%G-W%V")
+    else:
+        start_utc, end_utc, week_iso = calendar_week_window_pst(weeks=weeks)
+        start_pst = start_utc.astimezone(PST)
+        end_pst = end_utc.astimezone(PST)
     prev_week_iso = (datetime.fromisoformat(start_pst.isoformat()) - timedelta(days=7)).strftime("%G-W%V")
 
     logging.info(
-        "weekly_report: window %s → %s PST (weeks=%s, week=%s, prev=%s, dry_run=%s)",
-        start_pst.isoformat(), end_pst.isoformat(), weeks, week_iso, prev_week_iso, dry_run,
+        "weekly_report: window %s → %s PST (weeks=%s, week=%s, prev=%s, dry_run=%s, custom=%s)",
+        start_pst.isoformat(), end_pst.isoformat(), weeks, week_iso, prev_week_iso,
+        dry_run, custom_window,
     )
 
     sites = list_active_sites()
@@ -1350,7 +1590,7 @@ def run_weekly_report(dry_run: bool = False, weeks: int = 1) -> dict:
     current_snapshot = capture_schema_snapshot()
     previous_snapshot = load_previous_snapshot(prev_week_iso)
     drift = detect_schema_drift(current_snapshot, previous_snapshot)
-    if not dry_run and weeks == 1:
+    if not dry_run and weeks == 1 and not custom_window:
         store_snapshot(week_iso, current_snapshot)
 
     message = format_slack_message(
@@ -1398,6 +1638,8 @@ def run_weekly_report(dry_run: bool = False, weeks: int = 1) -> dict:
         "activity": activity,
         "administrations": {
             "count": administrations.get("count", 0),
+            "base": administrations.get("base", 0),
+            "current": administrations.get("current", 0),
             "names": [it.get("name") for it in (administrations.get("items") or [])],
         },
         "redivis": redivis,

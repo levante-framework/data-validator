@@ -423,6 +423,17 @@ def handle_nan(value):
     return value
 
 
+def is_true_flag(value) -> bool:
+    """True for Firestore/JSON booleans and common string/int encodings of true."""
+    if value is True:
+        return True
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 1:
+        return True
+    if isinstance(value, str) and value.strip().lower() in {"true", "1", "yes"}:
+        return True
+    return False
+
+
 def unwrap_nested_dicts(d: dict):
     result = {}
     for key, value in d.items():

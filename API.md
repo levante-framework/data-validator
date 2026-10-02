@@ -198,10 +198,27 @@ Runs processing after a new raw release and **releases the processed dataset**.
 | `dry_run` | no | `false` | `true`: assemble the report without posting Slack. |
 | `weeks` | no | `1` | Number of complete calendar weeks (Mon–Sun PST) ending last Sunday. `2` covers the last two weeks in one report. Only `weeks=1` stores the schema-drift snapshot, so ad-hoc multi-week runs cannot overwrite the weekly baseline. **Cron jobs need no change.** |
 
-Report content: totals split into children / teachers / caregivers, runs,
-trials, invalid; surveys split by the same three roles; and new
-administrations opened in the window (count and all names). Activity
-comes from validator Firestore logs, not Redivis row counts.
+Report content: week-over-week totals as `old → new (+Δ)` for users (split into
+children / teachers / caregivers), runs, trials, users with one or more surveys,
+archived, and disabled. Users, runs, and trials show `new valid / new total (pct%)`
+for rows added in the window. The increase-in-users-with-surveys line is role
+compares only. Per-site runs and trials show the same fraction without the
+`new valid` label. Users and survey people on a site are `old → new (+Δ)` only. Invalid
+row counts are omitted. Assignments sit on the totals line after trials as
+`before → now (+opened this week)` from live Firestore `administrations`
+(`dateOpened` or `createdAt` in the window); names of ones opened this week are
+listed on that line.
+Activity comes from validator Firestore logs, not Redivis row counts. The survey
+role counts are people, not `surveys` / `survey_responses` table rows.
+Per-site entries are two lines: (1) users, then children / teachers / caregivers,
+then runs and trials with `new valid / new total` and no `new valid` label;
+(2) `sv` survey people by role, `assignments` (`before → now (+opened)`), archived, and
+disabled — all as `old → new (+Δ)`. A site stays in that list when any of those
+counts moves up or down (including a user drop from the disabled filter, and
+archived/disabled themselves). Quiet means the validator ran and every compared
+count is unchanged. Empty/schema-only raws (every table is the single
+`schema_row`) are listed in a separate section and omitted from
+active/quiet/missing.
 
 ---
 

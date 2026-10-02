@@ -451,6 +451,7 @@ class LevanteUser(UserBase):
     parent1_id: Optional[str] = None
     parent2_id: Optional[str] = None
     teacher_id: Optional[str] = None
+    archived: bool = False
     birth_year: Optional[int] = None  # Field(None, ge=2000, le=current_year)
     birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
     sex: Optional[str] = None
@@ -512,6 +513,7 @@ class LevanteUser(UserBase):
 
     @model_validator(mode='after')
     def update_valid_user(self):
+        # archived is informational and does not affect validity.
         self.valid_user = True if not self.validation_msg_user else False
         return self
 

@@ -51,7 +51,9 @@ def format_data_validation_slack_summary(response: dict) -> str:
     nvr = response.get("new_version_release")
     nvr_s = "yes" if nvr else "no"
 
-    survey = stats.get("survey_responses") or {}
+    users_with_surveys = stats.get("survey_responses") or {}
+    survey_tbl = stats.get("surveys") or {}
+    survey_response_tbl = stats.get("survey_response_rows") or {}
     orgs_block = dp.get("orgs") or ""
     if len(orgs_block) > 800:
         orgs_block = orgs_block[:800] + "…"
@@ -93,10 +95,14 @@ def format_data_validation_slack_summary(response: dict) -> str:
         "",
         "*Validation totals*",
         f"• Users: {_fmt_int(stats.get('users', {}).get('valid_users'))} valid / {_fmt_int(stats.get('users', {}).get('total'))} total",
+        f"• Users filtered (disabled): {_fmt_int(stats.get('users', {}).get('disabled'))}",
+        f"• Users archived: {_fmt_int(stats.get('users', {}).get('archived'))}",
         f"• Runs: {_fmt_int(stats.get('runs', {}).get('valid_runs'))} valid / {_fmt_int(stats.get('runs', {}).get('total'))} total",
         f"• Trials: {_fmt_int(stats.get('trials', {}).get('valid_trials'))} valid / {_fmt_int(stats.get('trials', {}).get('total'))} total",
         f"• Cohorts: {_fmt_int(stats.get('cohorts'))} · Administrations: {_fmt_int(stats.get('administrations'))}",
-        f"• Surveys — student: {_fmt_int(survey.get('student'))} · teacher: {_fmt_int(survey.get('teacher'))} · caregiver: {_fmt_int(survey.get('caregiver'))}",
+        f"• Surveys: {_fmt_int(survey_tbl.get('valid_surveys'))} valid / {_fmt_int(survey_tbl.get('total'))} total",
+        f"• Survey responses: {_fmt_int(survey_response_tbl.get('valid_survey_responses'))} valid / {_fmt_int(survey_response_tbl.get('total'))} total",
+        f"• Users with surveys — student: {_fmt_int(users_with_surveys.get('student'))} · teacher: {_fmt_int(users_with_surveys.get('teacher'))} · caregiver: {_fmt_int(users_with_surveys.get('caregiver'))}",
         f"• Invalid rows: {_fmt_int(stats.get('invalid_data_count'))}",
     ]
 
@@ -109,6 +115,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
             r = ost.get("runs", {})
             lines.append(
                 f"• `{oid}` — users {_fmt_int(u.get('valid_users'))}/{_fmt_int(u.get('total'))}, "
+                f"disabled {_fmt_int(u.get('disabled'))}, archived {_fmt_int(u.get('archived'))}, "
                 f"runs {_fmt_int(r.get('valid_runs'))}/{_fmt_int(r.get('total'))}"
             )
         if len(per_org) > 5:
@@ -286,6 +293,7 @@ def format_org_progress_slack(
             f":white_check_mark: *Site finished* ({index}/{total}) · {elapsed}\n"
             f"• Dataset `{dataset_id}` · org `{org_id}`\n"
             f"• Users {_fmt_int(u.get('valid_users'))}/{_fmt_int(u.get('total'))} valid · "
+            f"disabled {_fmt_int(u.get('disabled'))} · archived {_fmt_int(u.get('archived'))} · "
             f"Runs {_fmt_int(r.get('valid_runs'))}/{_fmt_int(r.get('total'))} valid"
         )
     return f"*{phase}* ({index}/{total}) `{dataset_id}` / `{org_id}`"

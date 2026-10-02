@@ -32,6 +32,7 @@ Some checks populate `warning_msg_*` instead of `validation_msg_*`:
 
 - **Trials:** `warning_msg_trial` (e.g. missing/non-integer `trial_index`) does **not** set `valid_trial = false`.
 - **Runs:** `warning_msg_run` is reserved; run validity is driven only by `validation_msg_run`.
+- **Users:** archived status is exported as the boolean `archived` column and does **not** set `valid_user = false`.
 
 ### Pipeline order
 
@@ -63,6 +64,8 @@ Optional fields include `assessment_pid`, `email`, `birth_year`, `birth_month`, 
 - Users without `user_id` / `uid` are skipped.
 - Duplicate `user_id` values are skipped (first occurrence wins).
 - Schema parse failures are recorded in `invalid_users`.
+- Firestore `disabled == true` (any userType, including guests and one-hop related users): **dropped from the export**. Counted in Slack as `users.disabled`. Does not appear in `users` / runs / surveys / trials.
+- Firestore `archived == true`: **kept** with `archived = true`. Missing/false values export as `archived = false`. Does not change `valid_user`. Counted in Slack / weekly per-site as `users.archived`.
 
 Firestore inclusion (non-guest), before sampling:
 
@@ -115,6 +118,8 @@ Non-student user types do not receive birth-date business validation.
 ```text
 valid_user = True  iff  validation_msg_user is empty
 ```
+
+The boolean `archived` field is independent of validity.
 
 Birth-year/month are **not** stripped or corrected; offending values stay on the row and appear in the message.
 
@@ -504,7 +509,7 @@ valid_survey_response = True  iff  validation_msg_survey_response is empty after
 
 | Entity | Valid flag | Message field | Warning field |
 |--------|------------|---------------|---------------|
-| User | `valid_user` | `validation_msg_user` | — |
+| User | `valid_user` | `validation_msg_user` | — (`archived` is a boolean column) |
 | Run | `valid_run` | `validation_msg_run` | `warning_msg_run` |
 | Trial | `valid_trial` | `validation_msg_trial` | `warning_msg_trial` |
 | Variant | — (schema only) | — | — |
