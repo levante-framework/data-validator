@@ -57,7 +57,9 @@ For each org in a request:
 | `user_id` | `str` | Required |
 | `user_type` | `str` | Required (e.g. `student`, `teacher`, `parent`) |
 
-Optional fields include `assessment_pid`, `email`, `birth_year`, `birth_month`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
+Optional fields include `assessment_pid`, `email`, `birth_year`, `birth_month`, `birth_date_updated_at`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
+
+`birth_date_updated_at` is Firestore `birthDateUpdatedAt` (fallback `birthDateUpdated`). It is exported on every user row (`null` when unset). If any user already in the previous GCS `users` file has a different value, the raw dataset is re-uploaded and released even when row counts and schema shape are unchanged. That re-upload includes `runs`, so `age` is recomputed from the current birth year/month.
 
 ### Ingest logic
 
@@ -143,7 +145,7 @@ Birth-year/month are **not** stripped or corrected; offending values stay on the
 
 - Runs with `task_id == "intro"` are **dropped** (not stored).
 - Schema parse failures go to `invalid_runs`.
-- `age` is computed when the linked user has valid `birth_year`, `birth_month` (1–12, year 1–9999), and the run has `time_started`. Uses mid-month birth assumption (15th, UTC), rounded to one decimal year.
+- `age` is computed when the linked user has valid `birth_year`, `birth_month` (1–12, year 1–9999), and the run has `time_started`. Uses mid-month birth assumption (15th, UTC), rounded to one decimal year. A `birth_date_updated_at` change republishes runs with the recomputed age even when the user has no new runs.
 
 ### Run-level business rules (after trials are attached)
 
