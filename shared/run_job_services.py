@@ -87,7 +87,8 @@ def start_validation_job(*, payload: dict) -> dict:
     client = run_v2.JobsClient()
     operation = client.run_job(request=request)
 
-    operation_name = getattr(operation, "name", None) or str(operation)
+    execution_name = _execution_name(operation)
+    operation_name = execution_name or _long_running_operation_name(operation)
     logging.info(
         "run_job: started job=%s operation=%s dataset_id=%s",
         job_name,
@@ -98,6 +99,27 @@ def start_validation_job(*, payload: dict) -> dict:
         "job_name": job_id,
         "job_resource": job_name,
         "operation_name": operation_name,
+        "execution_name": execution_name,
         "dataset_id": payload.get("dataset_id"),
         "task_timeout_seconds": settings.config["CLOUD_RUN_JOB_TASK_TIMEOUT_SECONDS"],
     }
+
+
+def _execution_name(operation) -> str | None:
+    """Cloud Run execution resource name, when the Run Job response includes it."""
+    metadata = getattr(operation, "metadata", None)
+    name = getattr(metadata, "name", None) if metadata is not None else None
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _long_running_operation_name(operation) -> str:
+    raw = getattr(operation, "operation", None)
+    raw_name = getattr(raw, "name", None) if raw is not None else None
+    if isinstance(raw_name, str) and raw_name.strip():
+        return raw_name.strip()
+    name = getattr(operation, "name", None)
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return str(operation)

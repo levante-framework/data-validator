@@ -57,7 +57,7 @@ For each org in a request:
 | `user_id` | `str` | Required |
 | `user_type` | `str` | Required (e.g. `student`, `teacher`, `parent`) |
 
-Optional fields include `assessment_pid`, `email`, `birth_year`, `birth_month`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
+Optional fields include `assessment_pid`, `birth_year`, `birth_month`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
 
 ### Ingest logic
 

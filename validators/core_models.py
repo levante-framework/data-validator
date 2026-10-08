@@ -441,8 +441,6 @@ class UserBase(BaseModel):
     user_id: str
     user_type: str
     assessment_pid: Optional[str] = None
-    email: Optional[str] = None
-    email_verified: Optional[bool] = None
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 
