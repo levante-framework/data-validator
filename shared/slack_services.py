@@ -153,7 +153,13 @@ def format_data_validation_slack_summary(response: dict) -> str:
                     delta_s = ""
                 else:
                     delta_s = f" ({'+' if delta >= 0 else ''}{_fmt_int(delta)})"
-                lines.append(f"   - `{table}`: {before_s} → {after_s}{delta_s}")
+                extra = ""
+                birth_n = d.get("birth_date_updated_at_changed")
+                if birth_n:
+                    extra = (
+                        f" · birth_date_updated_at changed on {_fmt_int(birth_n)} user(s)"
+                    )
+                lines.append(f"   - `{table}`: {before_s} → {after_s}{delta_s}{extra}")
             if len(sorted_changes) > max_to_show:
                 lines.append(f"   - _…and {len(sorted_changes) - max_to_show} more table(s)_")
 

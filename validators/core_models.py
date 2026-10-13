@@ -452,6 +452,9 @@ class LevanteUser(UserBase):
     archived: bool = False
     birth_year: Optional[int] = None  # Field(None, ge=2000, le=current_year)
     birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
+    # Firestore birthDateUpdatedAt (fallback birthDateUpdated). A change vs the
+    # previous users export forces a new raw release so run ages are recomputed.
+    birth_date_updated_at: Optional[datetime] = None
     sex: Optional[str] = None
     grade: Optional[int] = None
 
