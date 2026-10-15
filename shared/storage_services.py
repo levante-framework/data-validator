@@ -43,7 +43,15 @@ class StorageServices:
         return bool(self.upload_to_GCP_log['file_uploads_fail'])
 
     def process(self, validated_data: dict):
-        for table_name, data in validated_data.items():
+        # Registry order, not dict order. merge_dictionaries builds the export
+        # with set(), so runs can precede users. A birth_date_updated_at change
+        # must upload users first; that sets is_new_version_needed and rewrites
+        # runs with ages recomputed from the new birth year/month.
+        registry_order = list(utils.schema_registry().keys())
+        table_names = [name for name in registry_order if name in validated_data]
+        table_names.extend(name for name in validated_data if name not in table_names)
+        for table_name in table_names:
+            data = validated_data[table_name]
             if data and (not self.check_if_same_file(table_name=table_name,
                                                      local_data_list=data) or self.is_new_version_needed):
                 if self.save_to_storage(table_name=table_name, data=data):

@@ -880,11 +880,8 @@ class FirestoreServices:
 
             if doc_dict.get('created', None):
                 doc_dict['created_at'] = doc_dict.get('created')
-            converted = process_doc_dict(doc_dict=doc_dict)
-            # Issue #56: export birthDateUpdatedAt. Older docs may use birthDateUpdated.
-            if converted.get("birth_date_updated_at") is None and converted.get("birth_date_updated") is not None:
-                converted["birth_date_updated_at"] = converted.get("birth_date_updated")
-            return converted
+            # birthDateUpdatedAt maps to birth_date_updated_at via process_doc_dict.
+            return process_doc_dict(doc_dict=doc_dict)
 
         def _extract_related_user_ids(doc_dict: dict) -> set[str]:
             related_ids: set[str] = set()

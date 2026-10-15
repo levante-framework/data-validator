@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any, Literal, get_origin, get_args
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 import json
 import os
@@ -452,14 +452,30 @@ class LevanteUser(UserBase):
     archived: bool = False
     birth_year: Optional[int] = None  # Field(None, ge=2000, le=current_year)
     birth_month: Optional[int] = None  # Field(None, ge=1, le=12)
-    # Firestore birthDateUpdatedAt (fallback birthDateUpdated). A change vs the
-    # previous users export forces a new raw release so run ages are recomputed.
+    # Firestore birthDateUpdatedAt. A change vs the previous users export
+    # forces a new raw release so run ages are recomputed.
     birth_date_updated_at: Optional[datetime] = None
     sex: Optional[str] = None
     grade: Optional[int] = None
 
     valid_user: Optional[bool] = None
     validation_msg_user: Optional[str] = None
+
+    @field_validator("birth_date_updated_at", mode="before")
+    def coerce_birth_date_updated_at(cls, value):
+        """Accept a date or a YYYY-MM-DD string as midnight UTC."""
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        if isinstance(value, str):
+            text = value.strip()
+            if len(text) == 10:
+                try:
+                    return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    return value
+        return value
 
     @model_validator(mode='after')
     def check_birth_year_month(self):
