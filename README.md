@@ -321,6 +321,14 @@ only launches it and returns immediately with execution metadata.
 python trigger_job.py payload.json
 ```
 
+**Force refresh** every Dataset row whose `Redivis processed dataset last update` is set. Each job force-uploads raw, runs the notebook, releases the processed dataset, and posts Slack:
+
+```bash
+python force_data_refresh.py --dry-run
+python force_data_refresh.py                  # Cloud Run Job per site
+python force_data_refresh.py --runtime local  # this machine, one site at a time
+```
+
 **gcloud** with a JSON file:
 
 ```bash

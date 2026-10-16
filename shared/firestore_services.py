@@ -880,6 +880,7 @@ class FirestoreServices:
 
             if doc_dict.get('created', None):
                 doc_dict['created_at'] = doc_dict.get('created')
+            # birthDateUpdatedAt maps to birth_date_updated_at via process_doc_dict.
             return process_doc_dict(doc_dict=doc_dict)
 
         def _extract_related_user_ids(doc_dict: dict) -> set[str]:

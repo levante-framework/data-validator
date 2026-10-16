@@ -590,7 +590,11 @@ def append_schema_rows_to_validated_data(validated_data: Dict[str, Any]) -> Dict
     for t_name in reg.keys():
         validated_data.setdefault(t_name, [])
 
-    for table, rows in validated_data.items():
+    # Emit registry order. set() merges do not preserve insertion order, and
+    # StorageServices.process must see users before runs.
+    ordered = list(reg.keys()) + [name for name in validated_data if name not in reg]
+    for table in ordered:
+        rows = validated_data.get(table, [])
         # leave invalid_data unchanged
         if table == "invalid_data":
             out[table] = rows

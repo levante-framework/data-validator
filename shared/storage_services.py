@@ -4,7 +4,7 @@ import json
 import os
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import settings
 from shared import utils
@@ -43,7 +43,15 @@ class StorageServices:
         return bool(self.upload_to_GCP_log['file_uploads_fail'])
 
     def process(self, validated_data: dict):
-        for table_name, data in validated_data.items():
+        # Registry order, not dict order. merge_dictionaries builds the export
+        # with set(), so runs can precede users. A birth_date_updated_at change
+        # must upload users first; that sets is_new_version_needed and rewrites
+        # runs with ages recomputed from the new birth year/month.
+        registry_order = list(utils.schema_registry().keys())
+        table_names = [name for name in registry_order if name in validated_data]
+        table_names.extend(name for name in validated_data if name not in table_names)
+        for table_name in table_names:
+            data = validated_data[table_name]
             if data and (not self.check_if_same_file(table_name=table_name,
                                                      local_data_list=data) or self.is_new_version_needed):
                 if self.save_to_storage(table_name=table_name, data=data):
@@ -149,7 +157,81 @@ class StorageServices:
                 "%s schema changed: added=%s removed=%s modified=%s",
                 table_name, added, removed, modified,
             )
+        elif table_name == "users" and is_same_length and is_same_schema:
+            changed_ids = self.birth_date_updated_at_changed_ids(
+                local_data_list, gcs_json_data
+            )
+            if changed_ids:
+                self.upload_to_GCP_log["file_updated"].append(
+                    f"{table_name}(birth_date_updated_at): {len(changed_ids)} changed"
+                )
+                self.upload_to_GCP_log["file_updated_details"].append({
+                    "table": table_name,
+                    "before": gcs_count,
+                    "after": local_count,
+                    "delta": 0,
+                    "is_new": False,
+                    "birth_date_updated_at_changed": len(changed_ids),
+                })
+                logging.info(
+                    "users birth_date_updated_at changed for %s user(s): %s",
+                    len(changed_ids),
+                    ", ".join(changed_ids[:20]),
+                )
+                return False
         return is_same_length and is_same_schema
+
+    @staticmethod
+    def _canonical_timestamp(value) -> str | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, datetime):
+            dt = value
+        elif isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            try:
+                dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                return text
+        else:
+            return str(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.isoformat()
+
+    @classmethod
+    def birth_date_updated_at_changed_ids(cls, local_rows, previous_rows) -> list[str]:
+        """User ids whose ``birth_date_updated_at`` differs from the previous export.
+
+        Schema sentinel rows (``user_id == schema_row``) are ignored. Users only
+        in one side are not a field change; row-count comparison covers those.
+        """
+        def index(rows) -> dict[str, str | None]:
+            out: dict[str, str | None] = {}
+            if not isinstance(rows, list):
+                return out
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                user_id = row.get("user_id")
+                if not user_id or user_id == "schema_row":
+                    continue
+                out[str(user_id)] = cls._canonical_timestamp(
+                    row.get("birth_date_updated_at")
+                )
+            return out
+
+        local = index(local_rows)
+        previous = index(previous_rows)
+        return sorted(
+            user_id
+            for user_id, value in local.items()
+            if user_id in previous and previous[user_id] != value
+        )
 
     @staticmethod
     def _schema_shape(rows) -> dict[str, str]:
