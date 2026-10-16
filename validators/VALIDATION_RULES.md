@@ -448,7 +448,7 @@ Response value is stored in exactly one of: `boolean_response`, `string_response
 
 ### Question catalog
 
-Questions are loaded from Redivis `levante-metadata-items.survey_items` (cached, TTL default 300s). On failure, falls back to local `survey_questions.json` next to `core_models.py`.
+Questions are loaded from Redivis `levante-metadata-items.survey_items` (cached, TTL default 300s). On failure, falls back to `validators/survey_questions.json`, which is committed so the Cloud Run image has it.
 
 Each catalog entry includes `survey_section`, `question_survey_type`, `response_type`, and `response_options`.
 

@@ -160,6 +160,10 @@ cython_debug/
 # Local analysis artifacts (not part of the codebase)
 prod-unused-fields-report.md
 
+# Survey catalog fallback. A global *.json ignore must not drop this file;
+# Cloud Run loads it when Redivis survey_items is unavailable.
+!validators/survey_questions.json
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

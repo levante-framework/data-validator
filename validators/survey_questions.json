@@ -1,0 +1,3332 @@
+{
+  "CaregiverSectionIntro1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "CaregiverSectionIntro2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "CaregiverSectionIntro3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "CaregiverSectionIntro4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "CaregiverSurveyIntroA": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "CaregiverSurveyIntroB": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildADHD": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildADHDCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildADHDLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildAgeYears": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildAttendEC": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildAttendECKinderTime": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "ChildAttendKinder": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildAttendPrimaryAge": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "ChildAutism": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildAutismCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildAutismLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildBeBoy": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildBeGirl": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildBehBoys": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildBehGirls": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildBornEarly": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildBreathing": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildBullied": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildBullyOthers": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "ChildCBQ1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQ9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildCBQitems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildCavities": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildChronicHealth": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildConcentration": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildConduct": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildConductCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildConductLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildDevDelay": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildDevDelayCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildDevDelayLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildDeviceUse": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5"
+  },
+  "ChildDigestion": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildDressBathe": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildEFQ": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildEFQ1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ11": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ12": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ13": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ14": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ16": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ17": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ18": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ19": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ20": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ21": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ22": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ23": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ24": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ25": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ26": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ27": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ28": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ29": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ30": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ31": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ32": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ33": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ34": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildEFQ9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "4, 3, 2, 1"
+  },
+  "ChildELS1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS11": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS12": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS13": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS14": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS16": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS17": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS18": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELS9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildELSitems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildEating": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildEdAchieve": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "UpToHighSchool, GEDHSdiploma, SomeCollege, HSdiplomaTechnical, Associate, Bachelor, Master, Doctorate"
+  },
+  "ChildEyesight": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildFriends": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildGenderCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": "Female, Male, Nonbinary, Other"
+  },
+  "ChildGenderCurrent-Comment": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "ChildGenderIntro": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildGenetic": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildGeneticExp": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "ChildGums": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildHealth": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "5, 4, 3, 2, 1"
+  },
+  "ChildHealthConditions": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildHealthOther": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildHearing": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildHeightCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildHeightCurrentFeet": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildHeightCurrentInches": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildIntellDis": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildIntellDisCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildIntellDisLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildJukes1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes11": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes12": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes13": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes14": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes16": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes17": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes18": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes19": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes20": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukes9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildJukesItems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildLearnDis": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildLearnDisCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildLearnDisLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildNSCHg10a": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildNSCHg10b": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildNSCHg10c": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildNSCHg10d": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildNSCHg10e": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPain": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildPhone": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildPhoneAge": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "open_ended"
+  },
+  "ChildPhysicalActivity": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyBreastFemale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyFaceHairMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyFemale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildPubertyGrowthFemale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyGrowthMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyHairFemale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyHairMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildPubertyMenstruate": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildPubertyMenstruateAge": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildPubertySkinFemale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertySkinMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyVoiceMale": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildPubertyYN": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildSCS1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS11": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS12": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCS9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSCSitems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildSDQ10": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ11": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ13": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ14": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ16": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ17": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ18": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ22": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ23": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ24": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQ8": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ChildSDQitems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildSchoolItems": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildSexBirth": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": "Female, Male"
+  },
+  "ChildSleep": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildSleep1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildSleep2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildSleep3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "ChildSleepHabits": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildSleepHours": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "ChildSocialMedia": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildSpeechLang": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildSpeechLangCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildSpeechLangLevel": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3"
+  },
+  "ChildStairs": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildTeeth": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "5, 4, 3, 2, 1"
+  },
+  "ChildToothache": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildVisionHearingExp": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "ChildVisionHearingOther": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "ChildWeightBirth": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildWeightBirthOunces": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildWeightBirthPounds": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ChildWeightCurrent": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "ChildWeightCurrentPounds": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "ClassFriends": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ClassHelp": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ClassNice": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ClassPlay": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "Example1Comic": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "Example2Neat": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "GrowthMindMath": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "GrowthMindRead": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "GrowthMindSmart": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "HomeCHAOS": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "HomeCHAOS10": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "HomeCHAOS14": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "HomeCHAOS15": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "HomeCHAOS4": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "HomeChildCareOthers": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeFood": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "HomeFoodBalanced": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "HomeFoodLast": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2"
+  },
+  "HomeFoodSkipMeal": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeFoodSkipMealAmount": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": "3, 2, 1"
+  },
+  "HomeHOME1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "HomeHOME22": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME23": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "HomeHOME24a": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24b": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24c": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24d": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24e": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24f": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24g": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24h": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24i": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME24j": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME25": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME26": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME27": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME28": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME29": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "HomeHOME30": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME31": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME32": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME33": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME34": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME35": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME36": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME37": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME38": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "HomeHOME4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "No, Yes"
+  },
+  "HomeHOME5": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5"
+  },
+  "HomeHOME6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "HomeHOME7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "HomeHOME9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "HomeNSCHi7a": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7b": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7c": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7d": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7e": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7f": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi7g": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "HomeNSCHi8a": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "3, 2, 1, 0"
+  },
+  "HomeNSCHi8b": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "3, 2, 1, 0"
+  },
+  "HomeNSCHi8c": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "3, 2, 1, 0"
+  },
+  "HomeNSCHi8d": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "3, 2, 1, 0"
+  },
+  "HomeNSCHi8e": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "3, 2, 1, 0"
+  },
+  "HomeNSCHi8items": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "HomeNeighborhood": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "LearningGood": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "LonelySchool": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "MathEnjoy": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "MathGood": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ReadingEnjoy": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "ReadingGood": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "RespondentRelationship": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": "BioAdoptMother, BioAdoptFather, StepMother, StepFather, Grandmother, Grandfather, FosterParent, OtherRelative, OtherNonRelative, Other (describe)"
+  },
+  "RespondentRelationship-Comment": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "RespondentRelationshipOtherSpecify": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "String",
+    "response_options": null
+  },
+  "RespondentTimeCaring": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "RespondentTimeCaringMonths": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "RespondentTimeCaringYears": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "SchoolEnjoy": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SchoolFun": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SchoolGiveUp": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SchoolHappy": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SchoolSafe": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SelfAnxDep": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfAnxDep1": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SelfAnxDep2": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SelfAnxDep3": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SelfAnxDep4": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "SelfDiscrim": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfDiscrim1": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "SelfDiscrim2": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "SelfDiscrim3": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "SelfDiscrim4": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "SelfDiscrim5": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5"
+  },
+  "SelfLifeChanges": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfLifeChanges1": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 74"
+  },
+  "SelfLifeChanges10": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 21"
+  },
+  "SelfLifeChanges11": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 31"
+  },
+  "SelfLifeChanges12": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 42"
+  },
+  "SelfLifeChanges13": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 32"
+  },
+  "SelfLifeChanges14": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 29"
+  },
+  "SelfLifeChanges15": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 35"
+  },
+  "SelfLifeChanges16": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 35"
+  },
+  "SelfLifeChanges17": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 28"
+  },
+  "SelfLifeChanges18": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 60"
+  },
+  "SelfLifeChanges19": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 52"
+  },
+  "SelfLifeChanges2": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 44"
+  },
+  "SelfLifeChanges20": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 68"
+  },
+  "SelfLifeChanges21": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 79"
+  },
+  "SelfLifeChanges22": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 18"
+  },
+  "SelfLifeChanges23": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 42"
+  },
+  "SelfLifeChanges24": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 25"
+  },
+  "SelfLifeChanges25": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 47"
+  },
+  "SelfLifeChanges26": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 25"
+  },
+  "SelfLifeChanges27": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 55"
+  },
+  "SelfLifeChanges28": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 50"
+  },
+  "SelfLifeChanges29": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 67"
+  },
+  "SelfLifeChanges3": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 26"
+  },
+  "SelfLifeChanges31": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 66"
+  },
+  "SelfLifeChanges32": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 65"
+  },
+  "SelfLifeChanges33": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 59"
+  },
+  "SelfLifeChanges34": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 46"
+  },
+  "SelfLifeChanges35": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 41"
+  },
+  "SelfLifeChanges36": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 41"
+  },
+  "SelfLifeChanges37": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 45"
+  },
+  "SelfLifeChanges38": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 50"
+  },
+  "SelfLifeChanges39": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 38"
+  },
+  "SelfLifeChanges4": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 27"
+  },
+  "SelfLifeChanges40": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 59"
+  },
+  "SelfLifeChanges41": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 50"
+  },
+  "SelfLifeChanges42": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 53"
+  },
+  "SelfLifeChanges43": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 76"
+  },
+  "SelfLifeChanges44": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 96"
+  },
+  "SelfLifeChanges45": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 43"
+  },
+  "SelfLifeChanges46": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 119"
+  },
+  "SelfLifeChanges47": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 123"
+  },
+  "SelfLifeChanges48": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 102"
+  },
+  "SelfLifeChanges49": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 100"
+  },
+  "SelfLifeChanges5": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 26"
+  },
+  "SelfLifeChanges50": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 26"
+  },
+  "SelfLifeChanges51": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 38"
+  },
+  "SelfLifeChanges52": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 35"
+  },
+  "SelfLifeChanges53": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 24"
+  },
+  "SelfLifeChanges54": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 29"
+  },
+  "SelfLifeChanges55": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 27"
+  },
+  "SelfLifeChanges56": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 24"
+  },
+  "SelfLifeChanges57": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 37"
+  },
+  "SelfLifeChanges58": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 45"
+  },
+  "SelfLifeChanges59": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 39"
+  },
+  "SelfLifeChanges6": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 28"
+  },
+  "SelfLifeChanges61": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 47"
+  },
+  "SelfLifeChanges62": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 48"
+  },
+  "SelfLifeChanges63": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 20"
+  },
+  "SelfLifeChanges65": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 70"
+  },
+  "SelfLifeChanges66": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 51"
+  },
+  "SelfLifeChanges67": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 36"
+  },
+  "SelfLifeChanges68": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 38"
+  },
+  "SelfLifeChanges69": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 60"
+  },
+  "SelfLifeChanges7": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 51"
+  },
+  "SelfLifeChanges70": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 56"
+  },
+  "SelfLifeChanges71": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 43"
+  },
+  "SelfLifeChanges72": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 20"
+  },
+  "SelfLifeChanges73": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 37"
+  },
+  "SelfLifeChanges74": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 58"
+  },
+  "SelfLifeChanges8": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 35"
+  },
+  "SelfLifeChanges9": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "0, 29"
+  },
+  "SelfLifeChangesFinancial": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfLifeChangesHealth": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfLifeChangesHome": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfLifeChangesPersonal": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfLifeChangesWork": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfMcArthurCommunity": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+  },
+  "SelfMcArthurCountry": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+  },
+  "SelfParentMICS": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfParentMICS1": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "SelfParentMICS12": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "SelfParentMICS2": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "SelfParentMICS4": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "SelfParentMICS6": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "SelfParentRohner": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfParentRohnerC14": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerC20": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerC26": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerC3": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerC7": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerW15": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerW21": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerW23": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerW27": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentRohnerW29": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentStressNCSHh9": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfParentStressNSCHh8": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4"
+  },
+  "SelfParentStressNSCHh9a": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "SelfParentStressNSCHh9b": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "SelfParentStressNSCHh9c": {
+    "survey_section": "specific",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "SelfSupport": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": null,
+    "response_options": null
+  },
+  "SelfSupport1": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport10": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport11": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport12": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport2": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport3": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport4": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport5": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport6": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport7": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport8": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "SelfSupport9": {
+    "survey_section": "general",
+    "question_survey_type": "caregiver",
+    "response_type": "Numeric",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "TeacherAge": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherBackground": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherBeliefTeach": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherBeliefTeach1": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach10": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach11": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach12": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach2": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach3": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach4": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach5": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach6": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach7": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach8": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeach9": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherBeliefTeachItemsInfluence": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherBeliefTeachItemsWell": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherClimate1": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate10": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate2": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate3": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate4": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate5": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate6": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate7a": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate7b": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate8": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimate9": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherClimateItems": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherComm": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherCommFamily": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherCommStudents": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4"
+  },
+  "TeacherEducation": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "UpToHighSchool, GEDHSdiploma, SomeCollege, HSdiplomaTechnical, Associate, Bachelor, Master, Doctorate"
+  },
+  "TeacherFamilyHelping": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherFamilyOverwhelm": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherFamilySupport": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherFeelJob": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherFeelJob1": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob10": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob12": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob13": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob14": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob15": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob16": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob2": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob3": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob5": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob6": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob7": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJob9": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3, 4, 5, 6"
+  },
+  "TeacherFeelJobItems": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherGender": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "Female, Male, Nonbinary, Other (please describe)"
+  },
+  "TeacherGender-Comment": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherGrad": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "EarlyChildEd, ElemEd, SpecialEd, ChildDev, ReadSpecial, CurriculumInstruct, BilingualEd, OtherEd, OtherNonEd, Other"
+  },
+  "TeacherGradNonEd": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherGradOther": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherGradOtherEd": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherGradeLevel": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "PreKinder, TransitionKinder, Kinder, Grade1, Grade2, Grade3, Grade4, Grade5, Grade6, Grade7, Grade8"
+  },
+  "TeacherGradeLevel-Comment": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherIdeasChildren": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherIdeasChildren1": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren10": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren11": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren12": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren13": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren14": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren15": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren16": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren2": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren3": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren4": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren5": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren6": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren7": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren8": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildren9": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherIdeasChildrenItems": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherIntroPartA": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherIntroPartB": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherLanguageStudents": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "In dev"
+  },
+  "TeacherLanguageStudents-Comment": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherLanguageTeachers": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "In dev"
+  },
+  "TeacherLanguageTeachers-Comment": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherLike": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherListen": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherMathAbove": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherMathBelow": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherMathFrequency": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "Never, Less1, 1_2, 3_4, Daily"
+  },
+  "TeacherMathTime": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "1_30, 31_60, 61_90, More90"
+  },
+  "TeacherMultigrade": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "TeacherMultigradeLevels": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "PreKinder, TransitionKinder, Kinder, Grade1, Grade2, Grade3, Grade4, Grade5, Grade6, Grade7, Grade8"
+  },
+  "TeacherMultigradeLevels-Comment": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherNice": {
+    "survey_section": "general",
+    "question_survey_type": "child",
+    "response_type": "Numeric",
+    "response_options": "0, 1, 2, 3"
+  },
+  "TeacherNumberClasses": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "1, 2, 3, 4, 5, 6, 7"
+  },
+  "TeacherOtherAdult": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Boolean",
+    "response_options": "No, Yes"
+  },
+  "TeacherReadingAbove": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherReadingBelow": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherReadingFrequency": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "Never, Less1, 1_2, 3_4, Daily"
+  },
+  "TeacherReadingTime": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "1_30, 31_60, 61_90, More90"
+  },
+  "TeacherSchool": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherStudentsAges": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherStudentsAges10": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges11": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges12": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges13": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges5": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges6": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges7": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges8": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsAges9": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsEnroll": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsGender": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherStudentsGenderBoys": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsGenderGirls": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsGenderNonbinary": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherStudentsGenderOther": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "Numeric",
+    "response_options": null
+  },
+  "TeacherSurveyIntro": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": null,
+    "response_options": null
+  },
+  "TeacherUndergrad": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "EarlyChildEd, ElemEd, SpecialEd, ChildDev, ReadSpecial, CurriculumInstruct, BilingualEd, OtherEd, OtherNonEd, Other"
+  },
+  "TeacherUndergradNonEd": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherUndergradOther": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherUndergradOtherEd": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": null
+  },
+  "TeacherYears": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "Less1, 1_2, 3_5, 6_10, Over10"
+  },
+  "TeacherYearsSchool": {
+    "survey_section": "general",
+    "question_survey_type": "teacher",
+    "response_type": "String",
+    "response_options": "Less1, 1_2, 3_5, 6_10, Over10"
+  }
+}

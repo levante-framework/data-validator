@@ -76,7 +76,12 @@ def get_survey_questions() -> dict:
         logging.info(f"Loaded survey questions from Redivis survey_items table. count={len(questions)}")
     except Exception as e:
         logging.warning(f"Failed loading survey questions from Redivis, using local JSON fallback: {e}")
-        questions = _load_survey_questions_from_local_json()
+        try:
+            questions = _load_survey_questions_from_local_json()
+        except FileNotFoundError as file_err:
+            raise FileNotFoundError(
+                f"{file_err}. Redivis survey_items load failed: {e}"
+            ) from e
         logging.info(f"Loaded survey questions from local survey_questions.json fallback. count={len(questions)}")
 
     _SURVEY_Q_CACHE = questions
