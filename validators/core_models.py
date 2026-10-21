@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Extra, Field, field_validator, model_validator, ValidationError
+from pydantic import BaseModel, Extra, field_validator, model_validator, ValidationError
 from typing import Optional, Union, List, Set, Any, Literal, get_origin, get_args
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -123,7 +123,6 @@ class LevanteTrial(TrialBase):
     is_practice_trial: Optional[bool] = None
     corpus_id: Optional[str] = None
     corpus_trial_type: Optional[Any] = None
-    response_type: Optional[str] = None
     response_location: Optional[Any] = None
     distractors: Optional[str] = None
     trial_mode: Optional[str] = None
@@ -290,9 +289,7 @@ class RunBase(BaseModel):
     variant_id: str
     administration_id: Optional[str] = None
     age: Optional[float] = None
-    reliable: Optional[bool] = None
     completed: Optional[bool] = None
-    best_run: Optional[bool] = None
     task_version: Optional[str] = None
     time_started: Optional[datetime] = None
     time_finished: Optional[datetime] = None
