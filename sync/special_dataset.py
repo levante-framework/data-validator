@@ -34,12 +34,6 @@ def _single(value: Any, *, field_name: str) -> Any:
     return value
 
 
-def _bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    return _text(value).casefold() in {"1", "true", "yes", "checked"}
-
-
 def _date(value: Any, *, field_name: str) -> str:
     text = _text(value)
     if not text:
@@ -104,16 +98,12 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             field_name="org_id",
         )
     )
-    is_guest = _bool(fields.get(_field("AIRTABLE_SPECIAL_FIELD_IS_GUEST")))
     parsed_user_filter = _user_filter(
         fields.get(_field("AIRTABLE_SPECIAL_FIELD_USER_FILTER"))
     )
     if not dataset_link:
-        if is_guest and parsed_user_filter:
-            dataset_link = f"guest-{_text(parsed_user_filter.get('value'))}"
-        else:
-            raise ValueError(f"row {row.get('id')} has no dataset_link")
-    if not firestore_org_id and not is_guest:
+        raise ValueError(f"row {row.get('id')} has no dataset_link")
+    if not firestore_org_id:
         raise ValueError(f"row {row.get('id')} has no org_id")
 
     filters: dict[str, Any] = {
@@ -139,7 +129,6 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
 
     return utils.Organization(
         org_id=dataset_link,
-        is_guest=is_guest,
         user_number_limit=_user_limit(
             fields.get(_field("AIRTABLE_SPECIAL_FIELD_USER_LIMIT"))
         ),

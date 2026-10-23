@@ -122,7 +122,6 @@ class Filters(BaseModel):
 class Organization(BaseModel):
     model_config = ConfigDict(extra="forbid")
     org_id: str = Field(min_length=1)
-    is_guest: bool = Field()
     is_user_id_masked: bool = Field(
         default=False,
         description="Optional. When true, user ids are pseudonymized in the export.",
@@ -131,7 +130,7 @@ class Organization(BaseModel):
         default=None,
         ge=1,
         description=(
-            "Optional. Total users to sample for this org (non-guest). Split "
+            "Optional. Total users to sample for this org. Split "
             "40% students, 40% parents of those students, 20% teachers."
         ),
     )
@@ -229,7 +228,7 @@ class DatasetParameters(BaseModel):
             else:
                 date_range = "No date limit"
             org_summary.append(
-                f"{org.org_id} ({'guests' if org.is_guest else 'users'}): Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}"
+                f"{org.org_id}: Org ({org_names}), Date range: {date_range}, User limit: {org.user_number_limit}"
             )
 
         if len(self.orgs) > 10:

@@ -675,18 +675,14 @@ class FirestoreServices:
 
     def get_users(
         self,
-        is_guest: bool,
         date_filter: utils.DateFilter,
         org_filter: utils.OrgFilter | None,
         user_filter: utils.UserFilter | None,
         user_number_limit: int | None = None,
         chunk_size=100,
     ):
-        date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
-        if is_guest:
-            collection_name = 'guests'
-        else:
-            collection_name = 'users'
+        date_field = 'lastUpdated'
+        collection_name = 'users'
 
         disabled_user_ids: set[str] = set()
 
@@ -753,21 +749,6 @@ class FirestoreServices:
                 return bool(by_started)
             except Exception:
                 return False
-
-        def _has_activity(doc_ref, doc_dict: dict) -> bool:
-            start_dt = to_datetime(date_filter.start_date, 'start')
-            end_dt = to_datetime(date_filter.end_date, 'end')
-
-            # administrations: assignment exists in filtered date range
-            has_admin = _any_assigned_between(doc_dict.get('assignmentsAssigned', {}), start_dt, end_dt)
-
-            # runs in filtered date range
-            has_runs = _has_run_in_range(doc_ref, start_dt, end_dt)
-
-            # surveys in filtered date range
-            has_surveys = _has_survey_in_range(doc_ref, start_dt, end_dt)
-
-            return has_admin or has_runs or has_surveys
 
         def _apply_stratified_user_limit(
             *,
@@ -900,9 +881,7 @@ class FirestoreServices:
             current_chunk = 0
             selected_by_id: dict[str, dict] = {}
             related_user_ids: set[str] = set()
-            use_stratified_sample = (
-                bool(user_number_limit and user_number_limit > 0 and not is_guest)
-            )
+            use_stratified_sample = bool(user_number_limit and user_number_limit > 0)
             students_pool: list[dict] = []
             teachers_pool: list[dict] = []
 
@@ -919,31 +898,26 @@ class FirestoreServices:
                         f"Setting users... processing chunk {current_chunk} of {total_chunks} {collection_name} chunks.")
                     for doc in docs:
                         doc_dict = doc.to_dict() or {}
-                        # Discard users without any assignment.
-                        if is_guest:
-                            runs = doc.reference.collection('runs').limit(1).get()
-                            if not runs:  # Check if there are no documents in the runs subcollection
-                                continue
-                        else:
-                            start_dt = to_datetime(date_filter.start_date, 'start')
-                            end_dt = to_datetime(date_filter.end_date, 'end')
-                            if not _any_assigned_between(
-                                    doc_dict.get('assignmentsAssigned', {}),
-                                    start_dt,
-                                    end_dt,
-                            ):
-                                continue
-                            user_type = doc_dict.get('userType', None)
-                            if user_type == 'student' and not _has_run_in_range(doc.reference, start_dt, end_dt):
-                                continue
-                            if user_type in ['teacher', 'parent'] and not _has_survey_in_range(
-                                doc.reference, start_dt, end_dt
-                            ):
-                                continue
-                            if user_type in ['admin']:
-                                continue
-                            if use_stratified_sample and user_type == 'parent':
-                                continue
+                        # Discard users without any assignment in the date window.
+                        start_dt = to_datetime(date_filter.start_date, 'start')
+                        end_dt = to_datetime(date_filter.end_date, 'end')
+                        if not _any_assigned_between(
+                                doc_dict.get('assignmentsAssigned', {}),
+                                start_dt,
+                                end_dt,
+                        ):
+                            continue
+                        user_type = doc_dict.get('userType', None)
+                        if user_type == 'student' and not _has_run_in_range(doc.reference, start_dt, end_dt):
+                            continue
+                        if user_type in ['teacher', 'parent'] and not _has_survey_in_range(
+                            doc.reference, start_dt, end_dt
+                        ):
+                            continue
+                        if user_type in ['admin']:
+                            continue
+                        if use_stratified_sample and user_type == 'parent':
+                            continue
 
                         if is_true_flag(doc_dict.get("disabled")):
                             disabled_user_ids.add(doc.id)
@@ -966,9 +940,6 @@ class FirestoreServices:
                                 students_pool.append(converted_doc_dict)
                             elif user_type == 'teacher':
                                 teachers_pool.append(converted_doc_dict)
-                        elif user_number_limit and user_number_limit > 0:
-                            if _has_activity(doc.reference, doc_dict):
-                                selected_by_id[converted_doc_dict["user_id"]] = converted_doc_dict
                         else:
                             selected_by_id[converted_doc_dict["user_id"]] = converted_doc_dict
                     last_doc = docs[-1]
@@ -982,11 +953,6 @@ class FirestoreServices:
                     teachers=teachers_pool,
                     user_number_limit=user_number_limit,
                 )
-            else:
-                selected_users = list(selected_by_id.values())
-                if user_number_limit and user_number_limit > 0 and len(selected_users) > user_number_limit:
-                    selected_users = random.sample(selected_users, user_number_limit)
-                    selected_by_id = {u["user_id"]: u for u in selected_users}
 
             # Backfill one-hop relationship-linked users even if they have no runs/surveys/admin activity.
             if not use_stratified_sample:
@@ -1012,10 +978,10 @@ class FirestoreServices:
 
         return process_docs(query=base_query)
 
-    def get_runs(self, user_id: str, run_key_usage: dict, date_filter: utils.DateFilter, is_guest: bool = False,
+    def get_runs(self, user_id: str, run_key_usage: dict, date_filter: utils.DateFilter,
                  chunk_size=100):
         last_doc = None
-        collection_name = 'guests' if is_guest else 'users'
+        collection_name = 'users'
         base_query = (self.admin_db.collection(collection_name).document(user_id)
                       .collection('runs'))
         base_query = base_query.where('timeStarted', '>=', to_datetime(date_filter.start_date, 'start'))
@@ -1079,10 +1045,10 @@ class FirestoreServices:
                 logging.error(f"Error in get_runs: {e}")
                 break
 
-    def get_trials(self, user_id: str, run_id: str, task_id: str, trial_key_usage: dict, is_guest: bool = False,
+    def get_trials(self, user_id: str, run_id: str, task_id: str, trial_key_usage: dict,
                    chunk_size=100):
         last_doc = None
-        collection_name = 'guests' if is_guest else 'users'
+        collection_name = 'users'
         base_query = (self.admin_db.collection(collection_name).document(user_id)
                       .collection('runs').document(run_id)
                       .collection('trials'))
