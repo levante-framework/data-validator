@@ -129,7 +129,7 @@ Notes:
 - Required fields: `dataset_id`, `is_save_to_storage`, `orgs` (non-empty list).
 - `send_slack`: if `true`, posts Slack when the job starts, per-site progress (multi-org), and a final summary. Failures always post to Slack.
 - GCS change detection compares both table row counts and the appended schema-row field/type shape. Adding, removing, or changing a field therefore publishes a new raw Redivis version even when no records were added or removed. `invalid_data` has no schema row and is compared by row count only. Removing an entire exported table also publishes a new raw version.
-- `skip_process_dataset`: if `true`, release raw only and do not run the `process_dataset` notebook. Omit, `false`, or `null` keep the default (run processing after a new raw release). Existing cron jobs need no change.
+- `update`: omit or `null` keeps the full path (raw upload, then `process_dataset`). `"raw"` releases raw only and does not run the notebook. `"processed"` skips the Firestore pull, GCS write, and raw Redivis upload, then runs `process_dataset` on the existing `*-raw` dataset and releases processed (unless `release_processed_dataset` is `false`). `dataset_id` must end with `-raw` for `"processed"`. Existing cron jobs omit this field and need no change.
 - Raw exports whose tables are only the appended `schema_row` (every table has one row) also skip `process_dataset` and do not release a processed companion. That covers empty sites such as `rfp1-donders-intl-ys-raw` / `rfp1-calgary-intl-ys-raw`. Sites with real rows (for example `rfp1-utdt-intl-ys-raw`) still process. Cron payloads need no change. Those template/schema-only sites do **not** post a daily Slack summary (GCS or notebook failures still Slack). The weekly report lists them in a separate schema-only section instead of active/quiet/missing.
 - `release_processed_dataset`: if `true` (default), after a successful notebook run the validator **releases** the unmarked processed dataset. Omit/`null`/`true` keep that default (no cron changes). Set `false` to leave processed `next` unreleased and skip the Airtable processed-date stamp.
 - After a new raw release, the job idle-claims a `process_dataset` notebook from `REDIVIS_PROCESS_WORKFLOW_POOL` (`process_dataset:zr0v` and `process_dataset_copy1:y0tn`). A Firestore lease on the admin DB (`locks/process_dataset_*`) is taken before re-pointing that copy, held until our notebook job finishes, and heartbeated so a crash expires. If every copy is busy or leased, the job waits up to `REDIVIS_PROCESS_BUSY_RETRY_MAX_SECONDS` (default 1 hour). On `Notebook is already running` or a held lease, it tries the other copy immediately. Cron payloads are unchanged.
@@ -139,7 +139,10 @@ Notes:
 
 ```mermaid
 flowchart TD
-  start[Job starts] --> flags{save to storage?}
+  start[Job starts] --> upd{update?}
+  upd -->|processed| nbExisting[Run process_dataset on existing raw]
+  nbExisting --> nbrok
+  upd -->|null or raw| flags{save to storage?}
   flags -->|no| stats[Validate only]
   flags -->|yes| gcs[Validate, write GCS]
   gcs --> newraw{New raw Redivis version?}
@@ -153,7 +156,7 @@ flowchart TD
   rel --> relok{Released?}
   relok -->|yes| air[Stamp Airtable]
   relok -->|no| exit1
-  quiet --> skipp{skip_process_dataset or schema-only raw?}
+  quiet --> skipp{update raw or schema-only raw?}
   skipp -->|yes| skip[Do nothing]
   skipp -->|no| nextq{Processed has next?}
   nextq -->|yes| stale{Can compare next vs raw timestamps?}
@@ -168,7 +171,7 @@ flowchart TD
   rerun --> nbrok
 ```
 - Task timeout: **24 hours** (`86400s`).
-- If `is_save_to_storage` is `false`, the job validates and returns stats only.
+- If `is_save_to_storage` is `false` and `update` is omitted, the job validates and returns stats only.
 
 ### Auxiliary operations
 

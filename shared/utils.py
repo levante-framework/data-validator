@@ -154,12 +154,16 @@ class DatasetParameters(BaseModel):
         description="Required. Whether to write validated JSON to GCS and optionally Redivis.",
     )
     is_force_uploading_to_redivis: bool = False
-    skip_process_dataset: bool = Field(
-        default=False,
+    update: Optional[Literal["raw", "processed"]] = Field(
+        default=None,
         description=(
-            "If true, skip the process_dataset workflow after a successful raw "
-            "Redivis release. Omit/false/null keep the default (run processing). "
-            "Existing cron payloads need no change."
+            "Which side to update. null (omit): pull and upload raw, then run "
+            "process_dataset. \"raw\": release raw and do not run "
+            "process_dataset. \"processed\": do not query Firestore, write GCS, "
+            "or upload a raw Redivis version; run process_dataset on the "
+            "existing *-raw dataset and release processed unless "
+            "release_processed_dataset is false. Existing cron payloads omit "
+            "this field and keep the full path."
         ),
     )
     release_processed_dataset: bool = Field(
@@ -193,10 +197,28 @@ class DatasetParameters(BaseModel):
     def coerce_send_slack(cls, v):
         return cls._coerce_bool(v)
 
-    @field_validator("skip_process_dataset", mode="before")
+    @field_validator("update", mode="before")
     @classmethod
-    def coerce_skip_process_dataset(cls, v):
-        return cls._coerce_bool(v)
+    def coerce_update(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("", "null", "none"):
+                return None
+            if s in ("raw", "processed"):
+                return s
+        raise ValueError('update must be null, "raw", or "processed"')
+
+    @model_validator(mode="after")
+    def processed_update_uses_raw_dataset(self):
+        if self.update == "processed":
+            suffix = settings.config.get("RAW_DATASET_SUFFIX", "-raw")
+            if not (self.dataset_id or "").endswith(suffix):
+                raise ValueError(
+                    f'update="processed" requires dataset_id to end with {suffix!r}'
+                )
+        return self
 
     @field_validator("release_processed_dataset", mode="before")
     @classmethod
@@ -253,7 +275,7 @@ class DatasetParameters(BaseModel):
             "dataset_id": self.dataset_id,
             "is_save_to_storage": self.is_save_to_storage,
             "is_force_uploading_to_redivis": self.is_force_uploading_to_redivis,
-            "skip_process_dataset": self.skip_process_dataset,
+            "update": self.update,
             "release_processed_dataset": self.release_processed_dataset,
             "send_slack": self.send_slack,
             "org_count": len(self.orgs),

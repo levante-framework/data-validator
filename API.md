@@ -13,7 +13,7 @@ and `"false"` / `"0"` / `"no"`.
 
 ## `data_validation` (default)
 
-Daily cron jobs use this shape. They omit `operation`, `skip_process_dataset`,
+Daily cron jobs use this shape. They omit `operation`, `update`,
 and `release_processed_dataset`.
 
 ```json
@@ -22,7 +22,7 @@ and `release_processed_dataset`.
   "dataset_id": "pilot-uniandes-co-bogota-raw",
   "is_save_to_storage": true,
   "is_force_uploading_to_redivis": false,
-  "skip_process_dataset": false,
+  "update": null,
   "release_processed_dataset": true,
   "send_slack": true,
   "orgs": [
@@ -58,11 +58,11 @@ and `release_processed_dataset`.
 |-------|----------|---------|---------|
 | `operation` | no | `data_validation` | Job type. |
 | `dataset_id` | **yes** | — | Redivis / GCS dataset name (site crons use `{Name}-raw`). |
-| `is_save_to_storage` | **yes** | — | `false`: validate only (no GCS / Redivis). `true`: write tables. |
+| `is_save_to_storage` | **yes** | — | `false`: validate only (no GCS / Redivis), unless `update` is `"processed"`. `true`: write tables. |
 | `is_force_uploading_to_redivis` | no | `false` | `true`: force a new raw Redivis version even if GCS is unchanged. |
-| `skip_process_dataset` | no | `false` | `true`: after a new raw release, do **not** run `process_dataset`. Omit / `false` / `null`: run the notebook unless the raw export is schema-only (every table is the single appended `schema_row`). Schema-only raw also skips processed `release()` and does **not** post a Slack summary (GCS / notebook failures still Slack). **Cron jobs need no change.** |
+| `update` | no | `null` | `null` / omit: pull and upload raw, then run `process_dataset` unless the raw export is schema-only (every table is the single appended `schema_row`). Schema-only raw also skips processed `release()` and does **not** post a Slack summary (GCS / notebook failures still Slack). `"raw"`: after a new raw release, do **not** run `process_dataset`. `"processed"`: do **not** query Firestore, write GCS, or upload a raw Redivis version. Run `process_dataset` on the existing `*-raw` dataset, then release processed unless `release_processed_dataset` is `false`. `dataset_id` must end with `-raw`. `orgs` is still required by the payload schema and is ignored. **Cron jobs need no change.** |
 | `release_processed_dataset` | no | `true` | After a successful notebook run, release the unmarked processed dataset (`next`). Omit / `null` / `true`: release (default). `false`: leave `next` unreleased and skip the Airtable processed-date stamp. **Cron jobs need no change.** If release (or the notebook) fails, the job **exits non-zero** so Cloud Scheduler retries. A retry with unchanged GCS `release()`s leftover `next` when the last Firestore log shows `process_dataset.ran=true` and either `next` is at least as new as current raw **or** Redivis omits those version timestamps. A leftover `next` after a **failed** or missing notebook log is treated as incomplete and the notebook is **re-run**. An older leftover `next` (timestamp-stale vs current raw) is also re-run, not published. If there is no `next` but processed is older than current raw, the retry also re-runs `process_dataset`. Airtable is stamped only when `release()` actually published a new processed version. |
-| `send_slack` | no | `false` | `true`: Slack on start; final summary when a new Redivis version is released. Failures always Slack. |
+| `send_slack` | no | `false` | `true`: Slack on start; final summary when a new Redivis version is released, on processed catch-up, or when `update` is `"processed"`. Failures always Slack. |
 | `orgs` | **yes** | — | Non-empty list of organization scopes (see below). |
 
 ### `orgs[]` fields
@@ -131,11 +131,26 @@ Runs processing after a new raw release and **releases the processed dataset**.
 {
   "dataset_id": "rfp1-sheffield-gb-main-raw",
   "is_save_to_storage": true,
-  "skip_process_dataset": true,
+  "update": "raw",
   "send_slack": true,
   "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "is_guest": false, "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
 }
 ```
+
+### Processed only (existing raw, no Firestore pull)
+
+```json
+{
+  "dataset_id": "rfp1-sheffield-gb-main-raw",
+  "is_save_to_storage": false,
+  "update": "processed",
+  "release_processed_dataset": true,
+  "send_slack": true,
+  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "is_guest": false, "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
+}
+```
+
+`orgs` is ignored. The notebook reads the current raw release and publishes the processed dataset.
 
 ### Notebook but do not release processed `next`
 
