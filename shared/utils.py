@@ -144,6 +144,16 @@ class Organization(BaseModel):
             raise ValueError(
                 "filters must include at least one of: org_filter, date_filter, user_filter"
             )
+        if (
+            f.org_filter is not None
+            and f.org_filter.operator == "array_contains_any"
+            and f.user_filter is not None
+            and f.user_filter.operator == "starts_with"
+        ):
+            raise ValueError(
+                "user_filter operator starts_with cannot be combined with "
+                "org_filter operator array_contains_any"
+            )
         return self
 
 

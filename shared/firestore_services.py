@@ -984,7 +984,7 @@ class FirestoreServices:
                     last_doc = docs[-1]
                 except Exception as e:
                     logging.error(f"Error in get_users: {e}")
-                    break
+                    raise
 
             if use_stratified_sample:
                 selected_by_id = _apply_stratified_user_limit(
