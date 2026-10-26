@@ -913,7 +913,14 @@ class FirestoreServices:
                 try:
                     query = query.limit(chunk_size)
                     if last_doc:
-                        query = query.start_after(last_doc)
+                        if (
+                            user_filter is not None
+                            and user_filter.operator == "starts_with"
+                            and user_filter.value
+                        ):
+                            query = query.start_after(last_doc)
+                        else:
+                            query = query.start_after([last_doc.id])
                     docs = query.get()
                     if not docs:
                         break
