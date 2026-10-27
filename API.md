@@ -40,11 +40,6 @@ and `release_processed_dataset`.
         "date_filter": {
           "start_date": "2024-01-01",
           "end_date": "2025-12-31"
-        },
-        "user_filter": {
-          "key": "assessmentPid",
-          "operator": "starts_with",
-          "value": "col"
         }
       }
     }
