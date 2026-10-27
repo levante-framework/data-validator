@@ -11,6 +11,7 @@ from itertools import islice
 import pytz
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
+from google.cloud.firestore_v1.field_path import FieldPath
 from google.oauth2 import service_account
 
 import settings
@@ -682,7 +683,6 @@ class FirestoreServices:
         user_number_limit: int | None = None,
         chunk_size=100,
     ):
-        date_field = 'lastUpdated'  # 'created' if is_guest else 'createdAt'
         if is_guest:
             collection_name = 'guests'
         else:
@@ -691,9 +691,8 @@ class FirestoreServices:
         disabled_user_ids: set[str] = set()
 
         base_query = self.admin_db.collection(collection_name)
-        # Apply the date range filters
-        # base_query = base_query.where(date_field, '>=', to_datetime(date_filter.start_date, 'start'))
-        # base_query = base_query.where(date_field, '<=', to_datetime(date_filter.end_date, 'end'))
+        # Do not order by lastUpdated or updatedAt. Firestore omits documents
+        # that lack the ordered field, so those users never reach the survey read.
         if org_filter is not None:
             if org_filter.operator == "array_contains_any":
                 base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_filter.value)
@@ -706,7 +705,7 @@ class FirestoreServices:
                 base_query = base_query.where(prefix_field, '<', prefix + u'\uf8ff')
                 base_query = base_query.order_by(prefix_field)
 
-        base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
+        base_query = base_query.order_by(FieldPath.document_id())
 
         # def _parse_iso_z(s: str):
         #     try:
@@ -880,6 +879,10 @@ class FirestoreServices:
 
             if doc_dict.get('created', None):
                 doc_dict['created_at'] = doc_dict.get('created')
+            # Timestamp stays on the loaded doc. updatedAt fills lastUpdated
+            # only when lastUpdated is absent; a query must not order by either.
+            if doc_dict.get('lastUpdated') is None and doc_dict.get('updatedAt') is not None:
+                doc_dict['lastUpdated'] = doc_dict.get('updatedAt')
             # birthDateUpdatedAt maps to birth_date_updated_at via process_doc_dict.
             return process_doc_dict(doc_dict=doc_dict)
 
@@ -910,7 +913,14 @@ class FirestoreServices:
                 try:
                     query = query.limit(chunk_size)
                     if last_doc:
-                        query = query.start_after(last_doc)
+                        if (
+                            user_filter is not None
+                            and user_filter.operator == "starts_with"
+                            and user_filter.value
+                        ):
+                            query = query.start_after(last_doc)
+                        else:
+                            query = query.start_after([last_doc.id])
                     docs = query.get()
                     if not docs:
                         break
@@ -974,7 +984,7 @@ class FirestoreServices:
                     last_doc = docs[-1]
                 except Exception as e:
                     logging.error(f"Error in get_users: {e}")
-                    break
+                    raise
 
             if use_stratified_sample:
                 selected_by_id = _apply_stratified_user_limit(
