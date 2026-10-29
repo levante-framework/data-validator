@@ -105,25 +105,22 @@ class EntityController:
     def validate_data_from_firestore(self):
         self.process_users()
         if self.valid_users:
-            if not self.org.is_guest:
-                self.process_surveys()
+            self.process_surveys()
             self.process_runs()
             if self.valid_runs:
                 self.process_trials()
                 self.process_tasks_variants()
 
-        # Determine whether it's using guest.
-        if not self.org.is_guest:
-            of = self.org.filters.org_filter
-            if of is not None and of.key == "districts":
-                self.process_sites()
-                self.process_cohorts()
-                self.process_schools()
-                self.process_classes()
-            elif of is not None and of.key == "groups":
-                self.process_cohorts()
+        of = self.org.filters.org_filter
+        if of is not None and of.key == "districts":
+            self.process_sites()
+            self.process_cohorts()
+            self.process_schools()
+            self.process_classes()
+        elif of is not None and of.key == "groups":
+            self.process_cohorts()
 
-            self.process_administration()
+        self.process_administration()
 
         # self.adding_schema_row_to_data()
 
@@ -257,10 +254,8 @@ class EntityController:
         logging.info("Now Validating Users...")
 
         users, self.disabled_users_skipped = fs.get_users(
-            is_guest=self.org.is_guest,
             date_filter=self._resolved_date_filter(),
             org_filter=self.org.filters.org_filter,
-            user_filter=self.org.filters.user_filter,
             user_number_limit=self.org.user_number_limit,
         )
         self.set_users(users=users)
@@ -302,7 +297,6 @@ class EntityController:
                 runs=fs.get_runs(
                     user_id=user.user_id,
                     run_key_usage=self.run_key_usage,
-                    is_guest=self.org.is_guest,
                     date_filter=self._resolved_date_filter(),
                 ),
             )
@@ -314,7 +308,6 @@ class EntityController:
                             trials=fs.get_trials(user_id=run.user_id,
                                                  run_id=run.run_id,
                                                  task_id=run.task_id,
-                                                 is_guest=self.org.is_guest,
                                                  trial_key_usage=self.trial_key_usage))
             run.validate_trials_in_run()
 

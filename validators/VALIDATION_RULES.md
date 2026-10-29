@@ -39,7 +39,7 @@ Some checks populate `warning_msg_*` instead of `validation_msg_*`:
 For each org in a request:
 
 1. Fetch and validate **users**
-2. If not guest mode: fetch **surveys** and **survey_responses**
+2. Fetch **surveys** and **survey_responses**
 3. Fetch **runs**, then **trials** (trials drive run-level checks)
 4. Fetch **tasks** and **variants** (schema only; no run/trial business rules)
 
@@ -57,7 +57,7 @@ For each org in a request:
 | `user_id` | `str` | Required |
 | `user_type` | `str` | Required (e.g. `student`, `teacher`, `parent`) |
 
-Optional fields include `assessment_pid`, `birth_year`, `birth_month`, `birth_date_updated_at`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
+Optional fields include `birth_year`, `birth_month`, `birth_date_updated_at`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc. Firestore `assessmentPid` is not exported.
 
 `birth_date_updated_at` is Firestore `birthDateUpdatedAt` (a timestamp; a date-only `YYYY-MM-DD` value is stored as midnight UTC). It is exported on every user row (`null` when unset). If any user already in the previous GCS `users` file has a different value, the raw dataset is re-uploaded and released even when row counts and schema shape are unchanged. Tables upload in schema-registry order, so `users` is written before `runs` and `age` is recomputed from the current birth year/month.
 
@@ -66,10 +66,10 @@ Optional fields include `assessment_pid`, `birth_year`, `birth_month`, `birth_da
 - Users without `user_id` / `uid` are skipped.
 - Duplicate `user_id` values are skipped (first occurrence wins).
 - Schema parse failures are recorded in `invalid_users`.
-- Firestore `disabled == true` (any userType, including guests and one-hop related users): **dropped from the export**. Counted in Slack as `users.disabled`. Does not appear in `users` / runs / surveys / trials.
+- Firestore `disabled == true` (any userType, including one-hop related users): **dropped from the export**. Counted in Slack as `users.disabled`. Does not appear in `users` / runs / surveys / trials.
 - Firestore `archived == true`: **kept** with `archived = true`. Missing/false values export as `archived = false`. Does not change `valid_user`. Counted in Slack / weekly per-site as `users.archived`.
 
-Firestore inclusion (non-guest), before sampling:
+Firestore inclusion, before sampling:
 
 | `user_type` | Required activity in `date_filter` window |
 |-------------|-------------------------------------------|
@@ -78,11 +78,9 @@ Firestore inclusion (non-guest), before sampling:
 | `parent` | Assignment in range **and** ≥1 survey response (when not using stratified sample) |
 | `admin` | Excluded |
 
-Guests: must have ≥1 run (any time); `user_number_limit` uses random sampling without stratification.
-
 ### `user_number_limit` (stratified sample)
 
-When `user_number_limit` is set on an org (non-guest), users are **not** chosen uniformly at random. The limit is a **total headcount** split as:
+When `user_number_limit` is set on an org, users are **not** chosen uniformly at random. The limit is a **total headcount** split as:
 
 | Slot | Share of limit | Rule |
 |------|----------------|------|
@@ -425,8 +423,6 @@ valid_survey = True  iff  validation_msg_survey is empty
 ```
 
 If `validation_msg_survey` is pre-set during ingest, the model preserves it via `_derive_valid_survey`.
-
-Guest orgs skip survey processing entirely.
 
 ---
 

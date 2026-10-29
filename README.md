@@ -108,7 +108,6 @@ Optional top-level `operation` (default `data_validation`):
   "orgs": [
     {
       "org_id": "CO-bogota",
-      "is_guest": false,
       "filters": {
         "org_filter": {
           "key": "districts",
@@ -246,7 +245,7 @@ Run validation (mount your service account):
 docker run --rm \
   -e project_id=hs-levante-data-validator \
   -e LOCAL_ADMIN_SERVICE_ACCOUNT=/secrets/admin.json \
-  -e DATA_VALIDATOR_PAYLOAD='{"dataset_id":"MY-SITE","is_save_to_storage":false,"send_slack":false,"orgs":[{"org_id":"MY-SITE","is_guest":false,"filters":{"date_filter":{"start_date":"2024-01-01","end_date":"2025-12-31"}}}]}' \
+  -e DATA_VALIDATOR_PAYLOAD='{"dataset_id":"MY-SITE","is_save_to_storage":false,"send_slack":false,"orgs":[{"org_id":"MY-SITE","filters":{"date_filter":{"start_date":"2024-01-01","end_date":"2025-12-31"}}}]}' \
   -v /path/to/admin_sa.json:/secrets/admin.json:ro \
   data-validator
 ```
@@ -281,7 +280,6 @@ API-Key: <validator api key>
   "orgs": [
     {
       "org_id": "pilot-uniandes-co-bogota",
-      "is_guest": false,
       "filters": {
         "org_filter": {
           "key": "districts",

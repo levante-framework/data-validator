@@ -34,12 +34,6 @@ def _single(value: Any, *, field_name: str) -> Any:
     return value
 
 
-def _bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    return _text(value).casefold() in {"1", "true", "yes", "checked"}
-
-
 def _date(value: Any, *, field_name: str) -> str:
     text = _text(value)
     if not text:
@@ -52,22 +46,6 @@ def _date(value: Any, *, field_name: str) -> str:
     raise ValueError(
         f"{field_name} must be YYYY-MM-DD or M/D/YYYY; got {text!r}"
     )
-
-
-def _user_filter(value: Any) -> dict | None:
-    if value in (None, ""):
-        return None
-    if isinstance(value, dict):
-        return value
-    if not isinstance(value, str):
-        raise ValueError(f"user_filter must be JSON text or an object; got {value!r}")
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid user_filter JSON: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError("user_filter JSON must decode to an object")
-    return parsed
 
 
 def _user_limit(value: Any) -> int | None:
@@ -104,16 +82,9 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             field_name="org_id",
         )
     )
-    is_guest = _bool(fields.get(_field("AIRTABLE_SPECIAL_FIELD_IS_GUEST")))
-    parsed_user_filter = _user_filter(
-        fields.get(_field("AIRTABLE_SPECIAL_FIELD_USER_FILTER"))
-    )
     if not dataset_link:
-        if is_guest and parsed_user_filter:
-            dataset_link = f"guest-{_text(parsed_user_filter.get('value'))}"
-        else:
-            raise ValueError(f"row {row.get('id')} has no dataset_link")
-    if not firestore_org_id and not is_guest:
+        raise ValueError(f"row {row.get('id')} has no dataset_link")
+    if not firestore_org_id:
         raise ValueError(f"row {row.get('id')} has no org_id")
 
     filters: dict[str, Any] = {
@@ -134,12 +105,9 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             "operator": "array_contains_any",
             "value": [firestore_org_id],
         }
-    if parsed_user_filter:
-        filters["user_filter"] = parsed_user_filter
 
     return utils.Organization(
         org_id=dataset_link,
-        is_guest=is_guest,
         user_number_limit=_user_limit(
             fields.get(_field("AIRTABLE_SPECIAL_FIELD_USER_LIMIT"))
         ),

@@ -28,7 +28,6 @@ and `release_processed_dataset`.
   "orgs": [
     {
       "org_id": "pilot-uniandes-co-bogota-raw",
-      "is_guest": false,
       "is_user_id_masked": false,
       "user_number_limit": null,
       "filters": {
@@ -40,11 +39,6 @@ and `release_processed_dataset`.
         "date_filter": {
           "start_date": "2024-01-01",
           "end_date": "2025-12-31"
-        },
-        "user_filter": {
-          "key": "assessmentPid",
-          "operator": "starts_with",
-          "value": "col"
         }
       }
     }
@@ -70,10 +64,9 @@ and `release_processed_dataset`.
 | Field | Required | Default | Meaning |
 |-------|----------|---------|---------|
 | `org_id` | **yes** | — | Label for this scope (usually the dataset / site id). |
-| `is_guest` | **yes** | — | Guest vs registered users. |
 | `is_user_id_masked` | no | `false` | Pseudonymize user ids in the export. |
 | `user_number_limit` | no | `null` | Cap sampled users (≥ 1). Split 40% students / 40% parents / 20% teachers. |
-| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`, `user_filter`. |
+| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`. |
 
 ### `filters.org_filter`
 
@@ -92,14 +85,6 @@ and `release_processed_dataset`.
 
 If omitted, Firestore export uses a wide window (`2024-01-01` … `2050-01-01`).
 
-### `filters.user_filter`
-
-| Field | Allowed values |
-|-------|----------------|
-| `key` | Firestore user field (e.g. `assessmentPid`) |
-| `operator` | `starts_with` (string `value`) \| `<=` \| `>=` \| `==` (integer `value`) |
-| `value` | string or int, matching the operator |
-
 ### Minimal cron-style body (defaults apply)
 
 ```json
@@ -110,7 +95,6 @@ If omitted, Firestore export uses a wide window (`2024-01-01` … `2050-01-01`).
   "orgs": [
     {
       "org_id": "rfp1-sheffield-gb-main-raw",
-      "is_guest": false,
       "filters": {
         "org_filter": {
           "key": "districts",
@@ -133,7 +117,7 @@ Runs processing after a new raw release and **releases the processed dataset**.
   "is_save_to_storage": true,
   "skip_process_dataset": true,
   "send_slack": true,
-  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "is_guest": false, "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
+  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
 }
 ```
 
@@ -145,7 +129,7 @@ Runs processing after a new raw release and **releases the processed dataset**.
   "is_save_to_storage": true,
   "release_processed_dataset": false,
   "send_slack": true,
-  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "is_guest": false, "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
+  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
 }
 ```
 
@@ -156,27 +140,7 @@ Runs processing after a new raw release and **releases the processed dataset**.
   "dataset_id": "rfp1-sheffield-gb-main-raw",
   "is_save_to_storage": false,
   "send_slack": false,
-  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "is_guest": false, "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
-}
-```
-
-### Guest + date + user filter (second org)
-
-```json
-{
-  "org_id": "CO-pre-pilot",
-  "is_guest": true,
-  "filters": {
-    "date_filter": {
-      "start_date": "2024-04-01",
-      "end_date": "2024-06-30"
-    },
-    "user_filter": {
-      "key": "assessmentPid",
-      "operator": "starts_with",
-      "value": "col"
-    }
-  }
+  "orgs": [ { "org_id": "rfp1-sheffield-gb-main-raw", "filters": { "org_filter": { "key": "districts", "operator": "array_contains_any", "value": ["UgLeW6VgHJx1UFVXdrvF"] } } } ]
 }
 ```
 
