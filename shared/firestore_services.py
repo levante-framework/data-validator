@@ -677,7 +677,6 @@ class FirestoreServices:
         self,
         date_filter: utils.DateFilter,
         org_filter: utils.OrgFilter | None,
-        user_filter: utils.UserFilter | None,
         user_number_limit: int | None = None,
         chunk_size=100,
     ):
@@ -693,14 +692,6 @@ class FirestoreServices:
         if org_filter is not None:
             if org_filter.operator == "array_contains_any":
                 base_query = base_query.where(f"{org_filter.key}.current", org_filter.operator, org_filter.value)
-
-        if user_filter is not None:
-            if user_filter.operator == "starts_with" and user_filter.value:
-                prefix_field = user_filter.key
-                prefix = user_filter.value
-                base_query = base_query.where(prefix_field, '>=', prefix)
-                base_query = base_query.where(prefix_field, '<', prefix + u'\uf8ff')
-                base_query = base_query.order_by(prefix_field)
 
         base_query = base_query.order_by(date_field)  # direction=firestore.firestore.Query.DESCENDING
 
@@ -922,15 +913,6 @@ class FirestoreServices:
                         if is_true_flag(doc_dict.get("disabled")):
                             disabled_user_ids.add(doc.id)
                             continue
-
-                        # Check if user filter is being used
-                        # if user_filter.key:
-                        #     if user_filter.operator == "contains":
-                        #         user_value_firebase = doc_dict.get(user_filter.key, None)
-                        #         if not user_value_firebase:
-                        #             continue  # Skip this document if the filter condition is not met
-                        #         elif user_filter.value not in user_value_firebase:
-                        #             continue
 
                         converted_doc_dict = _normalize_user_doc(user_id=doc.id, doc_dict=doc_dict)
                         if not use_stratified_sample:

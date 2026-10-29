@@ -39,11 +39,6 @@ and `release_processed_dataset`.
         "date_filter": {
           "start_date": "2024-01-01",
           "end_date": "2025-12-31"
-        },
-        "user_filter": {
-          "key": "assessmentPid",
-          "operator": "starts_with",
-          "value": "col"
         }
       }
     }
@@ -71,7 +66,7 @@ and `release_processed_dataset`.
 | `org_id` | **yes** | — | Label for this scope (usually the dataset / site id). |
 | `is_user_id_masked` | no | `false` | Pseudonymize user ids in the export. |
 | `user_number_limit` | no | `null` | Cap sampled users (≥ 1). Split 40% students / 40% parents / 20% teachers. |
-| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`, `user_filter`. |
+| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`. |
 
 ### `filters.org_filter`
 
@@ -89,14 +84,6 @@ and `release_processed_dataset`.
 | `end_date` | `YYYY-MM-DD` (≥ `start_date`) |
 
 If omitted, Firestore export uses a wide window (`2024-01-01` … `2050-01-01`).
-
-### `filters.user_filter`
-
-| Field | Allowed values |
-|-------|----------------|
-| `key` | Firestore user field (e.g. `assessmentPid`) |
-| `operator` | `starts_with` (string `value`) \| `<=` \| `>=` \| `==` (integer `value`) |
-| `value` | string or int, matching the operator |
 
 ### Minimal cron-style body (defaults apply)
 

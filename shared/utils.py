@@ -74,26 +74,6 @@ class DateFilter(BaseModel):
         return self
 
 
-class UserFilter(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    key: str
-    operator: str = Field(pattern="^(starts_with|<=|>=|==)$")
-    value: Union[int, str]
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_operator_value(cls, data):
-        if not isinstance(data, dict):
-            return data
-        operator = data.get("operator")
-        value = data.get("value")
-        if operator == "starts_with" and not isinstance(value, str):
-            raise TypeError("Value must be a string when operator is 'starts_with'")
-        if operator in ("<=", ">=", "==") and not isinstance(value, int):
-            raise TypeError("Value must be an integer when operator is '<=', '>=', or '=='")
-        return data
-
-
 class OrgFilter(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern="^(groups|administrations|districts|schools|classes)$")
@@ -115,7 +95,6 @@ class OrgFilter(BaseModel):
 class Filters(BaseModel):
     model_config = ConfigDict(extra="forbid")
     date_filter: Optional[DateFilter] = None
-    user_filter: Optional[UserFilter] = None
     org_filter: Optional[OrgFilter] = None
 
 
@@ -139,9 +118,9 @@ class Organization(BaseModel):
     @model_validator(mode="after")
     def at_least_one_filter(self):
         f = self.filters
-        if f.org_filter is None and f.date_filter is None and f.user_filter is None:
+        if f.org_filter is None and f.date_filter is None:
             raise ValueError(
-                "filters must include at least one of: org_filter, date_filter, user_filter"
+                "filters must include at least one of: org_filter, date_filter"
             )
         return self
 

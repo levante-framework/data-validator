@@ -256,7 +256,6 @@ class EntityController:
         users, self.disabled_users_skipped = fs.get_users(
             date_filter=self._resolved_date_filter(),
             org_filter=self.org.filters.org_filter,
-            user_filter=self.org.filters.user_filter,
             user_number_limit=self.org.user_number_limit,
         )
         self.set_users(users=users)

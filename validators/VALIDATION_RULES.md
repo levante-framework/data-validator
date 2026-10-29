@@ -57,7 +57,7 @@ For each org in a request:
 | `user_id` | `str` | Required |
 | `user_type` | `str` | Required (e.g. `student`, `teacher`, `parent`) |
 
-Optional fields include `assessment_pid`, `birth_year`, `birth_month`, `birth_date_updated_at`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc.
+Optional fields include `birth_year`, `birth_month`, `birth_date_updated_at`, `sex`, `grade`, `parent1_id`, `parent2_id`, `teacher_id`, timestamps, etc. Firestore `assessmentPid` is not exported.
 
 `birth_date_updated_at` is Firestore `birthDateUpdatedAt` (a timestamp; a date-only `YYYY-MM-DD` value is stored as midnight UTC). It is exported on every user row (`null` when unset). If any user already in the previous GCS `users` file has a different value, the raw dataset is re-uploaded and released even when row counts and schema shape are unchanged. Tables upload in schema-registry order, so `users` is written before `runs` and `age` is recomputed from the current birth year/month.
 

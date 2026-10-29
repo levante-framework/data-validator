@@ -48,22 +48,6 @@ def _date(value: Any, *, field_name: str) -> str:
     )
 
 
-def _user_filter(value: Any) -> dict | None:
-    if value in (None, ""):
-        return None
-    if isinstance(value, dict):
-        return value
-    if not isinstance(value, str):
-        raise ValueError(f"user_filter must be JSON text or an object; got {value!r}")
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid user_filter JSON: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError("user_filter JSON must decode to an object")
-    return parsed
-
-
 def _user_limit(value: Any) -> int | None:
     if value in (None, ""):
         return None
@@ -98,9 +82,6 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             field_name="org_id",
         )
     )
-    parsed_user_filter = _user_filter(
-        fields.get(_field("AIRTABLE_SPECIAL_FIELD_USER_FILTER"))
-    )
     if not dataset_link:
         raise ValueError(f"row {row.get('id')} has no dataset_link")
     if not firestore_org_id:
@@ -124,8 +105,6 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             "operator": "array_contains_any",
             "value": [firestore_org_id],
         }
-    if parsed_user_filter:
-        filters["user_filter"] = parsed_user_filter
 
     return utils.Organization(
         org_id=dataset_link,
