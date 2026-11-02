@@ -69,6 +69,8 @@ Optional fields include `assessment_pid`, `birth_year`, `birth_month`, `birth_da
 - Firestore `disabled == true` (any userType, including guests and one-hop related users): **dropped from the export**. Counted in Slack as `users.disabled`. Does not appear in `users` / runs / surveys / trials.
 - Firestore `archived == true`: **kept** with `archived = true`. Missing/false values export as `archived = false`. Does not change `valid_user`. Counted in Slack / weekly per-site as `users.archived`.
 
+The user scan pages by document id. It does not order by `lastUpdated` or `updatedAt`; either order omits documents that lack that field, and their surveys are never read. After a document is loaded, a missing `lastUpdated` is filled from `updatedAt` when that field is present. Documents that have `lastUpdated` keep it.
+
 Firestore inclusion (non-guest), before sampling:
 
 | `user_type` | Required activity in `date_filter` window |

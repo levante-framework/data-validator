@@ -40,11 +40,6 @@ and `release_processed_dataset`.
         "date_filter": {
           "start_date": "2024-01-01",
           "end_date": "2025-12-31"
-        },
-        "user_filter": {
-          "key": "assessmentPid",
-          "operator": "starts_with",
-          "value": "col"
         }
       }
     }
@@ -73,7 +68,7 @@ and `release_processed_dataset`.
 | `is_guest` | **yes** | — | Guest vs registered users. |
 | `is_user_id_masked` | no | `false` | Pseudonymize user ids in the export. |
 | `user_number_limit` | no | `null` | Cap sampled users (≥ 1). Split 40% students / 40% parents / 20% teachers. |
-| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`, `user_filter`. |
+| `filters` | **yes** | — | At least one of `org_filter`, `date_filter`, `user_filter`. `user_filter` `starts_with` cannot be combined with `org_filter` (`array_contains_any`). The payload is rejected. |
 
 ### `filters.org_filter`
 
@@ -99,6 +94,8 @@ If omitted, Firestore export uses a wide window (`2024-01-01` … `2050-01-01`).
 | `key` | Firestore user field (e.g. `assessmentPid`) |
 | `operator` | `starts_with` (string `value`) \| `<=` \| `>=` \| `==` (integer `value`) |
 | `value` | string or int, matching the operator |
+
+`starts_with` and `org_filter` (`array_contains_any`) cannot be set on the same org. Use one or the other. A payload that sends both is rejected before the scan runs. Other `user_filter` operators may still be combined with `org_filter`.
 
 ### Minimal cron-style body (defaults apply)
 

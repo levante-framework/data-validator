@@ -134,8 +134,18 @@ def _row_to_org(row: dict, airtable: AirtableServices) -> utils.Organization:
             "operator": "array_contains_any",
             "value": [firestore_org_id],
         }
+    # starts_with plus a district filter is rejected on the payload. Keep the
+    # district scope so an Airtable row that sets both still runs. Guest
+    # starts_with rows with no org id are unchanged.
     if parsed_user_filter:
-        filters["user_filter"] = parsed_user_filter
+        if firestore_org_id and parsed_user_filter.get("operator") == "starts_with":
+            logging.warning(
+                "special dataset row %s has org_id and user_filter starts_with; "
+                "keeping the district filter",
+                row.get("id"),
+            )
+        else:
+            filters["user_filter"] = parsed_user_filter
 
     return utils.Organization(
         org_id=dataset_link,
