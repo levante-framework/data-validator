@@ -2,6 +2,7 @@
 Firestore → validate → GCS → Redivis pipeline (``main.py`` / Cloud Run Job calls ``run_data_validation``).
 """
 
+import copy
 import json
 import logging
 import time
@@ -225,12 +226,31 @@ def _catch_up_processed_without_new_raw(
     return _stamp_airtable_processed_date(process_log)
 
 
+def _carried_validation_stats(prior_stats: dict | None) -> dict | None:
+    """Standing counts from the last validation log.
+
+    ``new_schemas`` records what that run discovered. The weekly health
+    section sums it across every log in the window, so copying it would
+    count the same schema twice.
+    """
+    if not isinstance(prior_stats, dict) or not prior_stats:
+        return None
+    stats = copy.deepcopy(prior_stats)
+    stats["new_schemas"] = {"runs": [], "trials": [], "surveys": []}
+    return stats
+
+
 def _run_processed_from_existing_raw(
     dataset_parameters: utils.DatasetParameters,
     *,
     start_time: float,
 ) -> tuple[str, int]:
-    """Run process_dataset on the current raw release. No Firestore pull or raw upload."""
+    """Run process_dataset on the current raw release. No Firestore pull or raw upload.
+
+    The Firestore log still carries the previous ``total_validation_stats``.
+    This run does not re-count users, runs, or trials, and the weekly report
+    treats the latest log in the window as the current snapshot.
+    """
     raw_id = (dataset_parameters.dataset_id or "").strip()
     firestore_project = firestore_services.admin_db_project_id
     logging.info(
@@ -243,12 +263,29 @@ def _run_processed_from_existing_raw(
     )
     process_log["update"] = "processed"
     process_log = _stamp_airtable_processed_date(process_log)
+    prior_stats = _carried_validation_stats(
+        firestore_services.get_latest_validation_stats(raw_id)
+    )
+    logs = {"process_dataset": process_log}
+    if prior_stats is not None:
+        logs["total_validation_stats"] = prior_stats
+        logging.info(
+            "update=processed for %r — carried forward total_validation_stats "
+            "from the latest validation log",
+            raw_id,
+        )
+    else:
+        logging.warning(
+            "update=processed for %r — no prior total_validation_stats to "
+            "carry forward",
+            raw_id,
+        )
     elapsed_time = time.time() - start_time
     response = {
         "operation": "data_validation",
         "dataset_parameters": dataset_parameters.to_dict(),
         "firestore_project": firestore_project,
-        "logs": {"process_dataset": process_log},
+        "logs": logs,
         "elapsed_time": elapsed_time,
         "api_version": settings.config["VERSION"],
         "new_version_release": False,
