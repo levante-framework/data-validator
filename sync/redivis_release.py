@@ -186,7 +186,6 @@ def _build_validator_payload(*, dataset_id: str, site_id: str) -> dict:
         "orgs": [
             {
                 "org_id": dataset_id,
-                "is_guest": False,
                 "filters": {
                     "org_filter": {
                         "key": "districts",

@@ -1,6 +1,6 @@
 
 config = {
-    'VERSION': '1.9.40',
+    'VERSION': '1.9.42',
     'INSTANCE': 'LEVANTE',
     'EXTERNAL_DATA_BUCKET_NAME': 'levante-external-data',
     'ADMIN_SERVICE_ACCOUNT_SECRET_ID': 'adminServiceAccount',
@@ -29,8 +29,6 @@ config = {
     'AIRTABLE_SPECIAL_FIELD_DATASET_LINK': 'dataset_link',
     'AIRTABLE_SPECIAL_FIELD_ORG_ID': 'org_id',
     'AIRTABLE_SPECIAL_FIELD_USER_LIMIT': 'user_limit',
-    'AIRTABLE_SPECIAL_FIELD_IS_GUEST': 'is_guest',
-    'AIRTABLE_SPECIAL_FIELD_USER_FILTER': 'user_filter',
     'AIRTABLE_FIELD_FIRESTORE_SITE_ID': 'Firestore siteId',
     'AIRTABLE_FIELD_OPEN_ASSIGNMENTS': 'Open Assignments',
     'AIRTABLE_FIELD_REDIVIS_INDIVIDUAL': 'Redivis individual',
