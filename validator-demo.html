@@ -845,7 +845,7 @@
             <strong>Trigger</strong>
             <small>Scheduler, HTTP, or CLI</small>
           </article>
-          <article class="stage" tabindex="0" data-title="2. Read only the requested scope" data-detail="The payload selects one or more organizations and can combine district/group filters, date ranges, user filters, guest mode, sampling, and optional user-ID masking.">
+          <article class="stage" tabindex="0" data-title="2. Read only the requested scope" data-detail="The payload selects one or more organizations and can combine district/group filters, date ranges, user filters, sampling, and optional user-ID masking.">
             <span class="stage-index">02 / SOURCE</span>
             <strong>Firestore</strong>
             <small>Users, activity, surveys, metadata</small>
@@ -1250,7 +1250,6 @@
         "send_slack": true,
         "orgs": [{
           "org_id": "rfp1-sheffield-gb-main",
-          "is_guest": false,
           "filters": {
             "org_filter": {
               "key": "districts",
@@ -1266,7 +1265,6 @@
         "send_slack": false,
         "orgs": [{
           "org_id": "rfp1-sheffield-gb-main",
-          "is_guest": false,
           "filters": {
             "date_filter": {
               "start_date": "2026-01-01",
@@ -1282,7 +1280,6 @@
         "send_slack": true,
         "orgs": [{
           "org_id": "rfp1-sheffield-gb-main",
-          "is_guest": false,
           "filters": {
             "org_filter": {
               "key": "districts",

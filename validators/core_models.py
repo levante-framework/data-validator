@@ -442,7 +442,6 @@ class LevanteRun(RunBase):
 class UserBase(BaseModel):
     user_id: str
     user_type: str
-    assessment_pid: Optional[str] = None
     created_at: Optional[datetime] = None
     last_updated: Optional[datetime] = None
 

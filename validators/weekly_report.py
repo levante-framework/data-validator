@@ -71,7 +71,6 @@ COLLECTION_UPDATED_FIELD: dict[str, str] = {
     "administrations": "updatedAt",
     "tasks":           "lastUpdated",
     "users":           "lastUpdated",
-    "guests":          "updatedAt",
 }
 
 # Top-level collections used by the validator we care about for schema drift.
