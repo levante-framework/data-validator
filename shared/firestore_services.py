@@ -485,6 +485,44 @@ class FirestoreServices:
                     return "failed"
         return "unknown"
 
+    def get_latest_validation_stats(self, dataset_id: str) -> dict | None:
+        """
+        Newest non-empty ``logs.total_validation_stats`` for ``dataset_id``.
+
+        ``update=processed`` does not re-count Firestore. The weekly report
+        uses the latest log in the window as the current snapshot, so a log
+        without these stats is read as zeros. Returns a detached copy, or
+        None when no earlier log has stats.
+        """
+        dataset_id = (dataset_id or "").strip()
+        if not dataset_id:
+            return None
+        try:
+            base = self.admin_db.collection("logs").document(dataset_id)
+            date_subs = sorted((c.id for c in base.collections()), reverse=True)
+        except Exception as e:
+            logging.warning(
+                "get_latest_validation_stats(%r): %s", dataset_id, e
+            )
+            return None
+        for date_str in date_subs:
+            try:
+                docs = list(base.collection(date_str).get())
+            except Exception as e:
+                logging.warning(
+                    "get_latest_validation_stats(%r) day %s: %s",
+                    dataset_id,
+                    date_str,
+                    e,
+                )
+                continue
+            for snap in sorted(docs, key=lambda d: d.id, reverse=True):
+                data = snap.to_dict() or {}
+                stats = (data.get("logs") or {}).get("total_validation_stats")
+                if isinstance(stats, dict) and stats:
+                    return deepcopy(stats)
+        return None
+
     def get_district_name(self, district_id: str) -> str | None:
         """Human-readable name from `districts/{district_id}` (site == district)."""
         try:

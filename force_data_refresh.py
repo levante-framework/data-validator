@@ -100,7 +100,6 @@ def build_refresh_payload(*, dataset_id: str, site_id: str) -> dict:
         "dataset_id": dataset_id,
         "is_save_to_storage": True,
         "is_force_uploading_to_redivis": True,
-        "skip_process_dataset": False,
         "release_processed_dataset": True,
         "send_slack": True,
         "orgs": [

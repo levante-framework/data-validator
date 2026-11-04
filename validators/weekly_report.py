@@ -11,8 +11,11 @@ Data sources:
   written by `firestore_services.set_logs_to_firebase`. Baseline-vs-current
   diff of `total_validation_stats` gives weekly growth (users by role,
   runs, trials, increase in users with one or more surveys). Slack shows
-  each as ``old → new (+Δ)``. The valid fraction on users, runs, and trials
-  is new valid rows over new total rows in the totals. A shrinking snapshot
+  each as ``old → new (+Δ)``. A log with no `total_validation_stats` is not
+  a snapshot — older `update=processed` runs omitted it, and selecting one
+  reads every count as zero — so those logs are skipped. The valid fraction
+  on users, runs, and trials is new valid rows over new total rows in the
+  totals. A shrinking snapshot
   (for example disabled users dropped from the export) counts as zero new
   rows, not a negative count. That clamp is only for the valid fraction.
   Per-site active vs quiet uses absolute movement of the compared counts
@@ -246,9 +249,17 @@ def _empty_site_activity(**extra) -> dict:
     return row
 
 
-def _stats_from_log(log_doc) -> dict:
+def _validation_stats_from_log(log_doc) -> dict:
+    """Non-empty ``total_validation_stats``, or ``{}`` when the log has none."""
     d = log_doc.to_dict() or {}
-    stats = (d.get("logs") or {}).get("total_validation_stats") or {}
+    stats = (d.get("logs") or {}).get("total_validation_stats")
+    if isinstance(stats, dict) and stats:
+        return stats
+    return {}
+
+
+def _stats_from_log(log_doc) -> dict:
+    stats = _validation_stats_from_log(log_doc)
     users = stats.get("users") or {}
     runs = stats.get("runs") or {}
     trials = stats.get("trials") or {}
@@ -374,13 +385,43 @@ def _activity_from_stats(cur: dict, base: dict | None) -> dict:
     }
 
 
+def _select_baseline_and_current(
+    dated_snaps,
+    start_pst_str: str,
+    end_pst_str: str,
+) -> tuple[Any, Any]:
+    """
+    Pick snapshot logs from ``(date_str, snaps)`` in chronological order.
+
+    baseline = latest log with ``total_validation_stats`` and date < window start.
+    current = latest such log inside the window.
+
+    A log with no stats is not a count snapshot. ``update=processed`` used to
+    write those, and the alphabetically last doc of the day would otherwise
+    become current and read as zeros (``N → 0``), then next week's baseline.
+    """
+    baseline = None
+    current = None
+    for date_str, docs_in_day in dated_snaps:
+        usable = [d for d in docs_in_day if _validation_stats_from_log(d)]
+        if not usable:
+            continue
+        # Doc ids are `YYYY-MM-DD HH:MM:SS`, so string sort == chronological.
+        snap = max(usable, key=lambda d: d.id)
+        if date_str < start_pst_str:
+            baseline = snap
+        elif start_pst_str <= date_str <= end_pst_str:
+            current = snap
+    return baseline, current
+
+
 def _find_logs_for_dataset(
     dataset_id: str, start_utc: datetime, end_utc: datetime
 ) -> tuple[Any, Any]:
     """
     Return (baseline_log_snap, current_log_snap):
-      - baseline = latest log doc with date < window start
-      - current  = latest log doc with date <= window end (within window if possible)
+      - baseline = latest stats log with date < window start
+      - current  = latest stats log with date inside the window
     """
     base = (firestore_services.admin_db
             .collection("logs").document(dataset_id))
@@ -396,13 +437,10 @@ def _find_logs_for_dataset(
     start_pst_str = start_utc.astimezone(PST).strftime("%Y-%m-%d")
     end_pst_str = end_utc.astimezone(PST).strftime("%Y-%m-%d")
 
-    baseline = None
-    current = None
+    dated_snaps = []
     for date_str in date_subs:
-        # Each date subcollection usually has 1–3 docs (cron + retries). Just
-        # fetch them and pick the alphabetically-last one — doc ids are
-        # `YYYY-MM-DD HH:MM:SS` so string sort == chronological sort. This
-        # avoids any order_by(__name__) quirks observed empirically.
+        # Each date subcollection usually has 1–3 docs (cron + retries).
+        # Fetch them and pick below — avoids order_by(__name__) quirks.
         try:
             docs_in_day = list(base.collection(date_str).get())
         except Exception as e:
@@ -413,12 +451,10 @@ def _find_logs_for_dataset(
             continue
         if not docs_in_day:
             continue
-        snap = max(docs_in_day, key=lambda d: d.id)
-        if date_str < start_pst_str:
-            baseline = snap          # keep updating as we walk forward
-        elif start_pst_str <= date_str <= end_pst_str:
-            current = snap           # keep updating as we walk forward
-    return baseline, current
+        dated_snaps.append((date_str, docs_in_day))
+    return _select_baseline_and_current(
+        dated_snaps, start_pst_str, end_pst_str
+    )
 
 
 def collect_firestore_activity(
@@ -725,13 +761,18 @@ def collect_validation_health(
         for date_str in date_subs:
             if not (start_pst_str <= date_str <= end_pst_str):
                 continue
-            for doc in base.collection(date_str).get():
+            day_docs = sorted(
+                base.collection(date_str).get(), key=lambda d: d.id
+            )
+            for doc in day_docs:
                 runs_count += 1
                 d = doc.to_dict() or {}
                 api_version = d.get("api_version")
                 if api_version:
                     api_versions[str(api_version)] += 1
-                stats = (d.get("logs") or {}).get("total_validation_stats") or {}
+                stats = _validation_stats_from_log(doc)
+                if not stats:
+                    continue
                 latest_invalid = stats.get("invalid_data_count", 0) or 0
                 latest_seen = True
                 ns = stats.get("new_schemas") or {}

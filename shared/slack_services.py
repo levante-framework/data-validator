@@ -66,9 +66,16 @@ def format_data_validation_slack_summary(response: dict) -> str:
         and (process.get("processed_release") or {}).get("released")
     )
     catch_up = bool(process and process.get("catch_up_without_new_raw"))
+    processed_only = dp.get("update") == "processed" or (
+        bool(process) and process.get("update") == "processed"
+    )
 
     validation_only = dp.get("is_save_to_storage") is False
-    if validation_only:
+    if processed_only and process_err:
+        title = "*Levante data validator* — processed step failed (raw left unchanged)"
+    elif processed_only:
+        title = "*Levante data validator* — processed from existing raw"
+    elif validation_only:
         title = "*Levante data validator* — validation only (no GCP/Redivis upload)"
     elif process_err:
         title = "*Levante data validator* — processed dataset step failed"
@@ -87,11 +94,14 @@ def format_data_validation_slack_summary(response: dict) -> str:
         f"*API* v{ver} · *Runtime* {elapsed} · *New raw Redivis release* {nvr_s}",
         "",
         "*Pipeline*",
-        f"• Save to storage: {dp.get('is_save_to_storage')} · Force Redivis: {dp.get('is_force_uploading_to_redivis')}",
+        f"• Save to storage: {dp.get('is_save_to_storage')} · Force Redivis: {dp.get('is_force_uploading_to_redivis')} · Update: {dp.get('update') or 'null'}",
         f"• Send Slack: {dp.get('send_slack', '—')}",
         "",
         "*Org scope*",
         orgs_block or "—",
+    ]
+    if not processed_only:
+        lines.extend([
         "",
         "*Validation totals*",
         f"• Users: {_fmt_int(stats.get('users', {}).get('valid_users'))} valid / {_fmt_int(stats.get('users', {}).get('total'))} total",
@@ -104,22 +114,22 @@ def format_data_validation_slack_summary(response: dict) -> str:
         f"• Survey responses: {_fmt_int(survey_response_tbl.get('valid_survey_responses'))} valid / {_fmt_int(survey_response_tbl.get('total'))} total",
         f"• Users with surveys — student: {_fmt_int(users_with_surveys.get('student'))} · teacher: {_fmt_int(users_with_surveys.get('teacher'))} · caregiver: {_fmt_int(users_with_surveys.get('caregiver'))}",
         f"• Invalid rows: {_fmt_int(stats.get('invalid_data_count'))}",
-    ]
+        ])
 
-    per_org = stats.get("orgs") or {}
-    if isinstance(per_org, dict) and per_org:
-        lines.append("")
-        lines.append("*Per org*")
-        for oid, ost in list(per_org.items())[:5]:
-            u = ost.get("users", {})
-            r = ost.get("runs", {})
-            lines.append(
-                f"• `{oid}` — users {_fmt_int(u.get('valid_users'))}/{_fmt_int(u.get('total'))}, "
-                f"disabled {_fmt_int(u.get('disabled'))}, archived {_fmt_int(u.get('archived'))}, "
-                f"runs {_fmt_int(r.get('valid_runs'))}/{_fmt_int(r.get('total'))}"
-            )
-        if len(per_org) > 5:
-            lines.append(f"• _…and {len(per_org) - 5} more org(s)_")
+        per_org = stats.get("orgs") or {}
+        if isinstance(per_org, dict) and per_org:
+            lines.append("")
+            lines.append("*Per org*")
+            for oid, ost in list(per_org.items())[:5]:
+                u = ost.get("users", {})
+                r = ost.get("runs", {})
+                lines.append(
+                    f"• `{oid}` — users {_fmt_int(u.get('valid_users'))}/{_fmt_int(u.get('total'))}, "
+                    f"disabled {_fmt_int(u.get('disabled'))}, archived {_fmt_int(u.get('archived'))}, "
+                    f"runs {_fmt_int(r.get('valid_runs'))}/{_fmt_int(r.get('total'))}"
+                )
+            if len(per_org) > 5:
+                lines.append(f"• _…and {len(per_org) - 5} more org(s)_")
 
     if gcp:
         file_updated_details = gcp.get('file_updated_details') or []
@@ -181,7 +191,11 @@ def format_data_validation_slack_summary(response: dict) -> str:
         err = process.get("error")
         processed_id = process.get("processed_dataset_id") or "—"
         if ran and not err:
-            status = "completed"
+            status = (
+                "completed on existing raw"
+                if process.get("update") == "processed"
+                else "completed"
+            )
         elif err:
             status = f"failed — {err}"
         elif process.get("retry_release_only"):
@@ -189,7 +203,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
         elif process.get("catch_up_without_new_raw"):
             status = "catch-up (no new raw)"
         elif process.get("skipped"):
-            reason = process.get("skip_reason") or "skip_process_dataset=true"
+            reason = process.get("skip_reason") or "update=raw"
             if reason == "schema_only_raw":
                 status = "skipped (schema-only raw; no process_dataset or processed release)"
             else:
@@ -242,6 +256,10 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 f"• Processed dataset `{processed_id}` · {release_s} · {airtable_s}",
             ]
         )
+        if process.get("update") == "processed":
+            lines.append(
+                "• Firestore, GCS, and raw Redivis upload were skipped."
+            )
         if process.get("retry_release_only") and release.get("released"):
             lines.append(
                 "• GCS/raw unchanged this run; published leftover unreleased "
@@ -261,7 +279,7 @@ def format_data_validation_slack_summary(response: dict) -> str:
                 "unchanged GCS will only try `release()` again."
             )
 
-    if validation_only:
+    if validation_only and not processed_only:
         lines.extend(
             [
                 "",

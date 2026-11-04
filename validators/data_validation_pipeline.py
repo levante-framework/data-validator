@@ -2,6 +2,7 @@
 Firestore → validate → GCS → Redivis pipeline (``main.py`` / Cloud Run Job calls ``run_data_validation``).
 """
 
+import copy
 import json
 import logging
 import time
@@ -83,8 +84,8 @@ def _process_skip_reason(
     dataset_parameters: utils.DatasetParameters,
     validated_data: dict | None = None,
 ) -> str | None:
-    if dataset_parameters.skip_process_dataset:
-        return "skip_process_dataset=true"
+    if dataset_parameters.update == "raw":
+        return "update=raw"
     if utils.is_schema_only_export(validated_data or {}):
         return "schema_only_raw"
     return None
@@ -225,6 +226,81 @@ def _catch_up_processed_without_new_raw(
     return _stamp_airtable_processed_date(process_log)
 
 
+def _carried_validation_stats(prior_stats: dict | None) -> dict | None:
+    """Standing counts from the last validation log.
+
+    ``new_schemas`` records what that run discovered. The weekly health
+    section sums it across every log in the window, so copying it would
+    count the same schema twice.
+    """
+    if not isinstance(prior_stats, dict) or not prior_stats:
+        return None
+    stats = copy.deepcopy(prior_stats)
+    stats["new_schemas"] = {"runs": [], "trials": [], "surveys": []}
+    return stats
+
+
+def _run_processed_from_existing_raw(
+    dataset_parameters: utils.DatasetParameters,
+    *,
+    start_time: float,
+) -> tuple[str, int]:
+    """Run process_dataset on the current raw release. No Firestore pull or raw upload.
+
+    The Firestore log still carries the previous ``total_validation_stats``.
+    This run does not re-count users, runs, or trials, and the weekly report
+    treats the latest log in the window as the current snapshot.
+    """
+    raw_id = (dataset_parameters.dataset_id or "").strip()
+    firestore_project = firestore_services.admin_db_project_id
+    logging.info(
+        "update=processed for %r — skipping Firestore, GCS, and raw Redivis upload",
+        raw_id,
+    )
+    process_log = RedivisServices().run_process_dataset_workflow(
+        raw_dataset_id=raw_id,
+        release_processed=dataset_parameters.release_processed_dataset,
+    )
+    process_log["update"] = "processed"
+    process_log = _stamp_airtable_processed_date(process_log)
+    prior_stats = _carried_validation_stats(
+        firestore_services.get_latest_validation_stats(raw_id)
+    )
+    logs = {"process_dataset": process_log}
+    if prior_stats is not None:
+        logs["total_validation_stats"] = prior_stats
+        logging.info(
+            "update=processed for %r — carried forward total_validation_stats "
+            "from the latest validation log",
+            raw_id,
+        )
+    else:
+        logging.warning(
+            "update=processed for %r — no prior total_validation_stats to "
+            "carry forward",
+            raw_id,
+        )
+    elapsed_time = time.time() - start_time
+    response = {
+        "operation": "data_validation",
+        "dataset_parameters": dataset_parameters.to_dict(),
+        "firestore_project": firestore_project,
+        "logs": logs,
+        "elapsed_time": elapsed_time,
+        "api_version": settings.config["VERSION"],
+        "new_version_release": False,
+        "process_dataset": process_log,
+    }
+    logging.info(json.dumps(response, cls=utils.CustomJSONEncoder))
+    firestore_services.set_logs_to_firebase(
+        response=response, dataset_id=raw_id
+    )
+    if dataset_parameters.send_slack:
+        _notify_slack_safe(message=format_data_validation_slack_summary(response))
+    status = 500 if process_log.get("error") else 200
+    return json.dumps(response, cls=utils.CustomJSONEncoder), status
+
+
 def run_data_validation(
     dataset_parameters: utils.DatasetParameters,
     *,
@@ -243,6 +319,11 @@ def run_data_validation(
     ``slack_summary_always`` is set for debugging.
     """
     t0 = start_time if start_time is not None else time.time()
+
+    if dataset_parameters.update == "processed":
+        return _run_processed_from_existing_raw(
+            dataset_parameters, start_time=t0
+        )
 
     # Touch the admin client once so the Firestore project is logged before queries.
     firestore_project = firestore_services.admin_db_project_id
@@ -504,7 +585,7 @@ def run_data_validation(
 
             # After a successful raw release, run process_dataset for this site:
             # source = dataset_id (*-raw), target = unmarked {Name}.
-            # Opt out with skip_process_dataset=true (cron payloads omit it).
+            # Opt out with update="raw" (cron payloads omit update).
             raw_suffix = settings.config["RAW_DATASET_SUFFIX"]
             raw_id = dataset_parameters.dataset_id or ""
             if release_ok and raw_id.endswith(raw_suffix):
