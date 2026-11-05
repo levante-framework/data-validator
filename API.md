@@ -186,6 +186,37 @@ active/quiet/missing.
 
 ---
 
+## `daily_redivis_datasets_report`
+
+End-of-day raw / processed version summary for `#daily-redivis-datasets-report`.
+Cloud Scheduler runs this at **1:30pm PT**, after the per-site jobs that start
+between 12:00 and 12:29 PT.
+
+```json
+{
+  "operation": "daily_redivis_datasets_report",
+  "dry_run": false
+}
+```
+
+| Field | Required | Default | Meaning |
+|-------|----------|---------|---------|
+| `operation` | **yes** | — | Must be `daily_redivis_datasets_report`. |
+| `dry_run` | no | `false` | `true`: build the message and do not post Slack. |
+
+The message lists sites whose run failed and sites whose raw or processed
+version changed today. Processed `before → after` comes from that day's
+Firestore log. Raw is `released` or `unchanged` from the same log. A failure
+is listed even when raw was also released. A newer execution that is still
+running, or that failed before writing a log, overrides an earlier log.
+Unchanged sites are a count. A per-site execution still going at report time
+is listed under still running. Sites with no log and no execution today are
+listed under no run. Posts only to Secret Manager secret
+`slackDailyRedivisDatasetsReportWebHook` (no fallback to `validator-info`).
+The job exits non-zero if that post fails.
+
+---
+
 ## `open_assignments_sync`
 
 ```json

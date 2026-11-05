@@ -94,6 +94,7 @@ Optional top-level `operation` (default `data_validation`):
 | `data_validation` | Full validate → GCS → Redivis pipeline |
 | `open_assignments_sync` | Sync open assignments from Airtable |
 | `weekly_report` | Weekly ops report to Slack |
+| `daily_redivis_datasets_report` | End-of-day raw/processed version summary to Slack |
 | `redivis_individual_release` | Per-site scheduler + Redivis provisioning |
 | `special_dataset_validation` | Build a multi-site raw/processed dataset from Airtable Special Dataset rows |
 
@@ -174,6 +175,19 @@ flowchart TD
 ```json
 {"operation": "weekly_report", "dry_run": false, "weeks": 1}
 ```
+
+```json
+{"operation": "daily_redivis_datasets_report", "dry_run": false}
+```
+
+Posts one message to `#daily-redivis-datasets-report` (secret
+`slackDailyRedivisDatasetsReportWebHook`). Lists failed sites and sites whose
+raw or processed version changed today. Processed `before → after` comes from
+that day's Firestore log. Unchanged sites are a count. Scheduled at 1:30pm PT,
+after the noon per-site jobs. A newer execution that is still running is
+listed as still running, including when an earlier log exists.
+
+
 
 `weeks` widens the window to the last N complete Mon–Sun PST weeks (default 1).
 Only `weeks=1` stores the schema-drift snapshot. Totals use `old → new (+Δ)`
@@ -296,7 +310,8 @@ API-Key: <validator api key>
 }
 ```
 
-Optional `"operation"` for auxiliary jobs: `weekly_report`, `open_assignments_sync`,
+Optional `"operation"` for auxiliary jobs: `weekly_report`,
+`daily_redivis_datasets_report`, `open_assignments_sync`,
 `redivis_individual_release`, `migrate_scheduler_jobs`.
 
 ### Postman / curl example
@@ -433,8 +448,9 @@ Unchanged behavior for validation jobs:
 - Final summary on success
 - Crash / failure alerts always posted for validation failures
 
-Auxiliary operations (`weekly_report`, `redivis_individual_release`) use their
-existing Slack formatters.
+Auxiliary operations (`weekly_report`, `daily_redivis_datasets_report`,
+`redivis_individual_release`) use their existing Slack formatters. The daily
+Redivis summary posts only to `slackDailyRedivisDatasetsReportWebHook`.
 
 ## Acknowledgments
 

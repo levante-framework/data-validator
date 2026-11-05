@@ -14,6 +14,9 @@ config = {
     # Optional: Secret Manager id for the weekly-report channel webhook. If the
     # secret is missing the weekly report falls back to SLACK_NOTIFICATION_WEB_HOOK.
     'SLACK_WEEKLY_REPORT_WEBHOOK_SECRET_ID': 'slackWeeklyReportWebHook',
+    # Incoming Webhook for #daily-redivis-datasets-report. The daily summary
+    # does not fall back to the validator-info webhook.
+    'SLACK_DAILY_REDIVIS_DATASETS_REPORT_WEBHOOK_SECRET_ID': 'slackDailyRedivisDatasetsReportWebHook',
     # LEVANTE Entities — Dataset table (field names + base/table ids)
     'AIRTABLE_API_TOKEN_SECRET_ID': 'airtableTokenUpdateEntitiesDatasets',
     'AIRTABLE_LEVANTE_ENTITIES_BASE_ID': 'appIDUfcKdekzTiIJ',

@@ -7,6 +7,7 @@ the first CLI argument, or set ``DATA_VALIDATOR_PAYLOAD_FILE``, or pipe JSON on 
 - ``data_validation`` (default) — full Firestore → validate → GCS → Redivis pipeline
 - ``open_assignments_sync`` — sync open assignments from Airtable
 - ``weekly_report`` — weekly ops report to Slack
+- ``daily_redivis_datasets_report`` — end-of-day raw/processed version summary to Slack
 - ``redivis_individual_release`` — Airtable ↔ Redivis individual provisioning
 - ``special_dataset_validation`` — Airtable special rows → raw + processed dataset
 - ``migrate_scheduler_jobs`` — migrate daily cron jobs to the Cloud Run Job API
@@ -128,6 +129,29 @@ def _run_weekly_report(data: dict) -> int:
     return 0
 
 
+def _run_daily_redivis_datasets_report(data: dict) -> int:
+    from validators.daily_redivis_report import run_daily_redivis_datasets_report
+
+    dry_run = bool(data.get("dry_run", False))
+    try:
+        result = run_daily_redivis_datasets_report(dry_run=dry_run)
+    except Exception:
+        logging.exception("daily_redivis_datasets_report crashed")
+        return 1
+    logging.info(
+        "daily_redivis_datasets_report slack_posted=%s counts=%s",
+        result.get("slack_posted"),
+        result.get("counts"),
+    )
+    if not dry_run and not result.get("slack_posted"):
+        logging.error(
+            "daily_redivis_datasets_report did not post to Slack: %s",
+            result.get("slack_error"),
+        )
+        return 1
+    return 0
+
+
 def _run_migrate_scheduler_jobs(data: dict) -> int:
     from shared.scheduler_services import SchedulerServices
 
@@ -229,6 +253,8 @@ def main() -> int:
         return _run_open_assignments_sync(payload)
     if operation == "weekly_report":
         return _run_weekly_report(payload)
+    if operation == "daily_redivis_datasets_report":
+        return _run_daily_redivis_datasets_report(payload)
     if operation == "redivis_individual_release":
         return _run_redivis_individual_release(payload)
     if operation == "special_dataset_validation":
